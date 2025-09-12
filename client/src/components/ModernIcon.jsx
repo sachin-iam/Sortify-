@@ -28,7 +28,9 @@ import {
   BriefcaseIcon,
   MegaphoneIcon,
   ShieldExclamationIcon,
-  QuestionMarkCircleIcon
+  QuestionMarkCircleIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon
 } from '@heroicons/react/24/outline'
 
 const ModernIcon = ({ 
@@ -107,6 +109,11 @@ const ModernIcon = ({
         return <ShieldExclamationIcon {...iconProps} />
       case 'other':
         return <QuestionMarkCircleIcon {...iconProps} />
+      // Navigation icons
+      case 'chevron-left':
+        return <ChevronLeftIcon {...iconProps} />
+      case 'chevron-right':
+        return <ChevronRightIcon {...iconProps} />
       default:
         return <EnvelopeIcon {...iconProps} />
     }

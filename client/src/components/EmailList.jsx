@@ -109,48 +109,76 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
       
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="mt-6 space-y-3">
-          <div className="text-center text-sm text-slate-600">
+        <div className="mt-3 space-y-2">
+          <div className="text-center text-xs text-slate-600">
             Showing {((currentPage - 1) * 25) + 1}-{Math.min(currentPage * 25, totalEmails)} of {totalEmails} emails
           </div>
-          <div className="flex items-center justify-center gap-2">
+          <div className="flex items-center justify-center gap-6">
             <button
               onClick={() => onPageChange(currentPage - 1)}
               disabled={currentPage === 1}
-              className="px-3 py-2 rounded-lg bg-white/20 border border-white/30 text-slate-600 hover:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
+              className="w-5 h-5 rounded-full bg-white/10 border border-white/30 text-slate-600 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center"
             >
-              <ModernIcon type="menu" size={12} color="#6b7280" />
-              Previous
+              <ModernIcon type="chevron-left" size={6} color="#6b7280" />
             </button>
             
-            <div className="flex gap-1">
-              {[...Array(Math.min(5, totalPages))].map((_, index) => {
-                const pageNum = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + index
-                if (pageNum > totalPages) return null
+            <div className="flex gap-2 flex-wrap justify-center">
+              {(() => {
+                const pageNumbers = []
                 
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => onPageChange(pageNum)}
-                    className={`px-3 py-2 rounded-lg transition-all duration-200 ${
-                      currentPage === pageNum
-                        ? 'bg-blue-500 text-white shadow-lg'
-                        : 'bg-white/20 border border-white/30 text-slate-600 hover:bg-white/30'
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                )
-              })}
+                if (totalPages <= 5) {
+                  // Show all pages if 5 or fewer
+                  for (let i = 1; i <= totalPages; i++) {
+                    pageNumbers.push(i)
+                  }
+                } else {
+                  // Show first 3 pages
+                  pageNumbers.push(1, 2, 3)
+                  
+                  // Add ellipsis if there's a gap
+                  if (totalPages > 4) {
+                    pageNumbers.push('...')
+                  }
+                  
+                  // Add last page
+                  pageNumbers.push(totalPages)
+                }
+                
+                return pageNumbers.map((pageNum, index) => {
+                  if (pageNum === '...') {
+                    return (
+                      <span
+                        key={`ellipsis-${index}`}
+                        className="w-4 h-4 rounded-full flex items-center justify-center text-xs font-medium text-slate-600"
+                      >
+                        ...
+                      </span>
+                    )
+                  }
+                  
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => onPageChange(pageNum)}
+                      className={`w-4 h-4 rounded-full transition-all duration-200 flex items-center justify-center text-xs font-medium ${
+                        currentPage === pageNum
+                          ? 'bg-blue-500 text-white shadow-lg'
+                          : 'bg-white/20 border border-white/30 text-slate-600 hover:bg-white/30'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  )
+                })
+              })()}
             </div>
             
             <button
               onClick={() => onPageChange(currentPage + 1)}
               disabled={currentPage === totalPages}
-              className="px-3 py-2 rounded-lg bg-white/20 border border-white/30 text-slate-600 hover:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
+              className="w-5 h-5 rounded-full bg-white/10 border border-white/30 text-slate-600 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center"
             >
-              Next
-              <ModernIcon type="menu" size={12} color="#6b7280" />
+              <ModernIcon type="chevron-right" size={6} color="#6b7280" />
             </button>
           </div>
         </div>
