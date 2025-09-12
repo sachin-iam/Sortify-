@@ -3,9 +3,11 @@ import { useAuth } from '../contexts/AuthContext'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 import EmailList from '../components/EmailList'
-import CategoryFilter from '../components/CategoryFilter'
+import EmailReader from '../components/EmailReader'
+import CategoryTabs from '../components/CategoryTabs'
 import AnalyticsDashboard from '../components/AnalyticsDashboard'
 import { api } from '../services/api'
+import emailService from '../services/emailService'
 import ModernIcon from '../components/ModernIcon'
 
 const Dashboard = () => {
@@ -22,6 +24,17 @@ const Dashboard = () => {
     categories: 0,
     processedToday: 0
   })
+
+  // New state for email management
+  const [emails, setEmails] = useState([])
+  const [selectedEmailId, setSelectedEmailId] = useState(null)
+  const [selectedEmail, setSelectedEmail] = useState(null)
+  const [currentCategory, setCurrentCategory] = useState('All')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [emailsLoading, setEmailsLoading] = useState(false)
+  const [emailDetailLoading, setEmailDetailLoading] = useState(false)
 
   // Check current connection status on component mount
   useEffect(() => {
@@ -71,6 +84,67 @@ const Dashboard = () => {
     }
   }, [token])
 
+  // Load emails function
+  const loadEmails = async () => {
+    if (!token) return
+    
+    setEmailsLoading(true)
+    try {
+      const response = await emailService.list({
+        page: currentPage,
+        category: currentCategory,
+        provider: 'gmail',
+        q: searchQuery
+      })
+      
+      if (response.success) {
+        setEmails(response.items || [])
+        setTotalPages(Math.ceil(response.total / 25))
+        
+        // Select first email if none selected
+        if (response.items && response.items.length > 0 && !selectedEmailId) {
+          setSelectedEmailId(response.items[0]._id)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load emails:', error)
+      toast.error('Failed to load emails')
+    } finally {
+      setEmailsLoading(false)
+    }
+  }
+
+  // Load email details
+  const loadEmailDetails = async (emailId) => {
+    if (!emailId) return
+    
+    setEmailDetailLoading(true)
+    try {
+      const response = await emailService.detail(emailId)
+      if (response.success) {
+        setSelectedEmail(response.email)
+      }
+    } catch (error) {
+      console.error('Failed to load email details:', error)
+      toast.error('Failed to load email details')
+    } finally {
+      setEmailDetailLoading(false)
+    }
+  }
+
+  // Load emails when filters change
+  useEffect(() => {
+    if (token && gmailConnected) {
+      loadEmails()
+    }
+  }, [token, gmailConnected, currentCategory, searchQuery, currentPage])
+
+  // Load email details when selection changes
+  useEffect(() => {
+    if (selectedEmailId) {
+      loadEmailDetails(selectedEmailId)
+    }
+  }, [selectedEmailId])
 
   const handleGmailConnection = async () => {
     setConnectingGmail(true)
@@ -137,19 +211,13 @@ const Dashboard = () => {
     setSyncLoading(true)
     try {
       // Try comprehensive sync first
-      const response = await api.post('/api/emails/gmail/sync-all')
-      if (response.data.success) {
-        toast.success(`Synced ${response.data.syncedCount} emails from Gmail`)
+      const response = await emailService.syncGmail()
+      if (response.success) {
+        toast.success(`Synced ${response.syncedCount} emails from Gmail`)
         loadStats()
+        loadEmails() // Refresh email list
       } else {
-        // Fallback to regular sync
-        const fallbackResponse = await api.post('/api/emails/gmail/sync')
-        if (fallbackResponse.data.success) {
-          toast.success(`Synced ${fallbackResponse.data.syncedCount} emails from Gmail`)
-          loadStats()
-        } else {
-          toast.error(fallbackResponse.data.error || 'Failed to sync Gmail emails')
-        }
+        toast.error(response.message || 'Failed to sync Gmail emails')
       }
     } catch (error) {
       console.error('Sync error:', error)
@@ -159,32 +227,64 @@ const Dashboard = () => {
     }
   }
 
-  const syncOutlookEmails = async () => {
-    if (!token) {
-      toast.error('Please login first')
-      return
-    }
-    
-    if (!outlookConnected) {
-      toast.error('Please connect your Microsoft Outlook account first')
-      return
-    }
-    
-    setSyncLoading(true)
+  // Email action handlers
+  const handleEmailSelect = (emailId) => {
+    setSelectedEmailId(emailId)
+  }
+
+  const handleEmailArchive = async (emailId) => {
     try {
-      const response = await api.post('/api/emails/outlook/sync')
-      if (response.data.success) {
-        toast.success(`Synced ${response.data.savedCount} emails from Outlook`)
-        loadStats()
-      } else {
-        toast.error(response.data.error || 'Failed to sync Outlook emails')
+      await emailService.archive(emailId)
+      toast.success('Email archived')
+      loadEmails() // Refresh list
+      if (selectedEmailId === emailId) {
+        setSelectedEmailId(null)
+        setSelectedEmail(null)
       }
     } catch (error) {
-      console.error('Sync error:', error)
-      toast.error('Failed to sync emails')
-    } finally {
-      setSyncLoading(false)
+      console.error('Archive error:', error)
+      toast.error('Failed to archive email')
     }
+  }
+
+  const handleEmailDelete = async (emailId) => {
+    try {
+      await emailService.remove(emailId)
+      toast.success('Email deleted')
+      loadEmails() // Refresh list
+      if (selectedEmailId === emailId) {
+        setSelectedEmailId(null)
+        setSelectedEmail(null)
+      }
+    } catch (error) {
+      console.error('Delete error:', error)
+      toast.error('Failed to delete email')
+    }
+  }
+
+  const handleEmailExport = async (emailId) => {
+    try {
+      await emailService.export(emailId)
+      toast.success('Email exported')
+    } catch (error) {
+      console.error('Export error:', error)
+      toast.error('Failed to export email')
+    }
+  }
+
+  const handleCategoryChange = (category) => {
+    setCurrentCategory(category)
+    setCurrentPage(1) // Reset to first page
+  }
+
+  const handleSearchChange = (query) => {
+    setSearchQuery(query)
+    setCurrentPage(1) // Reset to first page
+  }
+
+  const syncOutlookEmails = async () => {
+    // Outlook sync is coming soon
+    toast.error('Outlook sync coming soon!', { duration: 3000 })
   }
 
   return (
@@ -287,30 +387,38 @@ const Dashboard = () => {
             <p className="text-slate-600">Processed Today</p>
           </div>
           <div className="card-glass text-center">
-            <div className="flex space-x-2 mb-2">
+            <div className="space-y-3">
+              {/* Gmail Sync Button */}
               <button 
                 onClick={syncGmailEmails}
                 disabled={syncLoading || !gmailConnected}
-                className="flex-1 py-2 px-3 text-sm bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors disabled:opacity-50"
+                className="w-full py-3 px-4 text-sm bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {syncLoading ? '🔄' : '🔄'} Gmail
+                {syncLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-green-400 border-t-transparent"></div>
+                    Syncing Gmail...
+                  </>
+                ) : (
+                  <>
+                    <ModernIcon type="email" size={16} color="#10b981" />
+                    Sync Gmail Inbox
+                  </>
+                )}
               </button>
+              
+              {/* Outlook Sync Button */}
               <button 
                 onClick={syncOutlookEmails}
                 disabled={true}
-                className="flex-1 py-2 px-3 text-sm bg-gray-500/20 text-gray-400 rounded-lg cursor-not-allowed"
+                className="w-full py-3 px-4 text-sm bg-gray-500/20 text-gray-400 rounded-lg cursor-not-allowed flex items-center justify-center gap-2 opacity-50"
+                title="Outlook sync coming soon"
               >
-                🚧 Outlook
+                <ModernIcon type="outlook" size={16} color="#6b7280" />
+                Outlook (Coming Soon)
               </button>
             </div>
-            <button 
-              onClick={syncGmailEmails}
-              disabled={syncLoading || !gmailConnected}
-              className="w-full py-2 px-3 text-sm bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors disabled:opacity-50"
-            >
-              {syncLoading ? '🔄 Syncing All Emails...' : '📥 Sync All Gmail Emails'}
-            </button>
-            <p className="text-slate-600 text-sm mt-2">Sync Emails</p>
+            <p className="text-slate-600 text-sm mt-3">Email Sync Services</p>
           </div>
         </motion.div>
 
@@ -346,6 +454,7 @@ const Dashboard = () => {
         </motion.div>
 
         {/* Content */}
+
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -353,8 +462,81 @@ const Dashboard = () => {
         >
           {activeView === 'emails' ? (
             <div className="space-y-6">
-              <CategoryFilter />
-              <EmailList />
+              {/* Top Bar with Provider Selector and Search */}
+              <div className="backdrop-blur-xl bg-white/30 border border-white/20 rounded-2xl p-4">
+                <div className="flex flex-col lg:flex-row gap-4">
+                  {/* Provider Selector */}
+                  <div className="flex gap-2">
+                    <button className="px-4 py-2 bg-emerald-500 text-white rounded-lg font-medium shadow-lg">
+                      Gmail
+                    </button>
+                    <button 
+                      disabled
+                      className="px-4 py-2 bg-slate-200/60 text-slate-400 rounded-lg font-medium cursor-not-allowed"
+                    >
+                      Outlook
+                      <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                        Coming Soon
+                      </span>
+                    </button>
+                  </div>
+                  
+                  {/* Search Input */}
+                  <div className="flex-1">
+                    <div className="relative">
+                      <ModernIcon 
+                        type="search" 
+                        size={20} 
+                        color="#6b7280" 
+                        className="absolute left-3 top-1/2 transform -translate-y-1/2"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Search emails..."
+                        value={searchQuery}
+                        onChange={(e) => handleSearchChange(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 bg-white/40 border border-white/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Category Tabs */}
+              <CategoryTabs 
+                value={currentCategory} 
+                onChange={handleCategoryChange} 
+              />
+
+              {/* Two-Pane Layout */}
+              <div className="grid grid-cols-1 lg:grid-cols-[420px,1fr] gap-6 min-h-[600px]">
+                {/* Left Column - Email List */}
+                <div className="backdrop-blur-xl bg-white/30 border border-white/20 rounded-2xl p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-slate-800">Emails</h3>
+                    <span className="text-sm text-slate-600">
+                      {emails.length} emails
+                    </span>
+                  </div>
+                  <EmailList
+                    items={emails}
+                    selectedId={selectedEmailId}
+                    onSelect={handleEmailSelect}
+                    loading={emailsLoading}
+                  />
+                </div>
+
+                {/* Right Column - Email Reader */}
+                <div className="backdrop-blur-xl bg-white/30 border border-white/20 rounded-2xl p-4">
+                  <EmailReader
+                    email={selectedEmail}
+                    onArchive={handleEmailArchive}
+                    onDelete={handleEmailDelete}
+                    onExport={handleEmailExport}
+                    loading={emailDetailLoading}
+                  />
+                </div>
+              </div>
             </div>
           ) : (
             <AnalyticsDashboard />

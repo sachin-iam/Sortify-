@@ -8,6 +8,7 @@ import ModernIcon from '../components/ModernIcon'
 const Settings = () => {
   const { user, logout } = useAuth()
   const [loading, setLoading] = useState(false)
+  const [syncLoading, setSyncLoading] = useState(false)
   const [userData, setUserData] = useState({
     name: '',
     email: '',
@@ -129,6 +130,47 @@ const Settings = () => {
       toast.error('Failed to disconnect Microsoft Outlook account')
       console.error('Outlook disconnect error:', error)
     }
+  }
+
+  const handleSyncGmailInbox = async () => {
+    if (!user?.gmailConnected) {
+      toast.error('Please connect your Gmail account first')
+      return
+    }
+
+    setSyncLoading(true)
+    try {
+      const response = await api.post('/api/emails/gmail/sync-all')
+      
+      if (response.data.success) {
+        const { syncedCount, total, classified, categoryBreakdown } = response.data
+        
+        toast.success(
+          `🎉 Gmail sync completed! Synced ${syncedCount} emails (${classified} classified)`,
+          { duration: 5000 }
+        )
+        
+        // Show detailed breakdown
+        if (categoryBreakdown) {
+          const breakdown = Object.entries(categoryBreakdown)
+            .map(([category, count]) => `${category}: ${count}`)
+            .join(', ')
+          console.log('📊 Category breakdown:', breakdown)
+        }
+      } else {
+        toast.error(response.data.message || 'Failed to sync Gmail inbox')
+      }
+    } catch (error) {
+      console.error('Gmail sync error:', error)
+      toast.error(error.response?.data?.message || 'Failed to sync Gmail inbox')
+    } finally {
+      setSyncLoading(false)
+    }
+  }
+
+  const handleSyncOutlookInbox = async () => {
+    // This function is disabled but we can show a toast
+    toast.error('Outlook sync coming soon!', { duration: 3000 })
   }
 
   return (
@@ -301,33 +343,146 @@ const Settings = () => {
             </form>
           </motion.div>
 
-          {/* Connected Accounts */}
+          {/* Email Sync Services */}
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.4 }}
             className="card-glass p-6"
           >
-            <h2 className="text-xl font-semibold text-slate-800 mb-6">Connected Accounts</h2>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
-                <div className="flex items-center space-x-3">
+            <h2 className="text-xl font-semibold text-slate-800 mb-6 flex items-center gap-2">
+              <ModernIcon type="sync" size={24} color="#3b82f6" />
+              Email Sync Services
+            </h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Gmail Sync */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-orange-500 rounded-lg flex items-center justify-center">
                     <ModernIcon type="email" size={20} color="#ffffff" glassEffect={false} />
                   </div>
                   <div>
                     <h3 className="text-slate-800 font-medium">Gmail</h3>
-                    <p className="text-slate-600 text-sm">Connected for email sync</p>
+                    <p className="text-slate-600 text-sm">Google Mail Integration</p>
                   </div>
                 </div>
-                <button
-                  onClick={handleDisconnectGmail}
-                  className="px-4 py-2 text-sm text-red-400 hover:text-red-300 border border-red-500/30 rounded-lg hover:bg-red-500/10 transition-colors"
-                >
-                  Disconnect
-                </button>
+                
+                {user?.gmailConnected ? (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <ModernIcon type="check" size={20} color="#10b981" />
+                        <div>
+                          <h4 className="text-slate-800 font-medium">Gmail Connected</h4>
+                          <p className="text-slate-600 text-sm">Ready for full inbox sync</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                      <h4 className="text-slate-800 font-medium mb-2">📥 Sync All Gmail Emails</h4>
+                      <p className="text-slate-600 text-sm mb-4">
+                        Sync your entire Gmail inbox with AI-powered classification
+                      </p>
+                      <button
+                        onClick={handleSyncGmailInbox}
+                        disabled={syncLoading}
+                        className="w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+                      >
+                        {syncLoading ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                            Syncing Gmail Inbox...
+                          </>
+                        ) : (
+                          <>
+                            <ModernIcon type="sync" size={16} color="#ffffff" />
+                            Sync Gmail Inbox Now
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={handleDisconnectGmail}
+                      className="w-full px-4 py-2 text-sm text-red-400 hover:text-red-300 border border-red-500/30 rounded-lg hover:bg-red-500/10 transition-colors"
+                    >
+                      Disconnect Gmail
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <ModernIcon type="warning" size={20} color="#f59e0b" />
+                      <div>
+                        <h4 className="text-slate-800 font-medium">Gmail Not Connected</h4>
+                        <p className="text-slate-600 text-sm">Connect to sync emails</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
+              {/* Outlook Sync */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center">
+                    <ModernIcon type="outlook" size={20} color="#ffffff" glassEffect={false} />
+                  </div>
+                  <div>
+                    <h3 className="text-slate-800 font-medium">Outlook</h3>
+                    <p className="text-slate-600 text-sm">Microsoft Outlook Integration</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="p-4 bg-gray-500/10 border border-gray-500/20 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <ModernIcon type="clock" size={20} color="#6b7280" />
+                      <div>
+                        <h4 className="text-slate-800 font-medium">Coming Soon</h4>
+                        <p className="text-slate-600 text-sm">Outlook integration in development</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-gray-500/10 border border-gray-500/20 rounded-lg">
+                    <h4 className="text-slate-800 font-medium mb-2">📥 Sync Outlook Emails</h4>
+                    <p className="text-slate-600 text-sm mb-4">
+                      Full Outlook inbox sync with AI classification
+                    </p>
+                    <button
+                      onClick={handleSyncOutlookInbox}
+                      disabled
+                      className="w-full bg-gray-400 text-white px-4 py-2 rounded-lg cursor-not-allowed flex items-center justify-center gap-2 opacity-50"
+                      title="Outlook sync coming soon"
+                    >
+                      <ModernIcon type="sync" size={16} color="#ffffff" />
+                      Coming Soon
+                    </button>
+                  </div>
+
+                  <div className="text-center">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      <ModernIcon type="info" size={12} color="#3b82f6" className="mr-1" />
+                      Coming Soon
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Connected Accounts */}
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="card-glass p-6"
+          >
+            <h2 className="text-xl font-semibold text-slate-800 mb-6">Connected Accounts</h2>
+            <div className="space-y-4">
               <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center">
@@ -352,7 +507,7 @@ const Settings = () => {
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.5 }}
+            transition={{ delay: 0.6 }}
             className="card-glass p-6 border border-red-500/20"
           >
             <h2 className="text-xl font-semibold text-red-400 mb-6">Danger Zone</h2>

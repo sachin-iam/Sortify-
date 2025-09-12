@@ -6,6 +6,7 @@ import User from '../models/User.js'
 import Email from '../models/Email.js'
 import { classifyEmail } from '../services/classificationService.js'
 import { startRealtimeSync, stopRealtimeSync, isSyncActive } from '../services/realtimeSync.js'
+import { fullSync, syncLabels } from '../services/gmailSyncService.js'
 
 const router = express.Router()
 
@@ -146,114 +147,34 @@ router.post('/gmail/sync-all', protect, asyncHandler(async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
     
-    if (!user.gmailConnected || !user.gmailAccessToken) {
+    if (!user.gmailConnected) {
       return res.status(400).json({
         success: false,
         message: 'Gmail account not connected'
       })
     }
 
-    const gmail = getGmailClient(user.gmailAccessToken, user.gmailRefreshToken)
+    console.log(`🚀 Starting comprehensive Gmail sync for user: ${user.email}`)
     
-    let totalSynced = 0
-    let nextPageToken = null
-    const batchSize = 100 // Process 100 emails at a time
-    const maxEmails = 200 // Limit total emails to 200
+    // Use the new comprehensive sync service
+    const result = await fullSync(user)
     
-    console.log('Starting comprehensive Gmail sync...')
-
-    do {
-      // Get emails in batches
-      const response = await gmail.users.messages.list({
-        userId: 'me',
-        maxResults: batchSize,
-        pageToken: nextPageToken,
-        q: 'in:inbox'
+    if (result.success) {
+      res.json({
+        success: true,
+        message: result.message,
+        syncedCount: result.synced,
+        total: result.total,
+        classified: result.classified,
+        skipped: result.skipped,
+        categoryBreakdown: result.categoryBreakdown
       })
-
-      const messages = response.data.messages || []
-      nextPageToken = response.data.nextPageToken
-      
-      console.log(`Processing batch of ${messages.length} emails...`)
-
-      for (const message of messages) {
-        try {
-          // Skip if message.id is null or undefined
-          if (!message.id) {
-            console.log('Skipping message with null/undefined ID')
-            continue
-          }
-
-          // Get full message details
-          const messageData = await gmail.users.messages.get({
-            userId: 'me',
-            id: message.id,
-            format: 'full'
-          })
-
-          const headers = messageData.data.payload.headers
-          const getHeader = (name) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value
-
-          // Classify the email automatically
-          const subject = getHeader('Subject') || 'No Subject'
-          const snippet = messageData.data.snippet || ''
-          const body = messageData.data.payload.body?.data || ''
-          
-          const classification = classifyEmail(subject, snippet, body)
-
-          const emailData = {
-            userId: user._id,
-            gmailId: message.id,
-            messageId: message.id,
-            threadId: messageData.data.threadId || null,
-            subject,
-            from: getHeader('From') || 'Unknown Sender',
-            to: getHeader('To') || user.email,
-            date: new Date(parseInt(messageData.data.internalDate)),
-            snippet,
-            body,
-            isRead: !messageData.data.labelIds?.includes('UNREAD'),
-            labels: messageData.data.labelIds || [],
-            category: classification.label,
-            classification: {
-              label: classification.label,
-              confidence: classification.confidence
-            }
-          }
-
-          // Use upsert to avoid duplicate key errors
-          await Email.findOneAndUpdate(
-            { messageId: message.id, userId: user._id },
-            emailData,
-            { upsert: true, new: true }
-          )
-          totalSynced++
-
-        } catch (error) {
-          console.error(`Error syncing email ${message.id}:`, error)
-          continue
-        }
-      }
-
-      console.log(`Batch completed. Total synced so far: ${totalSynced}`)
-
-      // Stop if we've reached the maximum number of emails
-      if (totalSynced >= maxEmails) {
-        console.log(`Reached maximum email limit of ${maxEmails}`)
-        break
-      }
-
-    } while (nextPageToken && totalSynced < maxEmails)
-
-    console.log(`Comprehensive sync completed. Total emails synced: ${totalSynced}`)
-
-    // Analytics will be updated automatically via frontend polling
-
-    res.json({
-      success: true,
-      message: `Comprehensive sync completed. Synced ${totalSynced} emails from Gmail`,
-      syncedCount: totalSynced
-    })
+    } else {
+      res.status(500).json({
+        success: false,
+        message: result.error || 'Failed to sync Gmail emails'
+      })
+    }
 
   } catch (error) {
     console.error('Comprehensive Gmail sync error:', error)
@@ -269,15 +190,37 @@ router.post('/gmail/sync-all', protect, asyncHandler(async (req, res) => {
 // @access  Private
 router.get('/', protect, asyncHandler(async (req, res) => {
   try {
-    const { page = 1, limit = 20, category, search } = req.query
+    const { 
+      page = 1, 
+      limit = 25, 
+      category, 
+      provider = 'gmail', 
+      q: search 
+    } = req.query
     const skip = (page - 1) * limit
 
     let query = { userId: req.user._id }
 
-    if (category && category !== 'all') {
+    // Filter by provider (default to gmail)
+    if (provider === 'gmail') {
+      query.provider = 'gmail'
+    } else if (provider === 'outlook') {
+      // Outlook coming soon - return empty for now
+      return res.json({
+        success: true,
+        items: [],
+        total: 0,
+        page: parseInt(page),
+        limit: parseInt(limit)
+      })
+    }
+
+    // Filter by category
+    if (category && category !== 'All' && category !== 'all') {
       query.category = category
     }
 
+    // Search functionality
     if (search) {
       query.$or = [
         { subject: { $regex: search, $options: 'i' } },
@@ -290,21 +233,17 @@ router.get('/', protect, asyncHandler(async (req, res) => {
       .sort({ date: -1 })
       .skip(skip)
       .limit(parseInt(limit))
+      .select('_id subject from to snippet date category classification isRead labels')
 
     const total = await Email.countDocuments(query)
 
+    // Format response as requested
     res.json({
       success: true,
-      emails,
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(total / limit),
-        total,
-        hasNextPage: page < Math.ceil(total / limit),
-        hasPrevPage: page > 1,
-        nextPage: page < Math.ceil(total / limit) ? page + 1 : null,
-        prevPage: page > 1 ? page - 1 : null
-      }
+      items: emails,
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit)
     })
 
   } catch (error) {
@@ -312,6 +251,37 @@ router.get('/', protect, asyncHandler(async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch emails'
+    })
+  }
+}))
+
+// @desc    Get single email by ID
+// @route   GET /api/emails/:id
+// @access  Private
+router.get('/:id', protect, asyncHandler(async (req, res) => {
+  try {
+    const email = await Email.findOne({ 
+      _id: req.params.id, 
+      userId: req.user._id 
+    })
+
+    if (!email) {
+      return res.status(404).json({
+        success: false,
+        message: 'Email not found'
+      })
+    }
+
+    res.json({
+      success: true,
+      email
+    })
+
+  } catch (error) {
+    console.error('Get email error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch email'
     })
   }
 }))
@@ -792,6 +762,26 @@ router.get('/realtime/status', protect, asyncHandler(async (req, res) => {
       message: 'Failed to get sync status'
     })
   }
+}))
+
+// @desc    Outlook sync (Coming Soon)
+// @route   POST /api/emails/outlook/sync
+// @access  Private
+router.post('/outlook/sync', protect, asyncHandler(async (req, res) => {
+  res.status(501).json({
+    success: false,
+    message: 'Outlook sync coming soon'
+  })
+}))
+
+// @desc    Outlook sync all (Coming Soon)
+// @route   POST /api/emails/outlook/sync-all
+// @access  Private
+router.post('/outlook/sync-all', protect, asyncHandler(async (req, res) => {
+  res.status(501).json({
+    success: false,
+    message: 'Outlook sync coming soon'
+  })
 }))
 
 export default router

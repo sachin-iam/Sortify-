@@ -460,9 +460,9 @@ router.post('/microsoft/connect', protect, asyncHandler(async (req, res) => {
 }))
 
 // @desc    Disconnect Gmail account
-// @route   DELETE /api/auth/gmail/disconnect
+// @route   POST /api/auth/gmail/disconnect
 // @access  Private
-router.delete('/gmail/disconnect', protect, asyncHandler(async (req, res) => {
+router.post('/gmail/disconnect', protect, asyncHandler(async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
     user.gmailConnected = false
