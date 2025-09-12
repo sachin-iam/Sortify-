@@ -9,7 +9,14 @@ const emailSchema = new mongoose.Schema({
   gmailId: {
     type: String,
     unique: true,
-    sparse: true
+    sparse: true,
+    required: false
+  },
+  messageId: {
+    type: String,
+    unique: true,
+    sparse: true,
+    required: false
   },
   threadId: String,
   subject: {
@@ -37,15 +44,22 @@ const emailSchema = new mongoose.Schema({
   labels: [String],
   category: {
     type: String,
-    default: 'inbox',
-    enum: ['inbox', 'important', 'promotions', 'social', 'updates', 'general', 'spam']
+    default: 'Other',
+    enum: ['Academic', 'Promotions', 'Placement', 'Spam', 'Other']
   },
-  confidence: {
-    type: Number,
-    default: 0.5,
-    min: 0,
-    max: 1
+  classification: {
+    label: {
+      type: String,
+      default: 'Other'
+    },
+    confidence: {
+      type: Number,
+      default: 0.5,
+      min: 0,
+      max: 1
+    }
   },
+  archivedAt: Date,
   isArchived: {
     type: Boolean,
     default: false

@@ -77,12 +77,12 @@ const CategoryFilter = () => {
       animate={{ y: 0, opacity: 1 }}
       className="card-glass p-6"
     >
-      <h3 className="text-lg font-semibold text-white mb-4">Filters</h3>
+      <h3 className="text-lg font-semibold text-slate-800 mb-4">Filters</h3>
       
       <div className="space-y-4">
         {/* Provider Filter */}
         <div>
-          <label className="block text-white/90 text-sm font-medium mb-2">
+          <label className="block text-slate-700 text-sm font-medium mb-2">
             Email Provider
           </label>
           <div className="flex flex-wrap gap-2">
@@ -90,8 +90,8 @@ const CategoryFilter = () => {
               onClick={() => handleProviderChange('')}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
                 !currentProvider
-                  ? 'bg-white/20 text-white'
-                  : 'bg-white/10 text-white/70 hover:text-white hover:bg-white/15'
+                  ? 'bg-slate-200/50 text-slate-800'
+                  : 'bg-slate-100/50 text-slate-600 hover:text-slate-800 hover:bg-slate-200/50'
               }`}
             >
               All Providers
@@ -100,8 +100,8 @@ const CategoryFilter = () => {
               onClick={() => handleProviderChange('gmail')}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
                 currentProvider === 'gmail'
-                  ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                  : 'bg-white/10 text-white/70 hover:text-white hover:bg-white/15'
+                  ? 'bg-red-500/20 text-red-600 border border-red-500/30'
+                  : 'bg-slate-100/50 text-slate-600 hover:text-slate-800 hover:bg-slate-200/50'
               }`}
             >
               📧 Gmail
@@ -110,8 +110,8 @@ const CategoryFilter = () => {
               onClick={() => handleProviderChange('outlook')}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
                 currentProvider === 'outlook'
-                  ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                  : 'bg-white/10 text-white/70 hover:text-white hover:bg-white/15'
+                  ? 'bg-blue-500/20 text-blue-600 border border-blue-500/30'
+                  : 'bg-slate-100/50 text-slate-600 hover:text-slate-800 hover:bg-slate-200/50'
               }`}
             >
               📬 Outlook
@@ -121,7 +121,7 @@ const CategoryFilter = () => {
 
         {/* Category Filter */}
         <div>
-          <label className="block text-white/90 text-sm font-medium mb-2">
+          <label className="block text-slate-700 text-sm font-medium mb-2">
             Category
           </label>
           <div className="flex flex-wrap gap-2">
@@ -129,8 +129,8 @@ const CategoryFilter = () => {
               onClick={() => handleLabelChange('')}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
                 !currentLabel
-                  ? 'bg-white/20 text-white'
-                  : 'bg-white/10 text-white/70 hover:text-white hover:bg-white/15'
+                  ? 'bg-slate-200/50 text-slate-800'
+                  : 'bg-slate-100/50 text-slate-600 hover:text-slate-800 hover:bg-slate-200/50'
               }`}
             >
               All Categories
@@ -141,8 +141,8 @@ const CategoryFilter = () => {
                 onClick={() => handleLabelChange(label)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
                   currentLabel === label
-                    ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
-                    : 'bg-white/10 text-white/70 hover:text-white hover:bg-white/15'
+                    ? 'bg-purple-500/20 text-purple-600 border border-purple-500/30'
+                    : 'bg-slate-100/50 text-slate-600 hover:text-slate-800 hover:bg-slate-200/50'
                 }`}
               >
                 {label}
@@ -156,7 +156,7 @@ const CategoryFilter = () => {
           <div className="pt-2">
             <button
               onClick={clearFilters}
-              className="text-white/70 hover:text-white text-sm underline transition-colors"
+              className="text-slate-600 hover:text-slate-800 text-sm underline transition-colors"
             >
               Clear all filters
             </button>

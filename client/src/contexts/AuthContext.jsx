@@ -76,7 +76,7 @@ export const AuthProvider = ({ children }) => {
     try {
       // Create Google OAuth client
       const client = window.google?.accounts?.oauth2?.initCodeClient({
-        client_id: '948082154353-negb3bcn21s4p0qlqllt0mvbr5mvpfec.apps.googleusercontent.com',
+        client_id: '376597108929-bal4s8d23vpbmmr605gm56hr1ncds6he.apps.googleusercontent.com',
         scope: 'openid email profile',
         callback: async (response) => {
           try {
@@ -119,9 +119,11 @@ export const AuthProvider = ({ children }) => {
 
   const connectGmailAccount = async () => {
     try {
-      const response = await api.post('/api/auth/gmail/connect')
+      const response = await api.get('/api/auth/gmail/connect')
       if (response.data.success) {
-        return { success: true, message: response.data.message }
+        // Redirect to Google OAuth URL
+        window.location.href = response.data.authUrl
+        return { success: true, message: 'Redirecting to Gmail authorization...' }
       }
       return { success: false, error: response.data.message || 'Failed to connect Gmail account' }
     } catch (error) {

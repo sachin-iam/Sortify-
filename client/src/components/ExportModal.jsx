@@ -63,12 +63,12 @@ const ExportModal = ({ isOpen, onClose, selectedEmails = [], type = 'emails' }) 
         >
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-semibold text-white">Export {type === 'emails' ? 'Emails' : 'Analytics'}</h3>
+            <h3 className="text-xl font-semibold text-slate-800">Export {type === 'emails' ? 'Emails' : 'Analytics'}</h3>
             <button
               onClick={onClose}
               className="p-2 hover:bg-white/10 rounded-lg transition-colors"
             >
-              <XMarkIcon className="w-5 h-5 text-white/70" />
+              <XMarkIcon className="w-5 h-5 text-slate-600" />
             </button>
           </div>
 
@@ -76,14 +76,14 @@ const ExportModal = ({ isOpen, onClose, selectedEmails = [], type = 'emails' }) 
           <div className="space-y-6">
             {/* Format Selection */}
             <div>
-              <label className="block text-sm font-medium text-white/90 mb-3">Export Format</label>
+              <label className="block text-sm font-medium text-slate-700 mb-3">Export Format</label>
               <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => setExportFormat('csv')}
                   className={`flex items-center space-x-2 p-3 rounded-lg border transition-colors ${
                     exportFormat === 'csv'
                       ? 'bg-blue-500/20 border-blue-500/50 text-blue-400'
-                      : 'bg-white/10 border-white/20 text-white/70 hover:bg-white/20'
+                      : 'bg-slate-100/50 border-slate-300/50 text-slate-600 hover:bg-slate-200/50'
                   }`}
                 >
                   <DocumentTextIcon className="w-5 h-5" />
@@ -94,7 +94,7 @@ const ExportModal = ({ isOpen, onClose, selectedEmails = [], type = 'emails' }) 
                   className={`flex items-center space-x-2 p-3 rounded-lg border transition-colors ${
                     exportFormat === 'pdf'
                       ? 'bg-blue-500/20 border-blue-500/50 text-blue-400'
-                      : 'bg-white/10 border-white/20 text-white/70 hover:bg-white/20'
+                      : 'bg-slate-100/50 border-slate-300/50 text-slate-600 hover:bg-slate-200/50'
                   }`}
                 >
                   <DocumentArrowDownIcon className="w-5 h-5" />
@@ -113,10 +113,10 @@ const ExportModal = ({ isOpen, onClose, selectedEmails = [], type = 'emails' }) 
                     onChange={(e) => setIncludeFilters(e.target.checked)}
                     className="rounded border-white/20 bg-white/10 text-blue-500 focus:ring-blue-500"
                   />
-                  <span className="text-sm text-white/90">Include current filters</span>
+                  <span className="text-sm text-slate-700">Include current filters</span>
                 </label>
                 {selectedEmails.length > 0 && (
-                  <p className="text-sm text-white/70 mt-2">
+                  <p className="text-sm text-slate-600 mt-2">
                     Exporting {selectedEmails.length} selected emails
                   </p>
                 )}
@@ -125,11 +125,11 @@ const ExportModal = ({ isOpen, onClose, selectedEmails = [], type = 'emails' }) 
 
             {type === 'analytics' && (
               <div>
-                <label className="block text-sm font-medium text-white/90 mb-3">Time Range</label>
+                <label className="block text-sm font-medium text-slate-700 mb-3">Time Range</label>
                 <select
                   value={timeRange}
                   onChange={(e) => setTimeRange(e.target.value)}
-                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  className="w-full px-3 py-2 bg-slate-100/50 border border-slate-300/50 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                 >
                   <option value="7d">Last 7 days</option>
                   <option value="30d">Last 30 days</option>

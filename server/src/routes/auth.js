@@ -9,12 +9,20 @@ import { asyncHandler } from '../middleware/errorHandler.js'
 
 const router = express.Router()
 
-// Google OAuth configuration
-const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/auth/google/callback'
-)
+// Google OAuth configuration - moved to function to ensure env vars are loaded
+const getOAuth2Client = () => {
+  console.log('OAuth Config:', {
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET ? '***' : 'MISSING',
+    redirectUri: process.env.GOOGLE_REDIRECT_URI
+  })
+
+  return new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/auth/gmail/callback'
+  )
+}
 
 // Generate JWT token
 const generateToken = (id) => {
@@ -175,6 +183,7 @@ router.post('/google', asyncHandler(async (req, res) => {
 
   try {
     // Exchange authorization code for tokens
+    const oauth2Client = getOAuth2Client()
     const { tokens } = await oauth2Client.getToken(code)
     oauth2Client.setCredentials(tokens)
 
@@ -357,6 +366,8 @@ router.put('/change-password', protect, [
 // @access  Private
 router.get('/gmail/connect', protect, asyncHandler(async (req, res) => {
   try {
+    console.log('Generating Gmail OAuth URL for user:', req.user._id)
+    
     const scopes = [
       'https://www.googleapis.com/auth/gmail.readonly',
       'https://www.googleapis.com/auth/gmail.modify',
@@ -364,11 +375,14 @@ router.get('/gmail/connect', protect, asyncHandler(async (req, res) => {
       'https://www.googleapis.com/auth/userinfo.profile'
     ]
 
+    const oauth2Client = getOAuth2Client()
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: scopes,
       state: req.user._id.toString() // Pass user ID in state
     })
+
+    console.log('Generated auth URL:', authUrl)
 
     res.json({
       success: true,
@@ -395,6 +409,7 @@ router.get('/gmail/callback', asyncHandler(async (req, res) => {
     }
 
     // Exchange code for tokens
+    const oauth2Client = getOAuth2Client()
     const { tokens } = await oauth2Client.getToken(code)
     oauth2Client.setCredentials(tokens)
 
@@ -429,19 +444,11 @@ router.get('/gmail/callback', asyncHandler(async (req, res) => {
 // @access  Private
 router.post('/microsoft/connect', protect, asyncHandler(async (req, res) => {
   try {
-    // In production, this would handle the OAuth flow
-    // For now, we'll simulate a successful connection
-    
-    const user = await User.findById(req.user._id)
-    user.outlookConnected = true
-    user.outlookAccessToken = 'mock-access-token'
-    user.outlookRefreshToken = 'mock-refresh-token'
-    user.outlookTokenExpiry = new Date(Date.now() + 3600000) // 1 hour from now
-    await user.save()
-
-    res.json({
-      success: true,
-      message: 'Microsoft Outlook account connected successfully'
+    // Microsoft OAuth implementation would go here
+    // For now, return an error indicating the feature is not implemented
+    res.status(501).json({
+      success: false,
+      message: 'Microsoft Outlook integration is not yet implemented. Please use Gmail for now.'
     })
   } catch (error) {
     console.error('Outlook connection error:', error)

@@ -6,6 +6,7 @@ import EmailList from '../components/EmailList'
 import CategoryFilter from '../components/CategoryFilter'
 import AnalyticsDashboard from '../components/AnalyticsDashboard'
 import { api } from '../services/api'
+import ModernIcon from '../components/ModernIcon'
 
 const Dashboard = () => {
   const { user, token, connectGmailAccount, connectMicrosoftAccount } = useAuth()
@@ -43,28 +44,33 @@ const Dashboard = () => {
       }
     }
 
-    checkConnectionStatus()
-    loadStats()
+    const loadStats = async () => {
+      if (!token) return
+      
+      try {
+        const response = await api.get('/api/analytics/stats')
+        if (response.data.success) {
+          setStats(response.data.stats)
+        }
+      } catch (error) {
+        console.error('Failed to load stats:', error)
+      }
+    }
 
-    // Set up real-time data refresh
-    const refreshInterval = setInterval(() => {
-      loadStats()
+    if (token) {
       checkConnectionStatus()
-    }, 30000) // Refresh every 30 seconds
+      loadStats()
 
-    return () => clearInterval(refreshInterval)
+      // Set up real-time data refresh
+      const refreshInterval = setInterval(() => {
+        loadStats()
+        checkConnectionStatus()
+      }, 30000) // Refresh every 30 seconds
+
+      return () => clearInterval(refreshInterval)
+    }
   }, [token])
 
-  const loadStats = async () => {
-    try {
-      const response = await api.get('/api/analytics/stats')
-      if (response.data.success) {
-        setStats(response.data.stats)
-      }
-    } catch (error) {
-      console.error('Failed to load stats:', error)
-    }
-  }
 
   const handleGmailConnection = async () => {
     setConnectingGmail(true)
@@ -111,7 +117,7 @@ const Dashboard = () => {
         toast.error(result.error || 'Failed to connect Microsoft Outlook account')
       }
     } catch (error) {
-      toast.error('Failed to connect Microsoft Outlook account')
+      toast.error('Microsoft Outlook integration is not yet implemented. Please use Gmail for now.')
     } finally {
       setConnectingOutlook(false)
     }
@@ -130,12 +136,20 @@ const Dashboard = () => {
     
     setSyncLoading(true)
     try {
-      const response = await api.post('/api/emails/gmail/sync')
+      // Try comprehensive sync first
+      const response = await api.post('/api/emails/gmail/sync-all')
       if (response.data.success) {
-        toast.success(`Synced ${response.data.savedCount} emails from Gmail`)
+        toast.success(`Synced ${response.data.syncedCount} emails from Gmail`)
         loadStats()
       } else {
-        toast.error(response.data.error || 'Failed to sync Gmail emails')
+        // Fallback to regular sync
+        const fallbackResponse = await api.post('/api/emails/gmail/sync')
+        if (fallbackResponse.data.success) {
+          toast.success(`Synced ${fallbackResponse.data.syncedCount} emails from Gmail`)
+          loadStats()
+        } else {
+          toast.error(fallbackResponse.data.error || 'Failed to sync Gmail emails')
+        }
       }
     } catch (error) {
       console.error('Sync error:', error)
@@ -182,10 +196,11 @@ const Dashboard = () => {
           animate={{ y: 0, opacity: 1 }}
           className="mb-6"
         >
-          <h1 className="text-3xl font-bold text-white mb-1">
-            Welcome back, {user?.name || 'User'}! 👋
+          <h1 className="text-3xl font-bold text-slate-800 mb-1 flex items-center gap-3">
+            Welcome back, {user?.name || 'User'}! 
+            <ModernIcon type="welcome" size={28} color="#3b82f6" />
           </h1>
-          <p className="text-white/70 text-base">
+          <p className="text-slate-600 text-base">
             Manage and organize your emails efficiently with AI-powered classification
           </p>
         </motion.div>
@@ -197,23 +212,23 @@ const Dashboard = () => {
           transition={{ delay: 0.1 }}
           className="mb-6"
         >
-          <h2 className="text-xl font-semibold text-white mb-4">Connect Your Email Services</h2>
+          <h2 className="text-xl font-semibold text-slate-800 mb-4">Connect Your Email Services</h2>
           <div className="grid md:grid-cols-2 gap-6">
             <div className="card-glass">
               <div className="flex items-center space-x-4 mb-4">
                 <div className="w-12 h-12 bg-gradient-to-r from-red-500 to-orange-500 rounded-xl flex items-center justify-center">
-                  <span className="text-white text-xl">📧</span>
+                  <ModernIcon type="email" size={24} color="#ffffff" glassEffect={false} />
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold text-white">Gmail</h3>
-                  <p className="text-white/70">Connect your Gmail account</p>
+                  <h3 className="text-xl font-semibold text-slate-800">Gmail</h3>
+                  <p className="text-slate-600">Connect your Gmail account</p>
                 </div>
               </div>
               <button 
                 onClick={handleGmailConnection}
                 className={`w-full py-3 px-4 rounded-xl font-semibold transition-all duration-300 ${
                   gmailConnected 
-                    ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                    ? 'bg-green-500/20 text-green-600 border border-green-500/30' 
                     : 'btn-glass'
                 }`}
                 disabled={connectingGmail}
@@ -225,23 +240,19 @@ const Dashboard = () => {
             <div className="card-glass">
               <div className="flex items-center space-x-4 mb-4">
                 <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center">
-                  <span className="text-white text-xl">📬</span>
+                  <ModernIcon type="outlook" size={24} color="#ffffff" glassEffect={false} />
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold text-white">Microsoft Outlook</h3>
-                  <p className="text-white/70">Connect your Outlook account</p>
+                  <h3 className="text-xl font-semibold text-slate-800">Microsoft Outlook</h3>
+                  <p className="text-slate-600">Coming soon - Use Gmail for now</p>
                 </div>
               </div>
               <button 
                 onClick={handleOutlookConnection}
-                className={`w-full py-3 px-4 rounded-xl font-semibold transition-all duration-300 ${
-                  outlookConnected 
-                    ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
-                    : 'btn-glass'
-                }`}
-                disabled={connectingOutlook}
+                className="w-full py-3 px-4 rounded-xl font-semibold transition-all duration-300 bg-gray-500/20 text-gray-600 border border-gray-500/30 cursor-not-allowed"
+                disabled={true}
               >
-                {connectingOutlook ? 'Connecting...' : (outlookConnected ? '✅ Connected' : '🔗 Connect Outlook')}
+                🚧 Coming Soon
               </button>
             </div>
           </div>
@@ -255,22 +266,28 @@ const Dashboard = () => {
           className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6"
         >
           <div className="card-glass text-center">
-            <div className="text-3xl mb-2">📧</div>
-            <h3 className="text-2xl font-bold text-white">{stats.totalEmails}</h3>
-            <p className="text-white/70">Total Emails</p>
+              <div className="mb-2">
+                <ModernIcon type="email" size={32} color="#3b82f6" />
+              </div>
+              <h3 className="text-2xl font-bold text-slate-800">{stats.totalEmails}</h3>
+              <p className="text-slate-600">Total Emails</p>
           </div>
           <div className="card-glass text-center">
-            <div className="text-3xl mb-2">📁</div>
-            <h3 className="text-2xl font-bold text-white">{stats.categories}</h3>
-            <p className="text-white/70">Categories</p>
+            <div className="mb-2">
+              <ModernIcon type="folder" size={32} color="#10b981" />
+            </div>
+            <h3 className="text-2xl font-bold text-slate-800">{stats.categories}</h3>
+            <p className="text-slate-600">Categories</p>
           </div>
           <div className="card-glass text-center">
-            <div className="text-3xl mb-2">⚡</div>
-            <h3 className="text-2xl font-bold text-white">{stats.processedToday}</h3>
-            <p className="text-white/70">Processed Today</p>
+            <div className="mb-2">
+              <ModernIcon type="sync" size={32} color="#f59e0b" />
+            </div>
+            <h3 className="text-2xl font-bold text-slate-800">{stats.processedToday}</h3>
+            <p className="text-slate-600">Processed Today</p>
           </div>
           <div className="card-glass text-center">
-            <div className="flex space-x-2">
+            <div className="flex space-x-2 mb-2">
               <button 
                 onClick={syncGmailEmails}
                 disabled={syncLoading || !gmailConnected}
@@ -280,13 +297,20 @@ const Dashboard = () => {
               </button>
               <button 
                 onClick={syncOutlookEmails}
-                disabled={syncLoading || !outlookConnected}
-                className="flex-1 py-2 px-3 text-sm bg-cyan-500/20 text-cyan-400 rounded-lg hover:bg-cyan-500/30 transition-colors disabled:opacity-50"
+                disabled={true}
+                className="flex-1 py-2 px-3 text-sm bg-gray-500/20 text-gray-400 rounded-lg cursor-not-allowed"
               >
-                {syncLoading ? '🔄' : '🔄'} Outlook
+                🚧 Outlook
               </button>
             </div>
-            <p className="text-white/70 text-sm mt-2">Sync Emails</p>
+            <button 
+              onClick={syncGmailEmails}
+              disabled={syncLoading || !gmailConnected}
+              className="w-full py-2 px-3 text-sm bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors disabled:opacity-50"
+            >
+              {syncLoading ? '🔄 Syncing All Emails...' : '📥 Sync All Gmail Emails'}
+            </button>
+            <p className="text-slate-600 text-sm mt-2">Sync Emails</p>
           </div>
         </motion.div>
 
@@ -301,8 +325,8 @@ const Dashboard = () => {
             <button 
               className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${
                 activeView === 'emails' 
-                  ? 'bg-white/20 text-white' 
-                  : 'text-white/70 hover:text-white hover:bg-white/10'
+                  ? 'bg-slate-200/50 text-slate-800' 
+                  : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/50'
               }`}
               onClick={() => setActiveView('emails')}
             >
@@ -311,8 +335,8 @@ const Dashboard = () => {
             <button 
               className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${
                 activeView === 'analytics' 
-                  ? 'bg-white/20 text-white' 
-                  : 'text-white/70 hover:text-white hover:bg-white/10'
+                  ? 'bg-slate-200/50 text-slate-800' 
+                  : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/50'
               }`}
               onClick={() => setActiveView('analytics')}
             >

@@ -2,6 +2,10 @@ import dotenv from 'dotenv'
 
 // Load environment variables
 dotenv.config()
+console.log('Environment variables loaded:', {
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+  MONGO_URI: process.env.MONGO_URI ? 'LOADED' : 'MISSING'
+})
 
 import express from 'express'
 import cors from 'cors'
@@ -43,7 +47,8 @@ app.use(helmet({
 app.use(cors({
   origin: [
     process.env.CORS_ORIGIN || 'http://localhost:3000',
-    'http://localhost:3002', // Current frontend port
+    'http://localhost:3001', // Current frontend port
+    'http://localhost:3002', // Alternative frontend port
     'http://localhost:5173', // Vite default port
     'http://localhost:5175', // Vite alternative port
     'http://localhost:3000'  // React default port
@@ -94,6 +99,9 @@ app.use('/api/auth', authRoutes)
 app.use('/api/emails', emailRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/analytics', analyticsRoutes)
+
+// OAuth callback routes (without /api prefix for Google OAuth)
+app.use('/auth', authRoutes)
 
 // Root endpoint
 app.get('/', (req, res) => {

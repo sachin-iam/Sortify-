@@ -10,7 +10,7 @@ const ProtectedRoute = ({ children }) => {
       <div className="min-h-screen flex items-center justify-center">
         <div className="glass-card p-8 text-center">
           <div className="spinner w-12 h-12 mx-auto mb-4"></div>
-          <p className="text-white">Loading...</p>
+          <p className="text-slate-800">Loading...</p>
         </div>
       </div>
     )

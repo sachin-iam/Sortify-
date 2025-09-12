@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 import { api } from '../services/api'
+import ModernIcon from '../components/ModernIcon'
 
 const Settings = () => {
   const { user, logout } = useAuth()
@@ -139,8 +140,11 @@ const Settings = () => {
           animate={{ y: 0, opacity: 1 }}
           className="mb-8"
         >
-          <h1 className="text-4xl font-bold text-white mb-2">Settings ⚙️</h1>
-          <p className="text-white/70 text-lg">
+          <h1 className="text-4xl font-bold text-slate-800 mb-2 flex items-center gap-3">
+            Settings 
+            <ModernIcon type="settings" size={32} color="#3b82f6" />
+          </h1>
+          <p className="text-slate-600 text-lg">
             Manage your account settings and preferences
           </p>
         </motion.div>
@@ -153,10 +157,10 @@ const Settings = () => {
             transition={{ delay: 0.1 }}
             className="card-glass p-6"
           >
-            <h2 className="text-xl font-semibold text-white mb-6">Profile Information</h2>
+            <h2 className="text-xl font-semibold text-slate-800 mb-6">Profile Information</h2>
             <form onSubmit={handleSaveProfile} className="space-y-6">
               <div>
-                <label className="block text-white/90 text-sm font-medium mb-2">
+                <label className="block text-slate-700 text-sm font-medium mb-2">
                   Full Name
                 </label>
                 <input
@@ -170,7 +174,7 @@ const Settings = () => {
               </div>
 
               <div>
-                <label className="block text-white/90 text-sm font-medium mb-2">
+                <label className="block text-slate-700 text-sm font-medium mb-2">
                   Email Address
                 </label>
                 <input
@@ -181,7 +185,7 @@ const Settings = () => {
                   className="input-glass w-full opacity-50 cursor-not-allowed"
                   placeholder="Your email address"
                 />
-                <p className="text-white/50 text-xs mt-1">Email cannot be changed</p>
+                <p className="text-slate-500 text-xs mt-1">Email cannot be changed</p>
               </div>
 
               <button
@@ -201,12 +205,12 @@ const Settings = () => {
             transition={{ delay: 0.2 }}
             className="card-glass p-6"
           >
-            <h2 className="text-xl font-semibold text-white mb-6">Email Preferences</h2>
+            <h2 className="text-xl font-semibold text-slate-800 mb-6">Email Preferences</h2>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-white font-medium">Notifications</h3>
-                  <p className="text-white/70 text-sm">Receive email notifications about important updates</p>
+                  <h3 className="text-slate-800 font-medium">Notifications</h3>
+                  <p className="text-slate-600 text-sm">Receive email notifications about important updates</p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
@@ -222,8 +226,8 @@ const Settings = () => {
 
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-white font-medium">Marketing Emails</h3>
-                  <p className="text-white/70 text-sm">Receive promotional emails and product updates</p>
+                  <h3 className="text-slate-800 font-medium">Marketing Emails</h3>
+                  <p className="text-slate-600 text-sm">Receive promotional emails and product updates</p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
@@ -246,10 +250,10 @@ const Settings = () => {
             transition={{ delay: 0.3 }}
             className="card-glass p-6"
           >
-            <h2 className="text-xl font-semibold text-white mb-6">Change Password</h2>
+            <h2 className="text-xl font-semibold text-slate-800 mb-6">Change Password</h2>
             <form onSubmit={handleChangePassword} className="space-y-6">
               <div>
-                <label className="block text-white/90 text-sm font-medium mb-2">
+                <label className="block text-slate-700 text-sm font-medium mb-2">
                   Current Password
                 </label>
                 <input
@@ -262,7 +266,7 @@ const Settings = () => {
               </div>
 
               <div>
-                <label className="block text-white/90 text-sm font-medium mb-2">
+                <label className="block text-slate-700 text-sm font-medium mb-2">
                   New Password
                 </label>
                 <input
@@ -275,7 +279,7 @@ const Settings = () => {
               </div>
 
               <div>
-                <label className="block text-white/90 text-sm font-medium mb-2">
+                <label className="block text-slate-700 text-sm font-medium mb-2">
                   Confirm New Password
                 </label>
                 <input
@@ -304,16 +308,16 @@ const Settings = () => {
             transition={{ delay: 0.4 }}
             className="card-glass p-6"
           >
-            <h2 className="text-xl font-semibold text-white mb-6">Connected Accounts</h2>
+            <h2 className="text-xl font-semibold text-slate-800 mb-6">Connected Accounts</h2>
             <div className="space-y-4">
               <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-orange-500 rounded-lg flex items-center justify-center">
-                    <span className="text-white">📧</span>
+                    <ModernIcon type="email" size={20} color="#ffffff" glassEffect={false} />
                   </div>
                   <div>
-                    <h3 className="text-white font-medium">Gmail</h3>
-                    <p className="text-white/70 text-sm">Connected for email sync</p>
+                    <h3 className="text-slate-800 font-medium">Gmail</h3>
+                    <p className="text-slate-600 text-sm">Connected for email sync</p>
                   </div>
                 </div>
                 <button
@@ -327,11 +331,11 @@ const Settings = () => {
               <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center">
-                    <span className="text-white">📬</span>
+                    <ModernIcon type="outlook" size={20} color="#ffffff" glassEffect={false} />
                   </div>
                   <div>
-                    <h3 className="text-white font-medium">Microsoft Outlook</h3>
-                    <p className="text-white/70 text-sm">Connected for email sync</p>
+                    <h3 className="text-slate-800 font-medium">Microsoft Outlook</h3>
+                    <p className="text-slate-600 text-sm">Connected for email sync</p>
                   </div>
                 </div>
                 <button
@@ -355,8 +359,8 @@ const Settings = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-white font-medium">Logout</h3>
-                  <p className="text-white/70 text-sm">Sign out of your account</p>
+                  <h3 className="text-slate-800 font-medium">Logout</h3>
+                  <p className="text-slate-600 text-sm">Sign out of your account</p>
                 </div>
                 <button
                   onClick={logout}

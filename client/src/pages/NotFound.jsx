@@ -25,7 +25,7 @@ const NotFound = () => {
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.3 }}
-            className="text-4xl font-bold text-white mb-4"
+            className="text-4xl font-bold text-slate-800 mb-4"
           >
             404
           </motion.h1>
@@ -34,7 +34,7 @@ const NotFound = () => {
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.4 }}
-            className="text-xl font-semibold text-white mb-4"
+            className="text-xl font-semibold text-slate-800 mb-4"
           >
             Page Not Found
           </motion.h2>
@@ -43,7 +43,7 @@ const NotFound = () => {
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.5 }}
-            className="text-white/70 mb-8"
+            className="text-slate-600 mb-8"
           >
             The page you're looking for doesn't exist or has been moved.
           </motion.p>
@@ -64,7 +64,7 @@ const NotFound = () => {
             <div className="text-center">
               <button
                 onClick={() => window.history.back()}
-                className="text-white/70 hover:text-white underline transition-colors"
+                className="text-slate-600 hover:text-slate-800 underline transition-colors"
               >
                 Go back
               </button>

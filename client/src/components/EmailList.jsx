@@ -24,14 +24,17 @@ const EmailList = () => {
   const currentLimit = parseInt(searchParams.get('limit')) || 50
 
   useEffect(() => {
-    fetchEmails()
-
-    // Set up real-time refresh for email list
-    const refreshInterval = setInterval(() => {
+    const token = localStorage.getItem('token')
+    if (token) {
       fetchEmails()
-    }, 60000) // Refresh every minute
 
-    return () => clearInterval(refreshInterval)
+      // Set up real-time refresh for email list
+      const refreshInterval = setInterval(() => {
+        fetchEmails()
+      }, 60000) // Refresh every minute
+
+      return () => clearInterval(refreshInterval)
+    }
   }, [currentProvider, currentLabel, currentPage, currentLimit])
 
   const fetchEmails = async () => {
@@ -300,22 +303,22 @@ const EmailList = () => {
       <div className="p-6 border-b border-white/10">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-xl font-semibold text-white">Email List</h3>
-            <p className="text-white/70">
+            <h3 className="text-xl font-semibold text-slate-800">Email List</h3>
+            <p className="text-slate-600">
               {pagination ? `${pagination.total} emails` : '0 emails'} • {selectedEmails.length} selected
             </p>
           </div>
           <div className="flex space-x-3">
             <button
               onClick={handleSelectAll}
-              className="px-4 py-2 text-sm font-medium text-white/70 bg-white/10 border border-white/20 rounded-lg hover:bg-white/20 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100/50 border border-slate-300/50 rounded-lg hover:bg-slate-200/50 transition-colors"
             >
               {selectedEmails.length === emails.length ? 'Deselect All' : 'Select All'}
             </button>
             <button
               onClick={classifyBatch}
               disabled={selectedEmails.length === 0 || classifying}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-500/20 border border-blue-500/30 rounded-lg hover:bg-blue-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 text-sm font-medium text-slate-800 bg-blue-500/20 border border-blue-500/30 rounded-lg hover:bg-blue-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {classifying ? 'Classifying...' : `Classify ${selectedEmails.length} Email${selectedEmails.length !== 1 ? 's' : ''}`}
             </button>
@@ -330,10 +333,10 @@ const EmailList = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search in subject and body..."
-              className="input-glass w-full pl-10"
+              className="input-glass w-full pl-12 pr-4"
             />
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg className="h-5 w-5 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <svg className="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </div>
@@ -348,7 +351,7 @@ const EmailList = () => {
             <button
               type="button"
               onClick={clearSearch}
-              className="px-4 py-2 text-sm font-medium text-white/70 bg-white/10 border border-white/20 rounded-lg hover:bg-white/20 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100/50 border border-slate-300/50 rounded-lg hover:bg-slate-200/50 transition-colors"
             >
               Clear
             </button>
@@ -361,8 +364,8 @@ const EmailList = () => {
         {emails.length === 0 ? (
           <div className="p-12 text-center">
             <div className="text-6xl mb-4">📧</div>
-            <h3 className="text-lg font-medium text-white mb-2">No emails found</h3>
-            <p className="text-white/70">
+            <h3 className="text-lg font-medium text-slate-800 mb-2">No emails found</h3>
+            <p className="text-slate-600">
               {searchQuery || currentProvider || currentLabel 
                 ? 'Try adjusting your search criteria or filters.'
                 : 'Get started by syncing your email accounts.'
@@ -391,11 +394,11 @@ const EmailList = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
-                      <span className="text-sm font-medium text-white">
+                      <span className="text-sm font-medium text-slate-800">
                         {email.from}
                       </span>
-                      <span className="text-white/40">•</span>
-                      <span className="text-sm text-white/60">
+                      <span className="text-slate-400">•</span>
+                      <span className="text-sm text-slate-600">
                         {formatDate(email.date)}
                       </span>
                     </div>
@@ -420,24 +423,24 @@ const EmailList = () => {
                       <button
                         onClick={() => classifyEmail(email._id)}
                         disabled={classifying}
-                        className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-white/10 text-white/70 hover:bg-white/20 transition-colors disabled:opacity-50"
+                        className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-100/50 text-slate-600 hover:bg-slate-200/50 transition-colors disabled:opacity-50"
                       >
                         {classifying ? 'Classifying...' : 'Classify'}
                       </button>
                     )}
                   </div>
                   
-                  <h4 className="text-sm font-medium text-white mt-1">
+                  <h4 className="text-sm font-medium text-slate-800 mt-1">
                     {email.subject}
                   </h4>
                   
-                  <p className="text-sm text-white/60 mt-1 line-clamp-2">
+                  <p className="text-sm text-slate-600 mt-1 line-clamp-2">
                     {email.snippet}
                   </p>
                   
                   {/* Classification Details */}
                   {email.classification?.label && (
-                    <div className="mt-2 text-xs text-white/50">
+                    <div className="mt-2 text-xs text-slate-500">
                       <span>Model: {email.classification.modelVersion || '1.0.0'}</span>
                       <span className="mx-2">•</span>
                       <span>Classified: {formatDate(email.classification.classifiedAt)}</span>
@@ -457,22 +460,22 @@ const EmailList = () => {
         <div className="p-6 border-t border-white/10">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <label htmlFor="limit" className="text-sm text-white/70">Show:</label>
+              <label htmlFor="limit" className="text-sm text-slate-600">Show:</label>
               <select
                 id="limit"
                 value={currentLimit}
                 onChange={(e) => handleLimitChange(e.target.value)}
-                className="px-2 py-1 text-sm border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 bg-white/10 text-white"
+                className="px-2 py-1 text-sm border border-slate-300/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 bg-slate-100/50 text-slate-800"
               >
                 <option value="25">25</option>
                 <option value="50">50</option>
                 <option value="100">100</option>
               </select>
-              <span className="text-sm text-white/70">per page</span>
+              <span className="text-sm text-slate-600">per page</span>
             </div>
             
             <div className="flex items-center space-x-2">
-              <span className="text-sm text-white/70">
+              <span className="text-sm text-slate-600">
                 Page {pagination.currentPage} of {pagination.totalPages}
               </span>
               
@@ -480,7 +483,7 @@ const EmailList = () => {
                 <button
                   onClick={() => handlePageChange(pagination.prevPage)}
                   disabled={!pagination.hasPrevPage}
-                  className="px-3 py-1 text-sm font-medium text-white/70 bg-white/10 border border-white/20 rounded-lg hover:bg-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1 text-sm font-medium text-slate-600 bg-slate-100/50 border border-slate-300/50 rounded-lg hover:bg-slate-200/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Previous
                 </button>
@@ -488,7 +491,7 @@ const EmailList = () => {
                 <button
                   onClick={() => handlePageChange(pagination.nextPage)}
                   disabled={!pagination.hasNextPage}
-                  className="px-3 py-1 text-sm font-medium text-white/70 bg-white/10 border border-white/20 rounded-lg hover:bg-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1 text-sm font-medium text-slate-600 bg-slate-100/50 border border-slate-300/50 rounded-lg hover:bg-slate-200/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Next
                 </button>

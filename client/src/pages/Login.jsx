@@ -104,11 +104,11 @@ const Login = () => {
             transition={{ delay: 0.2 }}
             className="text-center mb-6"
           >
-            <div className="w-12 h-12 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-lg">
+            <div className="w-12 h-12 bg-gradient-to-r from-slate-600 to-slate-800 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-lg">
               <span className="text-white text-xl font-bold">S</span>
             </div>
-            <h1 className="text-2xl font-bold text-white mb-1">Sortify</h1>
-            <p className="text-white/70 text-sm">
+            <h1 className="text-2xl font-bold text-slate-800 mb-1">Sortify</h1>
+            <p className="text-slate-600 text-sm">
               {isLogin ? 'Welcome back!' : 'Create your account'}
             </p>
           </motion.div>
@@ -123,7 +123,7 @@ const Login = () => {
           >
             {!isLogin && (
               <div>
-                <label htmlFor="name" className="block text-white/90 text-sm font-medium mb-2">
+                <label htmlFor="name" className="block text-slate-700 text-sm font-medium mb-2">
                   Full Name
                 </label>
                 <input
@@ -140,7 +140,7 @@ const Login = () => {
             )}
 
             <div>
-              <label htmlFor="email" className="block text-white/90 text-sm font-medium mb-2">
+              <label htmlFor="email" className="block text-slate-700 text-sm font-medium mb-2">
                 Email
               </label>
               <input
@@ -156,7 +156,7 @@ const Login = () => {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-white/90 text-sm font-medium mb-2">
+              <label htmlFor="password" className="block text-slate-700 text-sm font-medium mb-2">
                 Password
               </label>
               <input
@@ -173,7 +173,7 @@ const Login = () => {
 
             {!isLogin && (
               <div>
-                <label htmlFor="confirmPassword" className="block text-white/90 text-sm font-medium mb-2">
+                <label htmlFor="confirmPassword" className="block text-slate-700 text-sm font-medium mb-2">
                   Confirm Password
                 </label>
                 <input
@@ -216,16 +216,16 @@ const Login = () => {
           >
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-white/20"></div>
+                <div className="w-full border-t border-slate-300/30"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-transparent text-white/60">Or continue with</span>
+                <span className="px-2 bg-transparent text-slate-500">Or continue with</span>
               </div>
             </div>
 
             <button
               onClick={handleGoogleLogin}
-              className="mt-4 w-full flex items-center justify-center px-4 py-3 border border-white/20 rounded-xl text-white hover:bg-white/10 transition-all duration-300"
+              className="mt-4 w-full flex items-center justify-center px-4 py-3 border border-slate-300/50 rounded-xl text-slate-700 hover:bg-slate-100/50 transition-all duration-300"
             >
               <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -246,15 +246,15 @@ const Login = () => {
           >
             <button
               onClick={toggleMode}
-              className="text-white/70 hover:text-white transition-colors"
+              className="text-slate-600 hover:text-slate-800 transition-colors"
             >
               {isLogin ? (
                 <>
-                  Don't have an account? <span className="text-cyan-400 font-semibold">Sign up</span>
+                  Don't have an account? <span className="text-slate-600 font-semibold">Sign up</span>
                 </>
               ) : (
                 <>
-                  Already have an account? <span className="text-cyan-400 font-semibold">Sign in</span>
+                  Already have an account? <span className="text-slate-600 font-semibold">Sign in</span>
                 </>
               )}
             </button>
@@ -265,14 +265,14 @@ const Login = () => {
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.6 }}
-            className="mt-4 p-3 glass rounded-lg border border-white/15"
+            className="mt-4 p-3 glass rounded-lg border border-slate-300/30"
           >
-            <p className="text-white/60 text-sm text-center mb-2">Demo Credentials:</p>
-            <p className="text-white/80 text-sm text-center">
-              Email: <span className="text-cyan-400">demo@example.com</span>
+            <p className="text-slate-500 text-sm text-center mb-2">Demo Credentials:</p>
+            <p className="text-slate-600 text-sm text-center">
+              Email: <span className="text-slate-700 font-semibold">demo@example.com</span>
             </p>
-            <p className="text-white/80 text-sm text-center">
-              Password: <span className="text-cyan-400">demo123</span>
+            <p className="text-slate-600 text-sm text-center">
+              Password: <span className="text-slate-700 font-semibold">demo123</span>
             </p>
           </motion.div>
         </div>

@@ -28,8 +28,8 @@ class ErrorBoundary extends React.Component {
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-500 to-pink-600">
           <div className="glass-card max-w-md w-full mx-4 text-center">
             <div className="text-6xl mb-4">⚠️</div>
-            <h1 className="text-2xl font-bold text-white mb-4">Oops! Something went wrong</h1>
-            <p className="text-white/80 mb-6">
+            <h1 className="text-2xl font-bold text-slate-800 mb-4">Oops! Something went wrong</h1>
+            <p className="text-slate-600 mb-6">
               We're sorry, but something unexpected happened. Please try refreshing the page.
             </p>
             <button
@@ -40,8 +40,8 @@ class ErrorBoundary extends React.Component {
             </button>
             {process.env.NODE_ENV === 'development' && this.state.error && (
               <details className="mt-6 text-left">
-                <summary className="text-white/60 cursor-pointer">Error Details</summary>
-                <pre className="text-xs text-white/60 mt-2 p-4 bg-black/20 rounded overflow-auto">
+                <summary className="text-slate-500 cursor-pointer">Error Details</summary>
+                <pre className="text-xs text-slate-500 mt-2 p-4 bg-slate-100/50 rounded overflow-auto">
                   {this.state.error && this.state.error.toString()}
                   <br />
                   {this.state.errorInfo.componentStack}

@@ -3,6 +3,7 @@ import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { motion } from 'framer-motion'
 import { analyticsService } from '../services/analyticsService'
 import toast from 'react-hot-toast'
+import ModernIcon from './ModernIcon'
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16', '#f97316']
 
@@ -38,12 +39,12 @@ const AnalyticsDashboard = () => {
     }
   }
 
-  const handleExportCSV = async () => {
+  const handleExport = async (format) => {
     try {
-      await analyticsService.exportAnalyticsData()
-      toast.success('Analytics data exported successfully!')
+      const result = await analyticsService.exportAnalyticsData(format)
+      toast.success(`${format.toUpperCase()} file exported successfully!`)
     } catch (error) {
-      toast.error('Failed to export analytics data')
+      toast.error(`Failed to export ${format.toUpperCase()} file`)
     }
   }
 
@@ -52,7 +53,7 @@ const AnalyticsDashboard = () => {
       <div className="card-glass p-8">
         <div className="text-center">
           <div className="spinner w-12 h-12 mx-auto mb-4"></div>
-          <p className="text-white">Loading analytics data...</p>
+          <p className="text-slate-800">Loading analytics data...</p>
         </div>
       </div>
     )
@@ -67,13 +68,33 @@ const AnalyticsDashboard = () => {
       {/* Header */}
       <div className="card-glass p-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-white">📊 Analytics Dashboard</h2>
-          <button 
-            onClick={handleExportCSV}
-            className="btn-glass"
-          >
-            📥 Export CSV
-          </button>
+          <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
+            <ModernIcon type="analytics" size={28} color="#3b82f6" />
+            Analytics Dashboard
+          </h2>
+          <div className="flex space-x-2">
+            <button 
+              onClick={() => handleExport('csv')}
+              className="btn-glass"
+            >
+              <ModernIcon type="export" size={20} color="#3b82f6" glassEffect={false} />
+              <span className="ml-2">CSV</span>
+            </button>
+            <button 
+              onClick={() => handleExport('pdf')}
+              className="btn-glass"
+            >
+              <ModernIcon type="file" size={20} color="#ef4444" glassEffect={false} />
+              <span className="ml-2">PDF</span>
+            </button>
+            <button 
+              onClick={() => handleExport('excel')}
+              className="btn-glass"
+            >
+              <ModernIcon type="table" size={20} color="#10b981" glassEffect={false} />
+              <span className="ml-2">Excel</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -83,8 +104,8 @@ const AnalyticsDashboard = () => {
           <button 
             className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${
               activeTab === 'overview' 
-                ? 'bg-white/20 text-white' 
-                : 'text-white/70 hover:text-white hover:bg-white/10'
+                ? 'bg-slate-200/50 text-slate-800' 
+                : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/50'
             }`}
             onClick={() => setActiveTab('overview')}
           >
@@ -93,8 +114,8 @@ const AnalyticsDashboard = () => {
           <button 
             className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${
               activeTab === 'accuracy' 
-                ? 'bg-white/20 text-white' 
-                : 'text-white/70 hover:text-white hover:bg-white/10'
+                ? 'bg-slate-200/50 text-slate-800' 
+                : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/50'
             }`}
             onClick={() => setActiveTab('accuracy')}
           >
@@ -103,8 +124,8 @@ const AnalyticsDashboard = () => {
           <button 
             className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${
               activeTab === 'misclassifications' 
-                ? 'bg-white/20 text-white' 
-                : 'text-white/70 hover:text-white hover:bg-white/10'
+                ? 'bg-slate-200/50 text-slate-800' 
+                : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/50'
             }`}
             onClick={() => setActiveTab('misclassifications')}
           >
@@ -124,9 +145,11 @@ const AnalyticsDashboard = () => {
               transition={{ delay: 0.1 }}
               className="card-glass text-center p-6"
             >
-              <div className="text-3xl mb-2">📧</div>
-              <h3 className="text-2xl font-bold text-white">{categoryData.reduce((sum, item) => sum + item.count, 0)}</h3>
-              <p className="text-white/70">Total Emails</p>
+              <div className="mb-2">
+                <ModernIcon type="email" size={32} color="#3b82f6" />
+              </div>
+              <h3 className="text-2xl font-bold text-slate-800">{categoryData.reduce((sum, item) => sum + item.count, 0)}</h3>
+              <p className="text-slate-600">Total Emails</p>
             </motion.div>
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
@@ -134,9 +157,11 @@ const AnalyticsDashboard = () => {
               transition={{ delay: 0.2 }}
               className="card-glass text-center p-6"
             >
-              <div className="text-3xl mb-2">📁</div>
-              <h3 className="text-2xl font-bold text-white">{categoryData.length}</h3>
-              <p className="text-white/70">Categories</p>
+              <div className="mb-2">
+                <ModernIcon type="folder" size={32} color="#10b981" />
+              </div>
+              <h3 className="text-2xl font-bold text-slate-800">{categoryData.length}</h3>
+              <p className="text-slate-600">Categories</p>
             </motion.div>
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
@@ -144,9 +169,11 @@ const AnalyticsDashboard = () => {
               transition={{ delay: 0.3 }}
               className="card-glass text-center p-6"
             >
-              <div className="text-3xl mb-2">🎯</div>
-              <h3 className="text-2xl font-bold text-white">{accuracyData.overallAccuracy || 0}%</h3>
-              <p className="text-white/70">Overall Accuracy</p>
+              <div className="mb-2">
+                <ModernIcon type="target" size={32} color="#f59e0b" />
+              </div>
+              <h3 className="text-2xl font-bold text-slate-800">{accuracyData.overallAccuracy || 0}%</h3>
+              <p className="text-slate-600">Overall Accuracy</p>
             </motion.div>
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
@@ -154,9 +181,11 @@ const AnalyticsDashboard = () => {
               transition={{ delay: 0.4 }}
               className="card-glass text-center p-6"
             >
-              <div className="text-3xl mb-2">🤖</div>
-              <h3 className="text-2xl font-bold text-white">{accuracyData.total || 0}</h3>
-              <p className="text-white/70">Classified Emails</p>
+              <div className="mb-2">
+                <ModernIcon type="robot" size={32} color="#8b5cf6" />
+              </div>
+              <h3 className="text-2xl font-bold text-slate-800">{accuracyData.total || 0}</h3>
+              <p className="text-slate-600">Classified Emails</p>
             </motion.div>
           </div>
 
@@ -168,7 +197,7 @@ const AnalyticsDashboard = () => {
               transition={{ delay: 0.5 }}
               className="card-glass p-6"
             >
-              <h3 className="text-lg font-semibold text-white mb-4">Email Distribution by Category</h3>
+              <h3 className="text-lg font-semibold text-slate-800 mb-4">Email Distribution by Category</h3>
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie
@@ -196,7 +225,7 @@ const AnalyticsDashboard = () => {
               transition={{ delay: 0.6 }}
               className="card-glass p-6"
             >
-              <h3 className="text-lg font-semibold text-white mb-4">Category Counts</h3>
+              <h3 className="text-lg font-semibold text-slate-800 mb-4">Category Counts</h3>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={categoryData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
@@ -226,19 +255,19 @@ const AnalyticsDashboard = () => {
             animate={{ y: 0, opacity: 1 }}
             className="card-glass p-6"
           >
-            <h3 className="text-lg font-semibold text-white mb-4">Classification Accuracy</h3>
+            <h3 className="text-lg font-semibold text-slate-800 mb-4">Classification Accuracy</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="text-center">
-                <div className="text-3xl font-bold text-white mb-2">{accuracyData.overallAccuracy || 0}%</div>
-                <p className="text-white/70">Overall Accuracy</p>
+                <div className="text-3xl font-bold text-slate-800 mb-2">{accuracyData.overallAccuracy || 0}%</div>
+                <p className="text-slate-600">Overall Accuracy</p>
               </div>
               <div className="text-center">
-                <div className="text-3xl font-bold text-white mb-2">{accuracyData.correct || 0}</div>
-                <p className="text-white/70">Correct Classifications</p>
+                <div className="text-3xl font-bold text-slate-800 mb-2">{accuracyData.correct || 0}</div>
+                <p className="text-slate-600">Correct Classifications</p>
               </div>
               <div className="text-center">
-                <div className="text-3xl font-bold text-white mb-2">{accuracyData.total || 0}</div>
-                <p className="text-white/70">Total Classifications</p>
+                <div className="text-3xl font-bold text-slate-800 mb-2">{accuracyData.total || 0}</div>
+                <p className="text-slate-600">Total Classifications</p>
               </div>
             </div>
           </motion.div>
@@ -250,24 +279,24 @@ const AnalyticsDashboard = () => {
               transition={{ delay: 0.1 }}
               className="card-glass p-6"
             >
-              <h4 className="text-lg font-semibold text-white mb-4">Accuracy by Category</h4>
+              <h4 className="text-lg font-semibold text-slate-800 mb-4">Accuracy by Category</h4>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-white/10">
-                      <th className="text-left py-3 text-white/70">Category</th>
-                      <th className="text-left py-3 text-white/70">Correct</th>
-                      <th className="text-left py-3 text-white/70">Total</th>
-                      <th className="text-left py-3 text-white/70">Accuracy</th>
+                      <th className="text-left py-3 text-slate-600">Category</th>
+                      <th className="text-left py-3 text-slate-600">Correct</th>
+                      <th className="text-left py-3 text-slate-600">Total</th>
+                      <th className="text-left py-3 text-slate-600">Accuracy</th>
                     </tr>
                   </thead>
                   <tbody>
                     {accuracyData.accuracyBreakdown.map((item, index) => (
                       <tr key={index} className="border-b border-white/5">
-                        <td className="py-3 text-white">{item.category}</td>
-                        <td className="py-3 text-white/70">{item.correct}</td>
-                        <td className="py-3 text-white/70">{item.total}</td>
-                        <td className="py-3 text-white/70">{item.accuracy}%</td>
+                        <td className="py-3 text-slate-800">{item.category}</td>
+                        <td className="py-3 text-slate-600">{item.correct}</td>
+                        <td className="py-3 text-slate-600">{item.total}</td>
+                        <td className="py-3 text-slate-600">{item.accuracy}%</td>
                       </tr>
                     ))}
                   </tbody>
@@ -286,31 +315,31 @@ const AnalyticsDashboard = () => {
           className="card-glass p-6"
         >
           <div className="mb-6">
-            <h3 className="text-lg font-semibold text-white mb-2">Recent Misclassifications</h3>
-            <p className="text-white/70">Emails where ML classification doesn't match manual labels</p>
+            <h3 className="text-lg font-semibold text-slate-800 mb-2">Recent Misclassifications</h3>
+            <p className="text-slate-600">Emails where ML classification doesn't match manual labels</p>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-white/10">
-                  <th className="text-left py-3 text-white/70">Subject</th>
-                  <th className="text-left py-3 text-white/70">From</th>
-                  <th className="text-left py-3 text-white/70">Date</th>
-                  <th className="text-left py-3 text-white/70">ML Classification</th>
-                  <th className="text-left py-3 text-white/70">Manual Labels</th>
+                  <th className="text-left py-3 text-slate-600">Subject</th>
+                  <th className="text-left py-3 text-slate-600">From</th>
+                  <th className="text-left py-3 text-slate-600">Date</th>
+                  <th className="text-left py-3 text-slate-600">ML Classification</th>
+                  <th className="text-left py-3 text-slate-600">Manual Labels</th>
                 </tr>
               </thead>
               <tbody>
                 {misclassifications.map((email, index) => (
                   <tr key={index} className="border-b border-white/5">
-                    <td className="py-3 text-white max-w-xs truncate">{email.subject}</td>
-                    <td className="py-3 text-white/70">{email.from}</td>
-                    <td className="py-3 text-white/70">{new Date(email.date).toLocaleDateString()}</td>
+                    <td className="py-3 text-slate-800 max-w-xs truncate">{email.subject}</td>
+                    <td className="py-3 text-slate-600">{email.from}</td>
+                    <td className="py-3 text-slate-600">{new Date(email.date).toLocaleDateString()}</td>
                     <td className="py-3">
                       <div className="flex flex-col">
-                        <span className="text-white">{email.classification?.label}</span>
-                        <span className="text-xs text-white/50">
+                        <span className="text-slate-800">{email.classification?.label}</span>
+                        <span className="text-xs text-slate-500">
                           ({email.classification?.confidence ? (email.classification.confidence * 100).toFixed(1) + '%' : 'N/A'})
                         </span>
                       </div>
@@ -318,7 +347,7 @@ const AnalyticsDashboard = () => {
                     <td className="py-3">
                       <div className="flex flex-wrap gap-1">
                         {email.labels?.map((label, labelIndex) => (
-                          <span key={labelIndex} className="px-2 py-1 bg-white/10 text-white/70 rounded text-xs">
+                          <span key={labelIndex} className="px-2 py-1 bg-slate-100/50 text-slate-600 rounded text-xs">
                             {label}
                           </span>
                         ))}
@@ -331,7 +360,7 @@ const AnalyticsDashboard = () => {
             {misclassifications.length === 0 && (
               <div className="text-center py-12">
                 <div className="text-6xl mb-4">🎉</div>
-                <p className="text-white/70">No misclassifications found!</p>
+                <p className="text-slate-600">No misclassifications found!</p>
               </div>
             )}
           </div>

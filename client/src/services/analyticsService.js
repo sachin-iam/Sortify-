@@ -34,28 +34,55 @@ export const analyticsService = {
     }
   },
 
-  // Export analytics data as CSV
-  exportAnalyticsData: async () => {
+  // Export analytics data in various formats
+  exportAnalyticsData: async (format = 'csv', fields = 'subject,from,date,category') => {
     try {
       const response = await api.get('/api/analytics/export', {
+        params: { format, fields },
         responseType: 'blob'
       })
+      
+      // Determine file extension
+      const extensions = {
+        csv: 'csv',
+        pdf: 'pdf',
+        excel: 'xlsx',
+        xlsx: 'xlsx'
+      }
+      
+      const extension = extensions[format] || 'csv'
+      const filename = `sortify-analytics-${new Date().toISOString().split('T')[0]}.${extension}`
       
       // Create download link
       const url = window.URL.createObjectURL(new Blob([response.data]))
       const link = document.createElement('a')
       link.href = url
-      link.setAttribute('download', `sortify-analytics-${new Date().toISOString().split('T')[0]}.csv`)
+      link.setAttribute('download', filename)
       document.body.appendChild(link)
       link.click()
       link.remove()
       window.URL.revokeObjectURL(url)
       
-      return { success: true }
+      return { success: true, filename }
     } catch (error) {
       console.error('Error exporting analytics data:', error)
       throw error
     }
+  },
+
+  // Export as CSV
+  exportAsCSV: async (fields = 'subject,from,date,category') => {
+    return analyticsService.exportAnalyticsData('csv', fields)
+  },
+
+  // Export as PDF
+  exportAsPDF: async (fields = 'subject,from,date,category') => {
+    return analyticsService.exportAnalyticsData('pdf', fields)
+  },
+
+  // Export as Excel
+  exportAsExcel: async (fields = 'subject,from,date,category') => {
+    return analyticsService.exportAnalyticsData('excel', fields)
   },
 
   // Get email statistics
