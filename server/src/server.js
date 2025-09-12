@@ -20,6 +20,7 @@ import authRoutes from './routes/auth.js'
 import emailRoutes from './routes/emails.js'
 import userRoutes from './routes/users.js'
 import analyticsRoutes from './routes/analytics.js'
+import bootstrapRoutes from './routes/bootstrap.js'
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js'
@@ -65,6 +66,12 @@ const limiter = rateLimit({
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for auth/me, analytics/stats, and gmail/connect to avoid 429 loops
+    return req.path === '/api/auth/me' || 
+           req.path === '/api/analytics/stats' || 
+           req.path === '/api/auth/gmail/connect'
+  }
 })
 app.use('/api/', limiter)
 
@@ -99,6 +106,7 @@ app.use('/api/auth', authRoutes)
 app.use('/api/emails', emailRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/analytics', analyticsRoutes)
+app.use('/api/bootstrap', bootstrapRoutes)
 
 // OAuth callback routes (without /api prefix for Google OAuth)
 app.use('/auth', authRoutes)
@@ -154,5 +162,8 @@ process.on('uncaughtException', (err) => {
   console.error('❌ Uncaught Exception:', err)
   process.exit(1)
 })
+
+// Export app for testing
+export default app
 
 startServer()

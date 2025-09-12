@@ -6,16 +6,17 @@ const emailSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  provider: {
+    type: String,
+    enum: ['gmail', 'outlook'],
+    default: 'gmail'
+  },
   gmailId: {
     type: String,
-    unique: true,
-    sparse: true,
     required: false
   },
   messageId: {
     type: String,
-    unique: true,
-    sparse: true,
     required: false
   },
   threadId: String,
@@ -36,7 +37,9 @@ const emailSchema = new mongoose.Schema({
     required: true
   },
   snippet: String,
-  body: String,
+  html: String,
+  text: String,
+  body: String, // Keep for backward compatibility
   isRead: {
     type: Boolean,
     default: false
@@ -59,6 +62,12 @@ const emailSchema = new mongoose.Schema({
       max: 1
     }
   },
+  attachments: [{
+    attachmentId: String,
+    filename: String,
+    mimeType: String,
+    size: Number
+  }],
   archivedAt: Date,
   isArchived: {
     type: Boolean,
@@ -73,10 +82,10 @@ const emailSchema = new mongoose.Schema({
 })
 
 // Indexes for better performance
-emailSchema.index({ userId: 1, date: -1 })
-emailSchema.index({ userId: 1, category: 1 })
-emailSchema.index({ userId: 1, gmailId: 1 })
-emailSchema.index({ subject: 'text', snippet: 'text', from: 'text' })
+emailSchema.index({ userId: 1, provider: 1, date: -1 })
+emailSchema.index({ userId: 1, provider: 1, category: 1, date: -1 })
+emailSchema.index({ userId: 1, provider: 1, gmailId: 1 }, { unique: true, partialFilterExpression: { gmailId: { $exists: true } } })
+emailSchema.index({ subject: 'text', snippet: 'text', body: 'text' })
 
 // Virtual for formatted date
 emailSchema.virtual('formattedDate').get(function() {

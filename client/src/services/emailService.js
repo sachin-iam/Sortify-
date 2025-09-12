@@ -92,9 +92,28 @@ const emailService = {
     return response.data
   },
 
+  // Gmail sync all
+  syncGmailAll: async () => {
+    const response = await api.post('/api/emails/gmail/sync-all')
+    return response.data
+  },
+
   // Outlook sync (coming soon)
   syncOutlook: async () => {
     const response = await api.post('/api/emails/outlook/sync-all')
+    return response.data
+  },
+
+  // Realtime SSE - removed duplicate, handled in Dashboard component
+
+  // Auth services
+  connectGmail: async () => {
+    const response = await api.get('/api/auth/gmail/connect')
+    return response.data
+  },
+
+  disconnectGmail: async () => {
+    const response = await api.post('/api/auth/gmail/disconnect')
     return response.data
   }
 }

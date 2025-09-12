@@ -4,13 +4,62 @@ import Email from '../models/Email.js'
 import { classifyEmail } from './classificationService.js'
 import axios from 'axios'
 
-// Configuration
-const GMAIL_SYNC_MAX_CONCURRENCY = 10
+const GMAIL_SYNC_MAX_CONCURRENCY = parseInt(process.env.GMAIL_SYNC_MAX_CONCURRENCY) || 5
 const GMAIL_SYNC_BATCH_SIZE = 100
 const MODEL_SERVICE_URL = process.env.MODEL_SERVICE_URL || 'http://localhost:8000'
 
 // Create concurrency limiter
 const limit = pLimit(GMAIL_SYNC_MAX_CONCURRENCY)
+
+/**
+ * Get OAuth2 client for user
+ * @param {Object} user - User object with Gmail tokens
+ * @returns {Object} OAuth2 client
+ */
+export const getOAuthForUser = (user) => {
+  // Expect tokens saved on the user (adjust field names to your schema)
+  const { gmailAccessToken, gmailRefreshToken } = user
+  if (!gmailAccessToken && !gmailRefreshToken) {
+    throw new Error('Gmail not connected for this user')
+  }
+  
+  const oauth2 = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.GOOGLE_REDIRECT_URI
+  )
+  
+  oauth2.setCredentials({
+    access_token: gmailAccessToken,
+    refresh_token: gmailRefreshToken,
+    expiry_date: user.gmailTokenExpiry?.getTime()
+  })
+  
+  return oauth2
+}
+
+/**
+ * Download attachment from Gmail
+ * @param {Object} oauth2 - OAuth2 client
+ * @param {string} messageId - Gmail message ID
+ * @param {string} attachmentId - Attachment ID
+ * @returns {Promise<Buffer>} Attachment data
+ */
+export const downloadAttachment = async (oauth2, messageId, attachmentId) => {
+  try {
+    const gmail = google.gmail({ version: 'v1', auth: oauth2 })
+    const response = await gmail.users.messages.attachments.get({
+      userId: 'me',
+      messageId,
+      id: attachmentId
+    })
+
+    return Buffer.from(response.data.data, 'base64')
+  } catch (error) {
+    console.error('Error downloading attachment:', error)
+    throw error
+  }
+}
 
 /**
  * List all message IDs from Gmail with pagination
@@ -81,21 +130,52 @@ export const fetchMessage = async (oauth2, messageId) => {
  * @param {Object} message - Gmail message object
  * @returns {Object} Parsed email data
  */
-const parseEmailMessage = (message) => {
+export const parseEmailMessage = (message) => {
   const headers = message.payload?.headers || []
   const getHeader = (name) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value
 
-  // Extract body content
+  // Extract body content (HTML and text)
+  let html = ''
+  let text = ''
   let body = ''
-  if (message.payload?.body?.data) {
-    body = Buffer.from(message.payload.body.data, 'base64').toString('utf-8')
-  } else if (message.payload?.parts) {
-    // Handle multipart messages
-    for (const part of message.payload.parts) {
-      if (part.mimeType === 'text/plain' && part.body?.data) {
-        body = Buffer.from(part.body.data, 'base64').toString('utf-8')
-        break
+  const attachments = []
+
+  const extractContent = (part) => {
+    if (part.mimeType === 'text/html' && part.body?.data) {
+      html = Buffer.from(part.body.data, 'base64').toString('utf-8')
+    } else if (part.mimeType === 'text/plain' && part.body?.data) {
+      text = Buffer.from(part.body.data, 'base64').toString('utf-8')
+      body = text // Keep for backward compatibility
+    } else if (part.mimeType.startsWith('multipart/')) {
+      // Handle multipart messages
+      if (part.parts) {
+        for (const subPart of part.parts) {
+          extractContent(subPart)
+        }
       }
+    } else if (part.body?.attachmentId) {
+      // Handle attachments
+      attachments.push({
+        attachmentId: part.body.attachmentId,
+        filename: part.filename || `attachment_${part.body.attachmentId}`,
+        mimeType: part.mimeType,
+        size: part.body.size || 0
+      })
+    }
+  }
+
+  if (message.payload?.body?.data) {
+    // Simple message
+    if (message.payload.mimeType === 'text/html') {
+      html = Buffer.from(message.payload.body.data, 'base64').toString('utf-8')
+    } else if (message.payload.mimeType === 'text/plain') {
+      text = Buffer.from(message.payload.body.data, 'base64').toString('utf-8')
+      body = text
+    }
+  } else if (message.payload?.parts) {
+    // Multipart message
+    for (const part of message.payload.parts) {
+      extractContent(part)
     }
   }
 
@@ -108,7 +188,10 @@ const parseEmailMessage = (message) => {
     to: getHeader('To') || '',
     date: new Date(parseInt(message.internalDate)),
     snippet: message.snippet || '',
-    body,
+    html,
+    text,
+    body, // Keep for backward compatibility
+    attachments,
     isRead: !message.labelIds?.includes('UNREAD'),
     labels: message.labelIds || [],
     provider: 'gmail'
@@ -148,8 +231,19 @@ export const upsertEmail = async (user, emailData) => {
  */
 export const classifyAndSave = async (emailDoc) => {
   try {
-    // Use local classification service for now
-    const classification = classifyEmail(emailDoc.subject, emailDoc.snippet, emailDoc.body)
+    // Try ML service first, fallback to local classification
+    let classification
+    try {
+      const response = await axios.post(`${MODEL_SERVICE_URL}/categorize`, {
+        subject: emailDoc.subject,
+        snippet: emailDoc.snippet,
+        body: emailDoc.body || emailDoc.text
+      })
+      classification = response.data
+    } catch (mlError) {
+      console.log('ML service unavailable, using local classification')
+      classification = classifyEmail(emailDoc.subject, emailDoc.snippet, emailDoc.body || emailDoc.text)
+    }
     
     // Update email with classification
     const updatedEmail = await Email.findByIdAndUpdate(
@@ -188,16 +282,7 @@ export const fullSync = async (user) => {
     }
 
     // Initialize Gmail client
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
-    )
-
-    oauth2Client.setCredentials({
-      access_token: user.gmailAccessToken,
-      refresh_token: user.gmailRefreshToken
-    })
+    const oauth2Client = getOAuthForUser(user)
 
     // Get all message IDs
     const messageIds = await listAllMessageIds(oauth2Client, 'in:inbox')

@@ -30,6 +30,17 @@ function App() {
               } 
             />
             <Route 
+              path="/dashboard" 
+              element={
+                <>
+                  <Navbar />
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                </>
+              } 
+            />
+            <Route 
               path="/settings" 
               element={
                 <>

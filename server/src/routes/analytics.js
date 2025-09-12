@@ -1,6 +1,7 @@
 import express from 'express'
 import Email from '../models/Email.js'
 import { protect } from '../middleware/auth.js'
+import { sseAuth } from '../middleware/sseAuth.js'
 import { asyncHandler } from '../middleware/errorHandler.js'
 
 const router = express.Router()
@@ -301,7 +302,7 @@ router.get('/performance', protect, asyncHandler(async (req, res) => {
 // @desc    Get real-time analytics updates
 // @route   GET /api/analytics/realtime
 // @access  Private
-router.get('/realtime', protect, asyncHandler(async (req, res) => {
+router.get('/realtime', sseAuth, asyncHandler(async (req, res) => {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',

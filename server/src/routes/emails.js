@@ -145,42 +145,22 @@ router.post('/gmail/sync', protect, asyncHandler(async (req, res) => {
 // @access  Private
 router.post('/gmail/sync-all', protect, asyncHandler(async (req, res) => {
   try {
-    const user = await User.findById(req.user._id)
+    console.log('SYNC_ALL_START:', req.user._id)
     
-    if (!user.gmailConnected) {
-      return res.status(400).json({
-        success: false,
-        message: 'Gmail account not connected'
-      })
-    }
-
-    console.log(`🚀 Starting comprehensive Gmail sync for user: ${user.email}`)
+    const { fullSync } = await import('../services/gmailSyncService.js')
+    const result = await fullSync(req.user)
     
-    // Use the new comprehensive sync service
-    const result = await fullSync(user)
-    
-    if (result.success) {
-      res.json({
-        success: true,
-        message: result.message,
-        syncedCount: result.synced,
-        total: result.total,
-        classified: result.classified,
-        skipped: result.skipped,
-        categoryBreakdown: result.categoryBreakdown
-      })
-    } else {
-      res.status(500).json({
-        success: false,
-        message: result.error || 'Failed to sync Gmail emails'
-      })
-    }
-
-  } catch (error) {
-    console.error('Comprehensive Gmail sync error:', error)
-    res.status(500).json({
-      success: false,
-      message: 'Failed to sync Gmail emails'
+    console.log('SYNC_ALL_SUCCESS:', result)
+    return res.json({ 
+      success: true, 
+      provider: 'gmail', 
+      ...result 
+    })
+  } catch (err) {
+    console.error('SYNC_ALL_ERROR:', err?.message)
+    return res.status(400).json({ 
+      success: false, 
+      message: err?.message || 'Sync failed' 
     })
   }
 }))
@@ -282,6 +262,248 @@ router.get('/:id', protect, asyncHandler(async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch email'
+    })
+  }
+}))
+
+// @desc    Download email attachment
+// @route   GET /api/emails/:id/attachments/:attachmentId/download
+// @access  Private
+router.get('/:id/attachments/:attachmentId/download', protect, asyncHandler(async (req, res) => {
+  try {
+    const email = await Email.findOne({ 
+      _id: req.params.id, 
+      userId: req.user._id 
+    })
+
+    if (!email) {
+      return res.status(404).json({
+        success: false,
+        message: 'Email not found'
+      })
+    }
+
+    // Get user for OAuth
+    const User = (await import('../models/User.js')).default
+    const user = await User.findById(req.user._id)
+    
+    if (!user.gmailConnected) {
+      return res.status(400).json({
+        success: false,
+        message: 'Gmail not connected'
+      })
+    }
+
+    // Download attachment from Gmail
+    const { downloadAttachment } = await import('../services/gmailSyncService.js')
+    const { getOAuthForUser } = await import('../services/gmailSyncService.js')
+    
+    const oauth2 = getOAuthForUser(user)
+    const attachmentData = await downloadAttachment(oauth2, email.gmailId, req.params.attachmentId)
+
+    // Find attachment info
+    const attachment = email.attachments.find(att => att.attachmentId === req.params.attachmentId)
+    if (!attachment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Attachment not found'
+      })
+    }
+
+    // Set headers
+    res.setHeader('Content-Type', attachment.mimeType || 'application/octet-stream')
+    res.setHeader('Content-Disposition', `attachment; filename="${attachment.filename}"`)
+    res.setHeader('Content-Length', attachmentData.length)
+
+    res.send(attachmentData)
+
+  } catch (error) {
+    console.error('Download attachment error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to download attachment'
+    })
+  }
+}))
+
+// @desc    Archive email
+// @route   PUT /api/emails/:id/archive
+// @access  Private
+router.put('/:id/archive', protect, asyncHandler(async (req, res) => {
+  try {
+    const email = await Email.findOne({ 
+      _id: req.params.id, 
+      userId: req.user._id 
+    })
+
+    if (!email) {
+      return res.status(404).json({
+        success: false,
+        message: 'Email not found'
+      })
+    }
+
+    // Update Gmail labels if Gmail email
+    if (email.provider === 'gmail' && email.gmailId) {
+      try {
+        const User = (await import('../models/User.js')).default
+        const user = await User.findById(req.user._id)
+        
+        if (user.gmailConnected) {
+          const { getOAuthForUser } = await import('../services/gmailSyncService.js')
+          const oauth2 = getOAuthForUser(user)
+          const gmail = google.gmail({ version: 'v1', auth: oauth2 })
+
+          // Remove INBOX label and add ARCHIVE label
+          await gmail.users.messages.modify({
+            userId: 'me',
+            id: email.gmailId,
+            requestBody: {
+              removeLabelIds: ['INBOX'],
+              addLabelIds: ['ARCHIVE']
+            }
+          })
+        }
+      } catch (gmailError) {
+        console.error('Gmail archive error:', gmailError)
+        // Continue with local update even if Gmail fails
+      }
+    }
+
+    // Update local database
+    email.isArchived = true
+    email.archivedAt = new Date()
+    if (email.labels) {
+      email.labels = email.labels.filter(label => label !== 'INBOX')
+      if (!email.labels.includes('ARCHIVE')) {
+        email.labels.push('ARCHIVE')
+      }
+    }
+    await email.save()
+
+    res.json({
+      success: true,
+      message: 'Email archived successfully',
+      email
+    })
+
+  } catch (error) {
+    console.error('Archive email error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to archive email'
+    })
+  }
+}))
+
+// @desc    Delete email
+// @route   DELETE /api/emails/:id
+// @access  Private
+router.delete('/:id', protect, asyncHandler(async (req, res) => {
+  try {
+    const email = await Email.findOne({ 
+      _id: req.params.id, 
+      userId: req.user._id 
+    })
+
+    if (!email) {
+      return res.status(404).json({
+        success: false,
+        message: 'Email not found'
+      })
+    }
+
+    // Move to Gmail TRASH if Gmail email
+    if (email.provider === 'gmail' && email.gmailId) {
+      try {
+        const User = (await import('../models/User.js')).default
+        const user = await User.findById(req.user._id)
+        
+        if (user.gmailConnected) {
+          const { getOAuthForUser } = await import('../services/gmailSyncService.js')
+          const oauth2 = getOAuthForUser(user)
+          const gmail = google.gmail({ version: 'v1', auth: oauth2 })
+
+          // Move to TRASH
+          await gmail.users.messages.trash({
+            userId: 'me',
+            id: email.gmailId
+          })
+        }
+      } catch (gmailError) {
+        console.error('Gmail delete error:', gmailError)
+        // Continue with local delete even if Gmail fails
+      }
+    }
+
+    // Remove from local database
+    await Email.findByIdAndDelete(req.params.id)
+
+    res.json({
+      success: true,
+      message: 'Email deleted successfully'
+    })
+
+  } catch (error) {
+    console.error('Delete email error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete email'
+    })
+  }
+}))
+
+// @desc    Export emails to CSV
+// @route   POST /api/emails/export/csv
+// @access  Private
+router.post('/export/csv', protect, asyncHandler(async (req, res) => {
+  try {
+    const { emailIds } = req.body
+
+    if (!emailIds || !Array.isArray(emailIds)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email IDs required'
+      })
+    }
+
+    const emails = await Email.find({
+      _id: { $in: emailIds },
+      userId: req.user._id
+    })
+
+    if (emails.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No emails found'
+      })
+    }
+
+    // Create CSV content
+    const csvHeader = 'Subject,From,To,Date,Category,Confidence,Snippet\n'
+    const csvRows = emails.map(email => {
+      const subject = (email.subject || '').replace(/"/g, '""')
+      const from = (email.from || '').replace(/"/g, '""')
+      const to = (email.to || '').replace(/"/g, '""')
+      const date = email.date ? email.date.toISOString() : ''
+      const category = email.category || 'Other'
+      const confidence = email.classification?.confidence || 0
+      const snippet = (email.snippet || '').replace(/"/g, '""').replace(/\n/g, ' ')
+
+      return `"${subject}","${from}","${to}","${date}","${category}",${confidence},"${snippet}"`
+    })
+
+    const csvContent = csvHeader + csvRows.join('\n')
+
+    res.setHeader('Content-Type', 'text/csv')
+    res.setHeader('Content-Disposition', `attachment; filename="emails-export-${Date.now()}.csv"`)
+    res.send(csvContent)
+
+  } catch (error) {
+    console.error('Export CSV error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to export emails'
     })
   }
 }))

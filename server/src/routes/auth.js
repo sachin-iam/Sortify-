@@ -363,23 +363,26 @@ router.put('/change-password', protect, [
 
 // @desc    Get Gmail OAuth URL
 // @route   GET /api/auth/gmail/connect
-// @access  Private
-router.get('/gmail/connect', protect, asyncHandler(async (req, res) => {
+// @access  Public
+router.get('/gmail/connect', asyncHandler(async (req, res) => {
   try {
-    console.log('Generating Gmail OAuth URL for user:', req.user._id)
+    console.log('Generating Gmail OAuth URL')
     
-    const scopes = [
+    const SCOPES = [
       'https://www.googleapis.com/auth/gmail.readonly',
       'https://www.googleapis.com/auth/gmail.modify',
-      'https://www.googleapis.com/auth/userinfo.email',
-      'https://www.googleapis.com/auth/userinfo.profile'
+      'openid',
+      'email',
+      'profile'
     ]
 
     const oauth2Client = getOAuth2Client()
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
-      scope: scopes,
-      state: req.user._id.toString() // Pass user ID in state
+      prompt: 'consent',
+      include_granted_scopes: true,
+      scope: SCOPES,
+      state: 'gmail_connect'
     })
 
     console.log('Generated auth URL:', authUrl)
@@ -417,22 +420,39 @@ router.get('/gmail/callback', asyncHandler(async (req, res) => {
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client })
     const { data: userInfo } = await oauth2.userinfo.get()
 
-    // Find user by ID from state
-    const user = await User.findById(state)
+    // Find or create user by email from Google
+    let user = await User.findOne({ email: userInfo.email })
     if (!user) {
-      return res.redirect(`${process.env.CORS_ORIGIN}/login?error=user_not_found`)
+      // Create new user if doesn't exist
+      user = await User.create({
+        name: userInfo.name || userInfo.email,
+        email: userInfo.email,
+        password: 'oauth-user' // Placeholder password for OAuth users
+      })
+      console.log('Created new user for Gmail OAuth:', userInfo.email)
     }
 
     // Update user with Gmail tokens
     user.gmailConnected = true
     user.gmailAccessToken = tokens.access_token
-    user.gmailRefreshToken = tokens.refresh_token
-    user.gmailTokenExpiry = new Date(tokens.expiry_date)
+    if (tokens.refresh_token) user.gmailRefreshToken = tokens.refresh_token
+    user.gmailTokenExpiry = tokens.expiry_date ? new Date(tokens.expiry_date) : null
     user.gmailEmail = userInfo.email
     await user.save()
 
-    // Redirect to dashboard with success
-    res.redirect(`${process.env.CORS_ORIGIN}/?gmail_connected=true`)
+    // Generate JWT token for the user
+    const token = generateToken(user._id)
+    
+    // Set cookie with token
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    })
+
+    // Redirect to dashboard with success and token
+    res.redirect(`${process.env.CORS_ORIGIN}/dashboard?connected=1&token=${token}`)
   } catch (error) {
     console.error('Gmail OAuth callback error:', error)
     res.redirect(`${process.env.CORS_ORIGIN}/login?error=gmail_connection_failed`)
@@ -465,15 +485,41 @@ router.post('/microsoft/connect', protect, asyncHandler(async (req, res) => {
 router.post('/gmail/disconnect', protect, asyncHandler(async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
+    
+    // Stop Gmail watch if active
+    if (user.gmailWatchActive) {
+      try {
+        const { stopWatch } = await import('../services/gmailWatchService.js')
+        await stopWatch(user)
+      } catch (watchError) {
+        console.error('Error stopping Gmail watch:', watchError)
+      }
+    }
+
+    // Clear Gmail OAuth tokens
     user.gmailConnected = false
     user.gmailAccessToken = null
     user.gmailRefreshToken = null
     user.gmailTokenExpiry = null
+    user.gmailWatchExpiration = null
+    user.gmailHistoryId = null
+    user.gmailWatchActive = false
+    user.gmailLastHistoryId = null
     await user.save()
+
+    // Purge all Gmail emails for this user
+    const Email = (await import('../models/Email.js')).default
+    const deleteResult = await Email.deleteMany({ 
+      userId: req.user._id, 
+      provider: 'gmail' 
+    })
+
+    console.log(`🗑️ Purged ${deleteResult.deletedCount} Gmail emails for user ${user.email}`)
 
     res.json({
       success: true,
-      message: 'Gmail account disconnected successfully'
+      message: 'Disconnected and purged Gmail data',
+      deletedEmails: deleteResult.deletedCount
     })
   } catch (error) {
     console.error('Gmail disconnection error:', error)

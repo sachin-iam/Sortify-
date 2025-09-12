@@ -25,6 +25,14 @@ export const AuthProvider = ({ children }) => {
         
         if (decoded.exp > currentTime) {
           setUser(decoded)
+          // Bootstrap on login
+          ;(async () => {
+            try {
+              await api.post('/api/bootstrap/gmail')
+            } catch (e) {
+              console.warn('Bootstrap failed:', e?.message)
+            }
+          })()
         } else {
           logout()
         }

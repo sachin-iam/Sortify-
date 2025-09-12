@@ -166,7 +166,7 @@ const EmailReader = ({ email, onArchive, onDelete, onExport, loading = false }) 
                 <button
                   onClick={() => {
                     // Handle attachment download
-                    window.open(`/api/emails/${email._id}/attachments/${attachment.id}/download`)
+                    window.open(`/api/emails/${email._id}/attachments/${attachment.attachmentId}/download`)
                   }}
                   className="px-3 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
                 >
