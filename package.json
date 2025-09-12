@@ -1,0 +1,35 @@
+{
+  "name": "sortify",
+  "version": "2.0.0",
+  "description": "AI-Powered Email Organization Platform with 3D Glass Design",
+  "scripts": {
+    "client:dev": "cd client && npm run dev",
+    "server:dev": "cd server && npm run dev",
+    "model:dev": "cd model_service && python app.py",
+    "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\" \"npm run model:dev\"",
+    "install:all": "npm install && cd client && npm install && cd ../server && npm install && cd ../model_service && pip install -r requirements.txt",
+    "build": "cd client && npm run build",
+    "start": "cd server && npm start",
+    "test": "npm run test:client && npm run test:server && npm run test:model",
+    "test:client": "cd client && npm test",
+    "test:server": "cd server && npm test",
+    "test:model": "cd model_service && pytest"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": [
+    "email",
+    "sorting",
+    "ai",
+    "ml",
+    "react",
+    "nodejs",
+    "fastapi",
+    "mongodb",
+    "3d",
+    "glass-morphism"
+  ],
+  "author": "Sortify Team",
+  "license": "MIT"
+}

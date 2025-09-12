@@ -1,0 +1,51 @@
+import React from 'react'
+import { Routes, Route } from 'react-router-dom'
+import { AuthProvider } from './contexts/AuthContext'
+import ProtectedRoute from './components/ProtectedRoute'
+import ErrorBoundary from './components/ErrorBoundary'
+import Navbar from './components/Navbar'
+import ParticleBackground from './components/ParticleBackground'
+import Login from './pages/Login'
+import Dashboard from './pages/Dashboard'
+import Settings from './pages/Settings'
+import NotFound from './pages/NotFound'
+
+function App() {
+  return (
+    <ErrorBoundary>
+      <AuthProvider>
+        <div className="App min-h-screen relative">
+          <ParticleBackground />
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route 
+              path="/" 
+              element={
+                <>
+                  <Navbar />
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                </>
+              } 
+            />
+            <Route 
+              path="/settings" 
+              element={
+                <>
+                  <Navbar />
+                  <ProtectedRoute>
+                    <Settings />
+                  </ProtectedRoute>
+                </>
+              } 
+            />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </div>
+      </AuthProvider>
+    </ErrorBoundary>
+  )
+}
+
+export default App
