@@ -14,7 +14,21 @@ import {
   SparklesIcon,
   HomeIcon,
   Bars3Icon,
-  XMarkIcon
+  XMarkIcon,
+  ArchiveBoxIcon,
+  TrashIcon,
+  ArrowDownTrayIcon,
+  EyeIcon,
+  PencilIcon,
+  StarIcon,
+  HeartIcon,
+  ShareIcon,
+  FlagIcon,
+  AcademicCapIcon,
+  BriefcaseIcon,
+  MegaphoneIcon,
+  ShieldExclamationIcon,
+  QuestionMarkCircleIcon
 } from '@heroicons/react/24/outline'
 
 const ModernIcon = ({ 
@@ -48,7 +62,7 @@ const ModernIcon = ({
       case 'welcome':
         return <UserIcon {...iconProps} />
       case 'export':
-        return <DocumentArrowDownIcon {...iconProps} />
+        return <ArrowDownTrayIcon {...iconProps} />
       case 'warning':
         return <ExclamationTriangleIcon {...iconProps} />
       case 'success':
@@ -63,6 +77,36 @@ const ModernIcon = ({
         return <Bars3Icon {...iconProps} />
       case 'close':
         return <XMarkIcon {...iconProps} />
+      // Action icons
+      case 'archive':
+        return <ArchiveBoxIcon {...iconProps} />
+      case 'delete':
+        return <TrashIcon {...iconProps} />
+      case 'download':
+        return <ArrowDownTrayIcon {...iconProps} />
+      case 'view':
+        return <EyeIcon {...iconProps} />
+      case 'edit':
+        return <PencilIcon {...iconProps} />
+      case 'star':
+        return <StarIcon {...iconProps} />
+      case 'like':
+        return <HeartIcon {...iconProps} />
+      case 'share':
+        return <ShareIcon {...iconProps} />
+      case 'flag':
+        return <FlagIcon {...iconProps} />
+      // Category icons
+      case 'academic':
+        return <AcademicCapIcon {...iconProps} />
+      case 'placement':
+        return <BriefcaseIcon {...iconProps} />
+      case 'promotions':
+        return <MegaphoneIcon {...iconProps} />
+      case 'spam':
+        return <ShieldExclamationIcon {...iconProps} />
+      case 'other':
+        return <QuestionMarkCircleIcon {...iconProps} />
       default:
         return <EnvelopeIcon {...iconProps} />
     }

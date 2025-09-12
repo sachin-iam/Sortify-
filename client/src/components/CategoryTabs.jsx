@@ -1,14 +1,15 @@
 import React from 'react'
 import { motion } from 'framer-motion'
+import ModernIcon from './ModernIcon'
 
 const CategoryTabs = ({ value, onChange }) => {
   const categories = [
-    { id: 'All', label: 'All' },
-    { id: 'Academic', label: 'Academic' },
-    { id: 'Promotions', label: 'Promotions' },
-    { id: 'Placement', label: 'Placement' },
-    { id: 'Spam', label: 'Spam' },
-    { id: 'Other', label: 'Other' }
+    { id: 'All', label: 'All', icon: 'folder', color: '#6b7280' },
+    { id: 'Academic', label: 'Academic', icon: 'academic', color: '#3b82f6' },
+    { id: 'Promotions', label: 'Promotions', icon: 'promotions', color: '#8b5cf6' },
+    { id: 'Placement', label: 'Placement', icon: 'placement', color: '#10b981' },
+    { id: 'Spam', label: 'Spam', icon: 'spam', color: '#ef4444' },
+    { id: 'Other', label: 'Other', icon: 'other', color: '#6b7280' }
   ]
 
   return (

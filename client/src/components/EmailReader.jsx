@@ -80,27 +80,42 @@ const EmailReader = ({ email, onArchive, onDelete, onExport, loading = false }) 
           <h1 className="text-2xl font-bold text-slate-900 pr-4">
             {email.subject}
           </h1>
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             <button
               onClick={() => onArchive(email._id)}
-              className="p-2 text-slate-600 hover:text-slate-800 hover:bg-white/40 rounded-lg transition-colors"
+              className="group relative p-3 rounded-xl backdrop-blur-sm bg-gradient-to-br from-orange-400/20 to-orange-600/20 border border-orange-300/30 hover:from-orange-400/30 hover:to-orange-600/30 hover:border-orange-400/50 transition-all duration-300 shadow-lg hover:shadow-orange-200/50"
               title="Archive"
             >
-              <ModernIcon type="archive" size={20} />
+              <ModernIcon 
+                type="archive" 
+                size={6} 
+                color="#ea580c"
+                className="group-hover:scale-110 transition-transform duration-200"
+              />
             </button>
             <button
               onClick={() => onDelete(email._id)}
-              className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+              className="group relative p-3 rounded-xl backdrop-blur-sm bg-gradient-to-br from-red-400/20 to-red-600/20 border border-red-300/30 hover:from-red-400/30 hover:to-red-600/30 hover:border-red-400/50 transition-all duration-300 shadow-lg hover:shadow-red-200/50"
               title="Delete"
             >
-              <ModernIcon type="trash" size={20} />
+              <ModernIcon 
+                type="delete" 
+                size={6} 
+                color="#dc2626"
+                className="group-hover:scale-110 transition-transform duration-200"
+              />
             </button>
             <button
               onClick={() => onExport(email._id)}
-              className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+              className="group relative p-3 rounded-xl backdrop-blur-sm bg-gradient-to-br from-blue-400/20 to-blue-600/20 border border-blue-300/30 hover:from-blue-400/30 hover:to-blue-600/30 hover:border-blue-400/50 transition-all duration-300 shadow-lg hover:shadow-blue-200/50"
               title="Export"
             >
-              <ModernIcon type="download" size={20} />
+              <ModernIcon 
+                type="export" 
+                size={6} 
+                color="#2563eb"
+                className="group-hover:scale-110 transition-transform duration-200"
+              />
             </button>
           </div>
         </div>

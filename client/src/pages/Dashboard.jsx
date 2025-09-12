@@ -386,6 +386,10 @@ const Dashboard = () => {
     setCurrentPage(1) // Reset to first page
   }
 
+  const handlePageChange = (page) => {
+    setCurrentPage(page)
+  }
+
   const syncOutlookEmails = async () => {
     // Outlook sync is coming soon
     toast.error('Outlook sync coming soon!', { duration: 3000 })
@@ -685,25 +689,31 @@ const Dashboard = () => {
               />
 
               {/* Two-Pane Layout */}
-              <div className="grid grid-cols-1 lg:grid-cols-[420px,1fr] gap-6 min-h-[600px]">
+              <div className="grid grid-cols-1 lg:grid-cols-[420px,1fr] gap-6 h-[calc(100vh-300px)] min-h-[600px]">
                 {/* Left Column - Email List */}
-                <div className="backdrop-blur-xl bg-white/30 border border-white/20 rounded-2xl p-4">
+                <div className="backdrop-blur-xl bg-white/30 border border-white/20 rounded-2xl p-4 flex flex-col">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-slate-800">Emails</h3>
                     <span className="text-sm text-slate-600">
-                      {emails.length} emails
+                      {stats.totalEmails} emails
                     </span>
                   </div>
-                  <EmailList
-                    items={emails}
-                    selectedId={selectedEmailId}
-                    onSelect={handleEmailSelect}
-                    loading={emailsLoading}
-                  />
+                  <div className="flex-1 min-h-0">
+                    <EmailList
+                      items={emails}
+                      selectedId={selectedEmailId}
+                      onSelect={handleEmailSelect}
+                      loading={emailsLoading}
+                      onPageChange={handlePageChange}
+                      totalEmails={stats.totalEmails}
+                      currentPage={currentPage}
+                      totalPages={totalPages}
+                    />
+                  </div>
                 </div>
 
                 {/* Right Column - Email Reader */}
-                <div className="backdrop-blur-xl bg-white/30 border border-white/20 rounded-2xl p-4">
+                <div className="backdrop-blur-xl bg-white/30 border border-white/20 rounded-2xl p-4 flex flex-col">
                   <EmailReader
                     email={selectedEmail}
                     onArchive={handleEmailArchive}

@@ -2,7 +2,7 @@ import React from 'react'
 import { motion } from 'framer-motion'
 import ModernIcon from './ModernIcon'
 
-const EmailList = ({ items, selectedId, onSelect, loading = false }) => {
+const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage = 1, totalPages = 1, onPageChange, totalEmails = 0 }) => {
   if (loading) {
     return (
       <div className="space-y-3">
@@ -106,6 +106,55 @@ const EmailList = ({ items, selectedId, onSelect, loading = false }) => {
           </div>
         </motion.div>
       ))}
+      
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="mt-6 space-y-3">
+          <div className="text-center text-sm text-slate-600">
+            Showing {((currentPage - 1) * 25) + 1}-{Math.min(currentPage * 25, totalEmails)} of {totalEmails} emails
+          </div>
+          <div className="flex items-center justify-center gap-2">
+            <button
+              onClick={() => onPageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="px-3 py-2 rounded-lg bg-white/20 border border-white/30 text-slate-600 hover:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
+            >
+              <ModernIcon type="menu" size={12} color="#6b7280" />
+              Previous
+            </button>
+            
+            <div className="flex gap-1">
+              {[...Array(Math.min(5, totalPages))].map((_, index) => {
+                const pageNum = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + index
+                if (pageNum > totalPages) return null
+                
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => onPageChange(pageNum)}
+                    className={`px-3 py-2 rounded-lg transition-all duration-200 ${
+                      currentPage === pageNum
+                        ? 'bg-blue-500 text-white shadow-lg'
+                        : 'bg-white/20 border border-white/30 text-slate-600 hover:bg-white/30'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                )
+              })}
+            </div>
+            
+            <button
+              onClick={() => onPageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-2 rounded-lg bg-white/20 border border-white/30 text-slate-600 hover:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
+            >
+              Next
+              <ModernIcon type="menu" size={12} color="#6b7280" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
