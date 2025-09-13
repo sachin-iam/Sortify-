@@ -2,7 +2,7 @@ import React from 'react'
 import { motion } from 'framer-motion'
 import ModernIcon from './ModernIcon'
 
-const EmailReader = ({ email, onArchive, onDelete, onExport, loading = false }) => {
+const EmailReader = ({ email, onArchive, onDelete, onExport, onClose, loading = false }) => {
   if (loading) {
     return (
       <div className="backdrop-blur-xl bg-white/30 border border-white/20 rounded-2xl p-6">
@@ -69,130 +69,184 @@ const EmailReader = ({ email, onArchive, onDelete, onExport, loading = false }) 
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="backdrop-blur-xl bg-white/30 border border-white/20 rounded-2xl p-6 h-full flex flex-col"
-    >
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-start justify-between mb-4">
-          <h1 className="text-2xl font-bold text-slate-900 pr-4">
-            {email.subject}
-          </h1>
-          <div className="flex gap-3">
-            <button
-              onClick={() => onArchive(email._id)}
-              className="group relative p-3 rounded-xl backdrop-blur-sm bg-gradient-to-br from-orange-400/20 to-orange-600/20 border border-orange-300/30 hover:from-orange-400/30 hover:to-orange-600/30 hover:border-orange-400/50 transition-all duration-300 shadow-lg hover:shadow-orange-200/50"
-              title="Archive"
-            >
-              <ModernIcon 
-                type="archive" 
-                size={6} 
-                color="#ea580c"
-                className="group-hover:scale-110 transition-transform duration-200"
-              />
-            </button>
-            <button
-              onClick={() => onDelete(email._id)}
-              className="group relative p-3 rounded-xl backdrop-blur-sm bg-gradient-to-br from-red-400/20 to-red-600/20 border border-red-300/30 hover:from-red-400/30 hover:to-red-600/30 hover:border-red-400/50 transition-all duration-300 shadow-lg hover:shadow-red-200/50"
-              title="Delete"
-            >
-              <ModernIcon 
-                type="delete" 
-                size={6} 
-                color="#dc2626"
-                className="group-hover:scale-110 transition-transform duration-200"
-              />
-            </button>
-            <button
-              onClick={() => onExport(email._id)}
-              className="group relative p-3 rounded-xl backdrop-blur-sm bg-gradient-to-br from-blue-400/20 to-blue-600/20 border border-blue-300/30 hover:from-blue-400/30 hover:to-blue-600/30 hover:border-blue-400/50 transition-all duration-300 shadow-lg hover:shadow-blue-200/50"
-              title="Export"
-            >
-              <ModernIcon 
-                type="export" 
-                size={6} 
-                color="#2563eb"
-                className="group-hover:scale-110 transition-transform duration-200"
-              />
-            </button>
-          </div>
-        </div>
-
-        {/* Email Meta */}
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-slate-700">From:</span>
-            <span className="text-slate-600">{email.from}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-slate-700">To:</span>
-            <span className="text-slate-600">{email.to}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-slate-700">Date:</span>
-            <span className="text-slate-600">{formatDate(email.date)}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-slate-700">Category:</span>
-            <span
-              className={`px-2 py-1 rounded-full text-xs font-medium ${getCategoryColor(
-                email.category
-              )}`}
-            >
-              {email.category}
-            </span>
-            {email.classification?.confidence && (
-              <span className="text-xs text-slate-500">
-                ({Math.round(email.classification.confidence * 100)}% confidence)
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Email Body */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="prose prose-sm max-w-none">
-          {renderEmailBody()}
-        </div>
-      </div>
-
-      {/* Attachments */}
-      {email.attachments && email.attachments.length > 0 && (
-        <div className="mt-6 pt-4 border-t border-white/20">
-          <h3 className="text-sm font-medium text-slate-700 mb-3">Attachments</h3>
-          <div className="space-y-2">
-            {email.attachments.map((attachment, index) => (
-              <div
-                key={index}
-                className="flex items-center justify-between p-3 bg-white/20 rounded-lg"
-              >
+    <div className="flex-1 overflow-y-auto">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="backdrop-blur-xl bg-white/40 border border-white/20 rounded-3xl shadow-2xl shadow-blue-100/20 min-h-[400px] max-h-[calc(100vh-120px)] overflow-y-auto"
+      >
+        {/* Header Section with Gradient */}
+        <div className="relative bg-gradient-to-br from-blue-50/80 via-white/60 to-purple-50/80">
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-transparent to-purple-500/5"></div>
+          <div className="relative p-6 pb-4">
+            {/* Subject and Actions */}
+            <div className="flex items-start justify-between mb-6">
+              <div className="flex-1 pr-6">
+                <h1 className="text-2xl font-bold text-slate-900 leading-tight mb-2">
+                  {email.subject}
+                </h1>
+                {/* Category Badge */}
                 <div className="flex items-center gap-3">
-                  <ModernIcon type="attachment" size={16} color="#6b7280" />
-                  <span className="text-sm text-slate-700">
-                    {attachment.filename}
+                  <span
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm ${getCategoryColor(
+                      email.category
+                    )}`}
+                  >
+                    {email.category}
                   </span>
-                  <span className="text-xs text-slate-500">
-                    ({attachment.size})
-                  </span>
+                  {email.classification?.confidence && (
+                    <span className="text-xs text-slate-600 bg-slate-100/80 px-2 py-1 rounded-full">
+                      {Math.round(email.classification.confidence * 100)}% confidence
+                    </span>
+                  )}
                 </div>
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="flex gap-2">
                 <button
-                  onClick={() => {
-                    // Handle attachment download
-                    window.open(`/api/emails/${email._id}/attachments/${attachment.attachmentId}/download`)
-                  }}
-                  className="px-3 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                  onClick={() => onExport(email._id)}
+                  className="group relative p-2 rounded-xl backdrop-blur-sm bg-gradient-to-br from-blue-400/20 to-blue-600/20 border border-blue-300/30 hover:from-blue-400/30 hover:to-blue-600/30 hover:border-blue-400/50 transition-all duration-300 shadow-md hover:shadow-blue-200/50 hover:scale-105"
+                  title="Export"
                 >
-                  Download
+                  <ModernIcon 
+                    type="export" 
+                    size={4} 
+                    color="#2563eb"
+                    className="group-hover:scale-110 transition-transform duration-200"
+                  />
+                </button>
+                <button
+                  onClick={() => onArchive(email._id)}
+                  className="group relative p-2 rounded-xl backdrop-blur-sm bg-gradient-to-br from-orange-400/20 to-orange-600/20 border border-orange-300/30 hover:from-orange-400/30 hover:to-orange-600/30 hover:border-orange-400/50 transition-all duration-300 shadow-md hover:shadow-orange-200/50 hover:scale-105"
+                  title="Archive"
+                >
+                  <ModernIcon 
+                    type="archive" 
+                    size={4} 
+                    color="#ea580c"
+                    className="group-hover:scale-110 transition-transform duration-200"
+                  />
+                </button>
+                <button
+                  onClick={() => onDelete(email._id)}
+                  className="group relative p-2 rounded-xl backdrop-blur-sm bg-gradient-to-br from-red-400/20 to-red-600/20 border border-red-300/30 hover:from-red-400/30 hover:to-red-600/30 hover:border-red-400/50 transition-all duration-300 shadow-md hover:shadow-red-200/50 hover:scale-105"
+                  title="Delete"
+                >
+                  <ModernIcon 
+                    type="delete" 
+                    size={4} 
+                    color="#dc2626"
+                    className="group-hover:scale-110 transition-transform duration-200"
+                  />
+                </button>
+                <button
+                  onClick={onClose}
+                  className="group relative p-2 rounded-xl backdrop-blur-sm bg-gradient-to-br from-gray-400/20 to-gray-600/20 border border-gray-300/30 hover:from-gray-400/30 hover:to-gray-600/30 hover:border-gray-400/50 transition-all duration-300 shadow-md hover:shadow-gray-200/50 hover:scale-105"
+                  title="Close"
+                >
+                  <ModernIcon 
+                    type="close" 
+                    size={4} 
+                    color="#6b7280"
+                    className="group-hover:scale-110 transition-transform duration-200"
+                  />
                 </button>
               </div>
-            ))}
+            </div>
+
+            {/* Email Meta Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white/30 rounded-2xl border border-white/20 backdrop-blur-sm">
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <ModernIcon type="user" size={3} color="#2563eb" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide block">From</span>
+                    <span className="text-sm text-slate-900 break-words leading-relaxed">{email.from}</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 bg-gradient-to-br from-green-100 to-green-200 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <ModernIcon type="user" size={3} color="#059669" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide block">To</span>
+                    <span className="text-sm text-slate-900 break-words leading-relaxed">{email.to}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 bg-gradient-to-br from-purple-100 to-purple-200 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <ModernIcon type="calendar" size={3} color="#7c3aed" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Date</span>
+                    <span className="text-sm text-slate-900">{formatDate(email.date)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      )}
-    </motion.div>
+
+        {/* Email Body Section */}
+        <div className="p-8">
+          <div className="prose prose-slate max-w-none break-words leading-relaxed">
+            <div className="text-slate-900 text-lg leading-8">
+              {renderEmailBody()}
+            </div>
+          </div>
+        </div>
+
+        {/* Attachments Section */}
+        {email.attachments && email.attachments.length > 0 && (
+          <div className="border-t border-white/30 bg-gradient-to-r from-slate-50/50 to-blue-50/30">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center">
+                  <ModernIcon type="attachment" size={3} color="#2563eb" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Attachments ({email.attachments.length})
+                </h3>
+              </div>
+              <div className="space-y-3">
+                {email.attachments.map((attachment, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between p-4 bg-white/60 backdrop-blur-sm rounded-2xl border border-white/30 hover:bg-white/80 transition-all duration-200 shadow-sm hover:shadow-md"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center">
+                        <ModernIcon type="attachment" size={4} color="#2563eb" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-slate-900 text-sm">{attachment.filename}</p>
+                        <p className="text-xs text-slate-600">
+                          {Math.round(attachment.size / 1024)} KB
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        // Handle attachment download
+                        window.open(`/api/emails/${email._id}/attachments/${attachment.attachmentId}/download`)
+                      }}
+                      className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all duration-200 text-sm font-medium shadow-sm hover:shadow-md hover:scale-105"
+                    >
+                      Download
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </motion.div>
+    </div>
   )
 }
 

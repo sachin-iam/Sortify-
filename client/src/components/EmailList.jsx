@@ -1,8 +1,152 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import ModernIcon from './ModernIcon'
 
 const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage = 1, totalPages = 1, onPageChange, totalEmails = 0 }) => {
+  const [hoveredPage, setHoveredPage] = useState(null)
+  const [hasNavigated, setHasNavigated] = useState(false)
+
+  // Keyboard navigation logic
+  const getVisiblePages = () => {
+    const pageNumbers = []
+    
+    if (totalPages <= 4) {
+      for (let i = 1; i <= totalPages; i++) {
+        pageNumbers.push(i)
+      }
+    } else {
+      // If user hasn't started navigating, show default layout
+      if (!hasNavigated && !hoveredPage) {
+        if (currentPage === 1) {
+          pageNumbers.push(1, 2, 3)
+          pageNumbers.push('...')
+          pageNumbers.push(totalPages)
+        } else {
+          pageNumbers.push(1)
+          pageNumbers.push('...')
+          pageNumbers.push(currentPage)
+          if (currentPage + 1 <= totalPages) pageNumbers.push(currentPage + 1)
+          if (currentPage + 2 <= totalPages) pageNumbers.push(currentPage + 2)
+          pageNumbers.push('...')
+          pageNumbers.push(totalPages)
+        }
+      } else {
+        // Navigation mode
+        if (hoveredPage && hoveredPage < currentPage) {
+          // Left navigation with boundary check
+          const stepsLeft = currentPage - hoveredPage
+          const firstPage = Math.max(1, currentPage - 2 - stepsLeft)
+          const secondPage = Math.max(1, currentPage - 1 - stepsLeft)
+          
+          // Stop left navigation if first page becomes 1 and second becomes 2
+          if (firstPage === 1 && secondPage === 2) {
+            pageNumbers.push(1, 2)
+            pageNumbers.push(currentPage)
+            pageNumbers.push('...')
+            pageNumbers.push(totalPages - 1, totalPages)
+          } else {
+            pageNumbers.push(firstPage)
+            if (secondPage !== firstPage && secondPage < currentPage) {
+              pageNumbers.push(secondPage)
+            }
+            pageNumbers.push(currentPage)
+            pageNumbers.push('...')
+            pageNumbers.push(totalPages)
+          }
+        } else if (hoveredPage && hoveredPage > currentPage) {
+          // Right navigation with boundary check
+          pageNumbers.push(currentPage)
+          
+          // Stop right navigation if we reach the last two pages
+          if (hoveredPage >= totalPages - 1) {
+            pageNumbers.push('...')
+            pageNumbers.push(totalPages - 1, totalPages)
+          } else {
+            pageNumbers.push(hoveredPage)
+            if (hoveredPage + 1 <= totalPages) {
+              pageNumbers.push(hoveredPage + 1)
+            }
+            pageNumbers.push('...')
+            pageNumbers.push(totalPages)
+          }
+        } else {
+          // Default navigation layout
+          if (currentPage === 1) {
+            pageNumbers.push(1, 2, 3)
+            pageNumbers.push('...')
+            pageNumbers.push(totalPages - 1, totalPages)
+          } else if (currentPage === totalPages) {
+            pageNumbers.push(1)
+            pageNumbers.push('...')
+            pageNumbers.push(totalPages - 2, totalPages - 1, totalPages)
+          } else {
+            pageNumbers.push(1)
+            pageNumbers.push('...')
+            pageNumbers.push(currentPage)
+            if (currentPage + 1 <= totalPages) pageNumbers.push(currentPage + 1)
+            if (currentPage + 2 <= totalPages) pageNumbers.push(currentPage + 2)
+            pageNumbers.push('...')
+            pageNumbers.push(totalPages)
+          }
+        }
+      }
+    }
+    
+    return pageNumbers
+  }
+
+  const handleKeyDown = (event) => {
+    if (event.target.closest('.pagination-container')) {
+      if (event.key === 'ArrowRight') {
+        event.preventDefault()
+        setHasNavigated(true)
+        const currentHovered = hoveredPage || currentPage
+        const nextPage = Math.min(currentHovered + 1, totalPages)
+        
+        // Stop right navigation if we reach the last two pages
+        if (nextPage >= totalPages - 1) {
+          setHoveredPage(totalPages - 1)
+        } else {
+          setHoveredPage(nextPage)
+        }
+      } else if (event.key === 'ArrowLeft') {
+        event.preventDefault()
+        setHasNavigated(true)
+        const currentHovered = hoveredPage || currentPage
+        const prevPage = Math.max(currentHovered - 1, 1)
+        
+        // Stop left navigation if we reach pages 1 and 2
+        if (prevPage <= 2) {
+          setHoveredPage(2)
+        } else {
+          setHoveredPage(prevPage)
+        }
+      } else if (event.key === 'Enter') {
+        event.preventDefault()
+        if (hoveredPage && hoveredPage !== currentPage) {
+          onPageChange(hoveredPage)
+        }
+        setHoveredPage(null)
+        setHasNavigated(false)
+      } else if (event.key === 'Escape') {
+        event.preventDefault()
+        setHoveredPage(null)
+        setHasNavigated(false)
+      }
+    }
+  }
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [hoveredPage, currentPage, totalPages])
+
+  // Reset hover when current page changes
+  useEffect(() => {
+    setHoveredPage(null)
+  }, [currentPage])
   if (loading) {
     return (
       <div className="space-y-3">
@@ -58,8 +202,9 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
   }
 
   return (
-    <div className="space-y-2">
-      {items.map((email) => (
+    <div className="flex-1 overflow-y-auto">
+      <div className="space-y-2 p-4">
+        {items.map((email) => (
         <motion.div
           key={email._id}
           onClick={() => onSelect(email._id)}
@@ -122,55 +267,42 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
               <ModernIcon type="chevron-left" size={6} color="#6b7280" />
             </button>
             
-            <div className="flex gap-2 flex-wrap justify-center">
-              {(() => {
-                const pageNumbers = []
-                
-                if (totalPages <= 5) {
-                  // Show all pages if 5 or fewer
-                  for (let i = 1; i <= totalPages; i++) {
-                    pageNumbers.push(i)
-                  }
-                } else {
-                  // Show first 3 pages
-                  pageNumbers.push(1, 2, 3)
-                  
-                  // Add ellipsis if there's a gap
-                  if (totalPages > 4) {
-                    pageNumbers.push('...')
-                  }
-                  
-                  // Add last page
-                  pageNumbers.push(totalPages)
+            <div className="flex gap-2 flex-wrap justify-center pagination-container">
+              {getVisiblePages().map((pageNum, index) => {
+                if (pageNum === '...') {
+                  return (
+                    <span
+                      key={`ellipsis-${index}`}
+                      className="w-4 h-4 rounded-full flex items-center justify-center text-xs font-medium text-slate-600"
+                    >
+                      ...
+                    </span>
+                  )
                 }
                 
-                return pageNumbers.map((pageNum, index) => {
-                  if (pageNum === '...') {
-                    return (
-                      <span
-                        key={`ellipsis-${index}`}
-                        className="w-4 h-4 rounded-full flex items-center justify-center text-xs font-medium text-slate-600"
-                      >
-                        ...
-                      </span>
-                    )
-                  }
-                  
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => onPageChange(pageNum)}
-                      className={`w-4 h-4 rounded-full transition-all duration-200 flex items-center justify-center text-xs font-medium ${
-                        currentPage === pageNum
-                          ? 'bg-blue-500 text-white shadow-lg'
-                          : 'bg-white/20 border border-white/30 text-slate-600 hover:bg-white/30'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  )
-                })
-              })()}
+                const isCurrentPage = currentPage === pageNum
+                const isHoveredPage = hoveredPage === pageNum
+                
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => {
+                      onPageChange(pageNum)
+                      setHoveredPage(null)
+                      setHasNavigated(false)
+                    }}
+                    className={`w-4 h-4 rounded-full transition-all duration-200 flex items-center justify-center text-xs font-medium ${
+                      isCurrentPage
+                        ? 'bg-blue-500 text-white shadow-lg'
+                        : isHoveredPage
+                        ? 'bg-gray-300 text-slate-700 shadow-md'
+                        : 'bg-white/20 text-slate-600 hover:bg-white/30'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                )
+              })}
             </div>
             
             <button
@@ -183,6 +315,7 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }
