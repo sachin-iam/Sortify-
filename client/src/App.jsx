@@ -8,6 +8,9 @@ import ParticleBackground from './components/ParticleBackground'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Settings from './pages/Settings'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
+import EmailVerification from './pages/EmailVerification'
 import NotFound from './pages/NotFound'
 
 function App() {
@@ -18,6 +21,9 @@ function App() {
           <ParticleBackground />
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password/:resetToken" element={<ResetPassword />} />
+            <Route path="/verify-email/:verificationToken?" element={<EmailVerification />} />
             <Route 
               path="/" 
               element={

@@ -2,6 +2,7 @@ import express from 'express'
 import { body, validationResult } from 'express-validator'
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 import { google } from 'googleapis'
 import User from '../models/User.js'
 import { protect } from '../middleware/auth.js'
@@ -102,7 +103,17 @@ router.post('/register', [
       password
     })
 
-    sendTokenResponse(user, 201, res)
+    // Return success without token - user needs to login separately
+    res.status(201).json({
+      success: true,
+      message: 'User registered successfully. Please login to continue.',
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        isEmailVerified: user.isEmailVerified
+      }
+    })
   } catch (error) {
     console.error('Database operation failed:', error)
     return res.status(500).json({
@@ -241,6 +252,7 @@ router.get('/me', protect, asyncHandler(async (req, res) => {
       lastLogin: user.lastLogin,
       createdAt: user.createdAt,
       gmailConnected: user.gmailConnected,
+      gmailName: user.gmailName,
       outlookConnected: user.outlookConnected
     }
   })
@@ -432,12 +444,13 @@ router.get('/gmail/callback', asyncHandler(async (req, res) => {
       console.log('Created new user for Gmail OAuth:', userInfo.email)
     }
 
-    // Update user with Gmail tokens
+    // Update user with Gmail tokens and name
     user.gmailConnected = true
     user.gmailAccessToken = tokens.access_token
     if (tokens.refresh_token) user.gmailRefreshToken = tokens.refresh_token
     user.gmailTokenExpiry = tokens.expiry_date ? new Date(tokens.expiry_date) : null
     user.gmailEmail = userInfo.email
+    user.gmailName = userInfo.name || userInfo.email
     await user.save()
 
     // Generate JWT token for the user
@@ -507,6 +520,7 @@ router.post('/gmail/disconnect', protect, asyncHandler(async (req, res) => {
     user.gmailHistoryId = null
     user.gmailWatchActive = false
     user.gmailLastHistoryId = null
+    user.gmailName = null
     await user.save()
 
     // Purge all Gmail emails for this user
@@ -553,6 +567,283 @@ router.delete('/microsoft/disconnect', protect, asyncHandler(async (req, res) =>
     res.status(500).json({
       success: false,
       message: 'Failed to disconnect Microsoft Outlook account'
+    })
+  }
+}))
+
+// @desc    Delete user account
+// @route   DELETE /api/auth/account
+// @access  Private
+router.delete('/account', protect, asyncHandler(async (req, res) => {
+  const userId = req.user._id
+
+  try {
+    // Delete user and all associated data
+    await User.findByIdAndDelete(userId)
+    
+    // Clear the token cookie
+    res.clearCookie('token')
+    
+    res.json({
+      success: true,
+      message: 'Account deleted successfully'
+    })
+  } catch (error) {
+    console.error('Account deletion error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete account'
+    })
+  }
+}))
+
+// @desc    Get user connections status
+// @route   GET /api/auth/connections
+// @access  Private
+router.get('/connections', protect, asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id)
+    .select('gmailConnected gmailName outlookConnected emailPreferences')
+
+  res.json({
+    success: true,
+    connections: {
+      gmail: {
+        connected: user.gmailConnected,
+        email: user.gmailConnected ? user.email : null,
+        name: user.gmailConnected ? user.gmailName : null
+      },
+      outlook: {
+        connected: user.outlookConnected,
+        email: user.outlookConnected ? user.email : null
+      }
+    },
+    emailPreferences: user.emailPreferences
+  })
+}))
+
+// @desc    Update email preferences
+// @route   PUT /api/auth/email-preferences
+// @access  Private
+router.put('/email-preferences', protect, [
+  body('notifications')
+    .optional()
+    .isBoolean()
+    .withMessage('Notifications preference must be a boolean'),
+  body('marketing')
+    .optional()
+    .isBoolean()
+    .withMessage('Marketing preference must be a boolean')
+], asyncHandler(async (req, res) => {
+  // Check for validation errors
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: errors.array()
+    })
+  }
+
+  const { notifications, marketing } = req.body
+  const updateFields = {}
+
+  if (notifications !== undefined) updateFields['emailPreferences.notifications'] = notifications
+  if (marketing !== undefined) updateFields['emailPreferences.marketing'] = marketing
+
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
+    { $set: updateFields },
+    { new: true, runValidators: true }
+  ).select('emailPreferences')
+
+  res.json({
+    success: true,
+    emailPreferences: user.emailPreferences,
+    message: 'Email preferences updated successfully'
+  })
+}))
+
+// @desc    Forgot password
+// @route   POST /api/auth/forgot-password
+// @access  Public
+router.post('/forgot-password', [
+  body('email')
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email')
+], asyncHandler(async (req, res) => {
+  // Check for validation errors
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: errors.array()
+    })
+  }
+
+  const { email } = req.body
+
+  try {
+    const user = await User.findOne({ email })
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      })
+    }
+
+    // Generate reset token
+    const resetToken = user.getResetPasswordToken()
+    await user.save()
+
+    // In a real application, you would send an email here
+    // For demo purposes, we'll return the reset token
+    res.json({
+      success: true,
+      message: 'Password reset token generated',
+      resetToken: process.env.NODE_ENV === 'development' ? resetToken : undefined,
+      resetUrl: `${process.env.CORS_ORIGIN}/reset-password?token=${resetToken}`
+    })
+  } catch (error) {
+    console.error('Forgot password error:', error)
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to generate reset token'
+    })
+  }
+}))
+
+// @desc    Reset password
+// @route   PUT /api/auth/reset-password/:resetToken
+// @access  Public
+router.put('/reset-password/:resetToken', [
+  body('password')
+    .isLength({ min: 6 })
+    .withMessage('Password must be at least 6 characters long')
+], asyncHandler(async (req, res) => {
+  // Check for validation errors
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: errors.array()
+    })
+  }
+
+  const { resetToken } = req.params
+  const { password } = req.body
+
+  try {
+    // Hash the token
+    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex')
+
+    // Find user by hashed token and check if token is not expired
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpire: { $gt: Date.now() }
+    })
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired reset token'
+      })
+    }
+
+    // Update password
+    user.password = password
+    user.resetPasswordToken = null
+    user.resetPasswordExpire = null
+    await user.save()
+
+    res.json({
+      success: true,
+      message: 'Password reset successfully'
+    })
+  } catch (error) {
+    console.error('Reset password error:', error)
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to reset password'
+    })
+  }
+}))
+
+// @desc    Send email verification
+// @route   POST /api/auth/send-verification
+// @access  Private
+router.post('/send-verification', protect, asyncHandler(async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id)
+
+    if (user.isEmailVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is already verified'
+      })
+    }
+
+    // Generate verification token
+    const verificationToken = user.getEmailVerificationToken()
+    await user.save()
+
+    // In a real application, you would send an email here
+    // For demo purposes, we'll return the verification token
+    res.json({
+      success: true,
+      message: 'Verification email sent',
+      verificationToken: process.env.NODE_ENV === 'development' ? verificationToken : undefined,
+      verificationUrl: `${process.env.CORS_ORIGIN}/verify-email?token=${verificationToken}`
+    })
+  } catch (error) {
+    console.error('Send verification error:', error)
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to send verification email'
+    })
+  }
+}))
+
+// @desc    Verify email
+// @route   PUT /api/auth/verify-email/:verificationToken
+// @access  Public
+router.put('/verify-email/:verificationToken', asyncHandler(async (req, res) => {
+  const { verificationToken } = req.params
+
+  try {
+    // Hash the token
+    const hashedToken = crypto.createHash('sha256').update(verificationToken).digest('hex')
+
+    // Find user by hashed token and check if token is not expired
+    const user = await User.findOne({
+      emailVerificationToken: hashedToken,
+      emailVerificationExpire: { $gt: Date.now() }
+    })
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired verification token'
+      })
+    }
+
+    // Update email verification status
+    user.isEmailVerified = true
+    user.emailVerificationToken = null
+    user.emailVerificationExpire = null
+    await user.save()
+
+    res.json({
+      success: true,
+      message: 'Email verified successfully'
+    })
+  } catch (error) {
+    console.error('Verify email error:', error)
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to verify email'
     })
   }
 }))

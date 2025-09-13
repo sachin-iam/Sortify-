@@ -38,9 +38,9 @@ training_status = {
 # Initialize the email categorizer
 try:
     categorizer = EmailCategorizer()
-    print("✅ Email categorizer initialized successfully")
+    print("Email categorizer initialized successfully")
 except Exception as e:
-    print(f"⚠️ Warning: Failed to initialize model: {e}")
+    print(f"Warning: Failed to initialize model: {e}")
     categorizer = None
 
 # Initialize the model trainer

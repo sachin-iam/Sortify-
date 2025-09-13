@@ -66,12 +66,12 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await api.post('/api/auth/register', { name, email, password })
       if (response.data.success) {
-        const newToken = response.data.token
-        const decoded = jwtDecode(newToken)
-        setToken(newToken)
-        setUser(decoded)
-        localStorage.setItem('token', newToken)
-        return { success: true }
+        // Registration successful but user needs to login separately
+        return { 
+          success: true, 
+          message: response.data.message,
+          user: response.data.user
+        }
       }
       return { success: false, error: response.data.message }
     } catch (error) {
@@ -153,6 +153,46 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
+  const forgotPassword = async (email) => {
+    try {
+      const response = await api.post('/api/auth/forgot-password', { email })
+      return { success: response.data.success, message: response.data.message, resetUrl: response.data.resetUrl }
+    } catch (error) {
+      console.error('Forgot password error:', error)
+      return { success: false, error: error.response?.data?.message || 'Failed to send reset email' }
+    }
+  }
+
+  const resetPassword = async (resetToken, password) => {
+    try {
+      const response = await api.put(`/api/auth/reset-password/${resetToken}`, { password })
+      return { success: response.data.success, message: response.data.message }
+    } catch (error) {
+      console.error('Reset password error:', error)
+      return { success: false, error: error.response?.data?.message || 'Failed to reset password' }
+    }
+  }
+
+  const sendEmailVerification = async () => {
+    try {
+      const response = await api.post('/api/auth/send-verification')
+      return { success: response.data.success, message: response.data.message, verificationUrl: response.data.verificationUrl }
+    } catch (error) {
+      console.error('Send verification error:', error)
+      return { success: false, error: error.response?.data?.message || 'Failed to send verification email' }
+    }
+  }
+
+  const verifyEmail = async (verificationToken) => {
+    try {
+      const response = await api.put(`/api/auth/verify-email/${verificationToken}`)
+      return { success: response.data.success, message: response.data.message }
+    } catch (error) {
+      console.error('Verify email error:', error)
+      return { success: false, error: error.response?.data?.message || 'Failed to verify email' }
+    }
+  }
+
   const value = {
     user,
     token,
@@ -163,6 +203,10 @@ export const AuthProvider = ({ children }) => {
     logout,
     connectGmailAccount,
     connectMicrosoftAccount,
+    forgotPassword,
+    resetPassword,
+    sendEmailVerification,
+    verifyEmail,
     isAuthenticated: !!user
   }
 

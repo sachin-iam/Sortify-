@@ -1,5 +1,6 @@
 import mongoose from 'mongoose'
 import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -64,6 +65,10 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  gmailName: {
+    type: String,
+    default: null
+  },
   // Microsoft OAuth
   microsoftId: {
     type: String,
@@ -89,6 +94,24 @@ const userSchema = new mongoose.Schema({
   lastLogin: {
     type: Date,
     default: Date.now
+  },
+  // Password reset
+  resetPasswordToken: {
+    type: String,
+    default: null
+  },
+  resetPasswordExpire: {
+    type: Date,
+    default: null
+  },
+  // Email verification
+  emailVerificationToken: {
+    type: String,
+    default: null
+  },
+  emailVerificationExpire: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true
@@ -143,6 +166,34 @@ userSchema.statics.createFromMicrosoft = function(microsoftData) {
 userSchema.methods.updateLastLogin = function() {
   this.lastLogin = new Date()
   return this.save()
+}
+
+// Generate password reset token
+userSchema.methods.getResetPasswordToken = function() {
+  // Generate token
+  const resetToken = crypto.randomBytes(20).toString('hex')
+
+  // Hash token and set to resetPasswordToken field
+  this.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex')
+
+  // Set expire (10 minutes)
+  this.resetPasswordExpire = Date.now() + 10 * 60 * 1000
+
+  return resetToken
+}
+
+// Generate email verification token
+userSchema.methods.getEmailVerificationToken = function() {
+  // Generate token
+  const verificationToken = crypto.randomBytes(20).toString('hex')
+
+  // Hash token and set to emailVerificationToken field
+  this.emailVerificationToken = crypto.createHash('sha256').update(verificationToken).digest('hex')
+
+  // Set expire (24 hours)
+  this.emailVerificationExpire = Date.now() + 24 * 60 * 60 * 1000
+
+  return verificationToken
 }
 
 export default mongoose.model('User', userSchema)

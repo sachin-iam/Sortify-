@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
@@ -49,8 +50,20 @@ const Login = () => {
       }
 
       if (result.success) {
-        toast.success(isLogin ? 'Login successful!' : 'Registration successful!')
-        // Redirect will happen automatically due to useEffect
+        if (isLogin) {
+          toast.success('Login successful!')
+          // Redirect will happen automatically due to useEffect
+        } else {
+          toast.success(result.message || 'Registration successful! Please login to continue.')
+          // Switch to login mode after successful registration
+          setIsLogin(true)
+          setFormData({
+            name: '',
+            email: formData.email, // Keep the email for convenience
+            password: '',
+            confirmPassword: ''
+          })
+        }
       } else {
         toast.error(result.error || 'Authentication failed')
       }
@@ -156,9 +169,19 @@ const Login = () => {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-slate-700 text-sm font-medium mb-2">
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label htmlFor="password" className="block text-slate-700 text-sm font-medium">
+                  Password
+                </label>
+                {isLogin && (
+                  <Link
+                    to="/forgot-password"
+                    className="text-sm text-emerald-600 hover:text-emerald-700 transition-colors"
+                  >
+                    Forgot password?
+                  </Link>
+                )}
+              </div>
               <input
                 type="password"
                 id="password"

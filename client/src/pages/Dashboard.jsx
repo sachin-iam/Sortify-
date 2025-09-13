@@ -183,8 +183,7 @@ const Dashboard = () => {
     }
   }, [])
 
-  // Check current connection status on component mount
-  useEffect(() => {
+  // Check current connection status function
     const checkConnectionStatus = async () => {
       if (!token) {
         setLoadingConnections(false)
@@ -196,6 +195,10 @@ const Dashboard = () => {
         if (response.data.success) {
           setGmailConnected(response.data.user.gmailConnected || false)
           setOutlookConnected(response.data.user.outlookConnected || false)
+        // Update user object with Gmail name if available
+        if (response.data.user.gmailName && user) {
+          user.gmailName = response.data.user.gmailName
+        }
         }
       } catch (error) {
         console.error('Failed to check connection status:', error)
@@ -204,9 +207,10 @@ const Dashboard = () => {
       }
     }
 
-    const loadStats = async () => {
-      if (!token) return
-      
+  // Load stats function
+  const loadStats = async () => {
+    if (!token) return
+    
     try {
       const response = await api.get('/api/analytics/stats')
       if (response.data.success) {
@@ -217,12 +221,11 @@ const Dashboard = () => {
     }
   }
 
-    const loadAll = async () => {
-      await Promise.all([checkConnectionStatus(), loadStats()]).catch(() => {})
-    }
-
+  // Check current connection status on component mount
+  useEffect(() => {
     if (token) {
-      loadAll()
+      checkConnectionStatus()
+      loadStats()
     }
   }, [token])
 
@@ -368,7 +371,8 @@ const Dashboard = () => {
         setSelectedEmail(null)
         setGmailConnected(false)
         // Reload header stats & user
-        await loadAll()
+        await checkConnectionStatus()
+        await loadStats()
       } else {
         toast.error('Failed to disconnect Gmail account')
       }
@@ -413,7 +417,8 @@ const Dashboard = () => {
     try {
       const { data } = await api.post('/api/emails/gmail/sync-all')
       toast.success(`Synced ${data.synced}/${data.total} • Classified ${data.classified}`)
-      await loadAll()
+      await checkConnectionStatus()
+      await loadStats()
       await loadEmails()
     } catch (error) {
       console.error('Sync error:', error)
@@ -523,7 +528,7 @@ const Dashboard = () => {
           className="mb-6"
         >
           <h1 className="text-3xl font-bold text-slate-800 mb-1 flex items-center gap-3">
-            Welcome back, {user?.name || 'User'}! 
+            Welcome back, {user?.gmailName || user?.name || 'User'}! 
             <ModernIcon type="welcome" size={28} color="#3b82f6" />
           </h1>
           <p className="text-slate-600 text-base">
@@ -844,41 +849,57 @@ const Dashboard = () => {
           transition={{ delay: 0.4 }}
         >
           {activeView === 'emails' ? (
-            <div className="space-y-6">
+            <div className="space-y-8">
               {/* Top Bar with Provider Selector and Search */}
-              <div className="backdrop-blur-xl bg-white/30 border border-white/20 rounded-2xl p-4">
-                <div className="flex flex-col lg:flex-row gap-4">
+              <div className="backdrop-blur-xl bg-gradient-to-r from-white/40 via-white/30 to-blue-50/40 border border-white/30 rounded-3xl p-6 shadow-2xl shadow-blue-100/20">
+                <div className="flex flex-col lg:flex-row gap-6">
                   {/* Provider Selector */}
-                  <div className="flex gap-2">
-                    <button className="px-4 py-2 bg-emerald-500 text-white rounded-lg font-medium shadow-lg">
-                      Gmail
+                  <div className="flex gap-3">
+                    <button className="group relative px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-2xl font-semibold shadow-lg hover:shadow-xl hover:from-emerald-600 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                        <span>Gmail</span>
+                      </div>
+                      <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     </button>
                     <button 
                       disabled
-                      className="px-4 py-2 bg-slate-200/60 text-slate-400 rounded-lg font-medium cursor-not-allowed"
+                      className="group relative px-6 py-3 bg-gradient-to-r from-slate-200/80 to-slate-300/60 text-slate-500 rounded-2xl font-semibold cursor-not-allowed border border-slate-300/50"
                     >
-                      Outlook
-                      <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                        Coming Soon
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-slate-400 rounded-full"></div>
+                        <span>Outlook</span>
+                        <span className="ml-2 text-xs bg-gradient-to-r from-blue-500 to-blue-600 text-white px-3 py-1 rounded-full shadow-md">
+                          Coming Soon
+                        </span>
+                      </div>
                     </button>
                   </div>
                   
                   {/* Search Input */}
                   <div className="flex-1">
-                    <div className="relative">
-                      <ModernIcon 
-                        type="search" 
-                        size={20} 
-                        color="#6b7280" 
-                        className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5"
-                      />
+                    <div className="relative group">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
+                        <svg 
+                          className="h-5 w-5 text-slate-500 transition-colors duration-300 group-focus-within:text-emerald-600" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round" 
+                            strokeWidth={2} 
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" 
+                          />
+                        </svg>
+                      </div>
                       <input
                         type="text"
                         placeholder="Search emails..."
                         value={searchQuery}
                         onChange={(e) => handleSearchChange(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 bg-white/40 border border-white/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50"
+                        className="w-full pl-12 pr-4 py-3 bg-gradient-to-r from-white/60 to-white/40 border border-white/50 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/70 shadow-lg hover:shadow-xl transition-all duration-300 text-slate-800 placeholder-slate-500 font-medium backdrop-blur-sm"
                       />
                     </div>
                   </div>
@@ -904,15 +925,18 @@ const Dashboard = () => {
                 {/* LEFT: Email List pane */}
                 <section
                   className={[
-                    "bg-white/40 backdrop-blur-xl border border-white/20 rounded-2xl shadow",
+                    "bg-gradient-to-br from-white/50 to-white/30 backdrop-blur-xl border border-white/30 rounded-3xl shadow-2xl shadow-blue-100/20",
                     "overflow-hidden flex flex-col",
                     "transition-[flex-basis] duration-300 ease-out",
                     selectedEmail ? "lg:basis-[min(460px,40%)] basis-full" : "basis-full"
                   ].join(" ")}
                 >
-                  <div className="flex items-center justify-between p-4 border-b border-white/20">
-                    <h3 className="text-lg font-semibold text-slate-800">Emails</h3>
-                    <span className="text-sm text-slate-600">
+                  <div className="flex items-center justify-between p-6 border-b border-white/30 bg-gradient-to-r from-white/60 to-white/40">
+                    <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                      <ModernIcon type="email" size={20} color="#3b82f6" />
+                      Emails
+                    </h3>
+                    <span className="text-sm font-semibold text-slate-600 bg-gradient-to-r from-emerald-100 to-blue-100 px-3 py-1 rounded-full">
                       {stats.totalEmails} emails
                     </span>
                   </div>
@@ -933,7 +957,7 @@ const Dashboard = () => {
                 {/* RIGHT: Email Reader pane (hidden until selected) */}
                 <section
                   className={[
-                    "bg-white/40 backdrop-blur-xl border border-white/20 rounded-2xl shadow",
+                    "bg-gradient-to-br from-white/50 to-white/30 backdrop-blur-xl border border-white/30 rounded-3xl shadow-2xl shadow-blue-100/20",
                     "overflow-hidden flex flex-col lg:flex-1",
                     "transition-opacity duration-200",
                     selectedEmail ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
