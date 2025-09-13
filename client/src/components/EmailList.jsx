@@ -205,8 +205,8 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
     <div className="flex-1 overflow-y-auto">
       <div className="space-y-2 p-4">
         {items.map((email) => (
-        <motion.div
-          key={email._id}
+            <motion.div
+              key={email._id}
           onClick={() => onSelect(email._id)}
           className={`
             backdrop-blur-xl border rounded-2xl p-4 cursor-pointer transition-all duration-300
@@ -220,38 +220,38 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
           whileTap={{ scale: 0.99 }}
         >
           <div className="flex items-start justify-between mb-2">
-            <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <span className="font-medium text-slate-800 truncate">
-                  {email.from}
-                </span>
+                        {email.from}
+                      </span>
                 <span
                   className={`px-2 py-1 rounded-full text-xs font-medium ${getCategoryColor(
                     email.category
                   )}`}
                 >
                   {email.category}
-                </span>
-              </div>
+                      </span>
+                    </div>
               <h3 className="font-semibold text-slate-900 text-sm mb-1 truncate">
-                {email.subject}
+                    {email.subject}
               </h3>
               <p className="text-slate-600 text-sm line-clamp-2">
-                {email.snippet}
-              </p>
-            </div>
+                    {email.snippet}
+                  </p>
+                    </div>
             <div className="flex flex-col items-end gap-1 ml-3">
               <span className="text-xs text-slate-500">
                 {formatDate(email.date)}
               </span>
               {!email.isRead && (
                 <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              )}
-            </div>
-          </div>
-        </motion.div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
       ))}
-      
+
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="mt-3 space-y-2">
@@ -276,7 +276,7 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
                       className="w-4 h-4 rounded-full flex items-center justify-center text-xs font-medium text-slate-600"
                     >
                       ...
-                    </span>
+              </span>
                   )
                 }
                 
@@ -284,7 +284,7 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
                 const isHoveredPage = hoveredPage === pageNum
                 
                 return (
-                  <button
+                <button
                     key={pageNum}
                     onClick={() => {
                       onPageChange(pageNum)
@@ -300,7 +300,7 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
                     }`}
                   >
                     {pageNum}
-                  </button>
+                </button>
                 )
               })}
             </div>

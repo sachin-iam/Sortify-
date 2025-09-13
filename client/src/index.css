@@ -1,8 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 * {
   margin: 0;
@@ -51,23 +51,28 @@ html, body {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
 }
 
-/* Custom scrollbar - Mixed Theme */
+/* Custom scrollbar - Completely invisible always */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 0px; /* Always invisible */
+  height: 0px; /* Always invisible for horizontal scrollbars */
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(148, 163, 184, 0.2);
-  border-radius: 4px;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(71, 85, 105, 0.4);
-  border-radius: 4px;
+  background: transparent;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(51, 65, 85, 0.6);
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox scrollbar styling - Always hidden */
+* {
+  scrollbar-width: none; /* Firefox - always hidden */
+  scrollbar-color: transparent transparent; /* Firefox - transparent colors */
 }
 
 /* Animation classes */

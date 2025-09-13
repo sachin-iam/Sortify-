@@ -195,7 +195,7 @@ const EmailReader = ({ email, onArchive, onDelete, onExport, onClose, loading = 
         {/* Email Body Section */}
         <div className="p-8">
           <div className="prose prose-slate max-w-none break-words leading-relaxed">
-            <div className="text-slate-900 text-lg leading-8">
+            <div className="text-slate-900 text-sm leading-6">
               {renderEmailBody()}
             </div>
           </div>

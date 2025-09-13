@@ -451,11 +451,13 @@ router.get('/gmail/callback', asyncHandler(async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     })
 
-    // Redirect to dashboard with success and token
+    // Redirect back to dashboard with success and token
     res.redirect(`${process.env.CORS_ORIGIN}/dashboard?connected=1&token=${token}`)
   } catch (error) {
     console.error('Gmail OAuth callback error:', error)
-    res.redirect(`${process.env.CORS_ORIGIN}/login?error=gmail_connection_failed`)
+    
+    // Redirect back to dashboard with error
+    res.redirect(`${process.env.CORS_ORIGIN}/dashboard?error=gmail_connection_failed`)
   }
 }))
 

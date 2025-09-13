@@ -37,26 +37,149 @@ const Dashboard = () => {
   const [emailsLoading, setEmailsLoading] = useState(false)
   const [emailDetailLoading, setEmailDetailLoading] = useState(false)
 
+  // Listen for messages from popup windows (Gmail OAuth)
+  useEffect(() => {
+    const handleMessage = (event) => {
+      console.log('Message received:', event.data)
+      console.log('Message origin:', event.origin)
+      console.log('Expected origins:', ['http://localhost:5000', 'http://localhost:3000', 'http://localhost:3001'])
+      
+      // Accept messages from localhost origins (development)
+      const allowedOrigins = ['http://localhost:5000', 'http://localhost:3000', 'http://localhost:3001']
+      
+      if (event.data && event.data.type === 'GMAIL_LOGIN_SUCCESS') {
+        console.log('Gmail login success message received!')
+        
+        // Stop the connecting state
+        setConnectingGmail(false)
+        
+        // Store token and update auth context
+        localStorage.setItem('token', event.data.token)
+        api.defaults.headers.common['Authorization'] = `Bearer ${event.data.token}`
+        
+        // Show beautiful 3D glass design success toast
+        toast.success('🎉 Gmail Connected Successfully!', {
+          duration: 4000,
+          style: {
+            background: 'linear-gradient(135deg, rgba(16,185,129,0.15), rgba(5,150,105,0.1))',
+            backdropFilter: 'blur(20px)',
+            border: '1px solid rgba(16,185,129,0.3)',
+            borderRadius: '20px',
+            boxShadow: '0 25px 50px rgba(0,0,0,0.15), 0 0 0 1px rgba(16,185,129,0.2), inset 0 1px 0 rgba(255,255,255,0.3)',
+            color: '#065f46',
+            fontSize: '16px',
+            fontWeight: '700',
+            padding: '20px 24px',
+            maxWidth: '450px',
+            textAlign: 'center',
+            position: 'relative',
+            overflow: 'hidden'
+          },
+          icon: '✨'
+        })
+        
+        // Reload the page to refresh auth context
+        setTimeout(() => {
+          console.log('Reloading page with new token')
+          window.location.reload()
+        }, 1000)
+      } else if (event.data && event.data.type === 'GMAIL_LOGIN_ERROR') {
+        console.log('Gmail login error message received!')
+        toast.error('❌ Login failed. Please try again.', {
+          duration: 4000,
+          style: {
+            background: 'linear-gradient(135deg, rgba(239,68,68,0.15), rgba(220,38,38,0.1))',
+            backdropFilter: 'blur(20px)',
+            border: '1px solid rgba(239,68,68,0.3)',
+            borderRadius: '20px',
+            boxShadow: '0 25px 50px rgba(0,0,0,0.15), 0 0 0 1px rgba(239,68,68,0.2), inset 0 1px 0 rgba(255,255,255,0.3)',
+            color: '#991b1b',
+            fontSize: '16px',
+            fontWeight: '700',
+            padding: '20px 24px',
+            maxWidth: '450px',
+            textAlign: 'center',
+            position: 'relative',
+            overflow: 'hidden'
+          },
+          icon: '❌'
+        })
+      }
+    }
+
+    console.log('Setting up message listener for Gmail OAuth')
+    window.addEventListener('message', handleMessage)
+    
+    return () => {
+      console.log('Cleaning up message listener')
+      window.removeEventListener('message', handleMessage)
+    }
+  }, [])
+
   // Handle token from URL parameters (Gmail OAuth callback)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const urlToken = urlParams.get('token')
     const connected = urlParams.get('connected')
+    const error = urlParams.get('error')
     
     if (urlToken && connected === '1') {
+      console.log('Token found in URL, storing and refreshing')
       // Store token in localStorage and update auth context
       localStorage.setItem('token', urlToken)
-      // Set axios default header
       api.defaults.headers.common['Authorization'] = `Bearer ${urlToken}`
       
-      // Show success message
-      toast.success('Gmail connected successfully!')
+      // Show beautiful 3D glass design success toast
+      toast.success('🎉 Gmail Connected Successfully!', {
+        duration: 4000,
+        style: {
+          background: 'linear-gradient(135deg, rgba(16,185,129,0.15), rgba(5,150,105,0.1))',
+          backdropFilter: 'blur(20px)',
+          border: '1px solid rgba(16,185,129,0.3)',
+          borderRadius: '20px',
+          boxShadow: '0 25px 50px rgba(0,0,0,0.15), 0 0 0 1px rgba(16,185,129,0.2), inset 0 1px 0 rgba(255,255,255,0.3)',
+          color: '#065f46',
+          fontSize: '16px',
+          fontWeight: '700',
+          padding: '20px 24px',
+          maxWidth: '450px',
+          textAlign: 'center',
+          position: 'relative',
+          overflow: 'hidden'
+        },
+        icon: '✨'
+      })
       
-      // Clean up URL parameters
+      // Clean up URL and reload
       window.history.replaceState({}, document.title, window.location.pathname)
+      setTimeout(() => {
+        window.location.reload()
+      }, 1000)
+    } else if (error === 'gmail_connection_failed') {
+      console.log('Gmail connection failed')
+      // Show error toast
+      toast.error('❌ Gmail connection failed. Please try again.', {
+        duration: 4000,
+        style: {
+          background: 'linear-gradient(135deg, rgba(239,68,68,0.15), rgba(220,38,38,0.1))',
+          backdropFilter: 'blur(20px)',
+          border: '1px solid rgba(239,68,68,0.3)',
+          borderRadius: '20px',
+          boxShadow: '0 25px 50px rgba(0,0,0,0.15), 0 0 0 1px rgba(239,68,68,0.2), inset 0 1px 0 rgba(255,255,255,0.3)',
+          color: '#991b1b',
+          fontSize: '16px',
+          fontWeight: '700',
+          padding: '20px 24px',
+          maxWidth: '450px',
+          textAlign: 'center',
+          position: 'relative',
+          overflow: 'hidden'
+        },
+        icon: '❌'
+      })
       
-      // Reload the page to refresh auth context
-      window.location.reload()
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname)
     }
   }, [])
 
@@ -215,45 +338,20 @@ const Dashboard = () => {
     try {
       const response = await api.get('/api/auth/gmail/connect')
       if (response.data.success) {
-        // Open Gmail OAuth in new window
-        window.open(response.data.authUrl, 'gmail-oauth', 'width=500,height=600,scrollbars=yes,resizable=yes')
+        console.log('Redirecting to Gmail OAuth:', response.data.authUrl)
         
-        // Listen for the OAuth completion with polling
-        const pollForConnection = async () => {
-          try {
-            const userResponse = await api.get('/api/auth/me')
-            if (userResponse.data.success && userResponse.data.user.gmailConnected) {
-              setGmailConnected(true)
-              toast.success('Gmail account connected successfully!')
-              return true
-            }
-          } catch (error) {
-            // Connection not ready yet
-          }
-          return false
-        }
-
-        // Poll every 2 seconds for up to 5 minutes
-        let pollCount = 0
-        const maxPolls = 150 // 5 minutes at 2 second intervals
+        // Redirect to Gmail OAuth in the same tab
+        window.location.href = response.data.authUrl
         
-        const poll = async () => {
-          if (pollCount >= maxPolls) return
-          pollCount++
-          
-          const connected = await pollForConnection()
-          if (!connected && pollCount < maxPolls) {
-            setTimeout(poll, 2000)
-          }
-        }
-        
-        setTimeout(poll, 2000)
+        // The OAuth callback will redirect back to dashboard with token
+        // and the URL parameter handler will process it
       } else {
         toast.error('Failed to initiate Gmail connection')
+        setConnectingGmail(false)
       }
     } catch (error) {
+      console.error('Gmail connection error:', error)
       toast.error('Failed to connect Gmail account')
-    } finally {
       setConnectingGmail(false)
     }
   }
@@ -487,23 +585,23 @@ const Dashboard = () => {
                     <button 
                       onClick={syncGmailEmails}
                       disabled={syncLoading}
-                      className="flex-1 bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-lg rounded-xl px-4 py-2 font-medium hover:from-emerald-500 hover:to-emerald-700 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
+                      className="flex-1 bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-lg rounded-lg px-3 py-1.5 text-sm font-medium hover:from-emerald-500 hover:to-emerald-700 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-1.5"
                     >
                       {syncLoading ? (
                         <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                          <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div>
                           Syncing...
                         </>
                       ) : (
                         <>
-                          <ModernIcon type="sync" size={16} />
+                          <ModernIcon type="sync" size={8} />
                           Sync Now
                         </>
                       )}
                     </button>
                     <button 
                       onClick={handleGmailDisconnection}
-                      className="bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 rounded-xl px-4 py-2 font-medium transition-all duration-300"
+                      className="bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-300"
                     >
                       Disconnect
                     </button>
