@@ -20,7 +20,7 @@ import emailService from '../services/emailService'
 import ModernIcon from '../components/ModernIcon'
 
 const Dashboard = () => {
-  const { user, token, connectGmailAccount, connectMicrosoftAccount } = useAuth()
+  const { user, token, connectGmailAccount, connectMicrosoftAccount, updateTokenFromOAuth } = useAuth()
   const { isConnected, connectionStatus, subscribeToEvents } = useWebSocketContext()
   const [activeView, setActiveView] = useState('emails')
   const [syncLoading, setSyncLoading] = useState(false)
@@ -451,11 +451,16 @@ const Dashboard = () => {
     setShowEmailTemplates(false)
   }
 
-  // Subscribe to WebSocket events
+  // Subscribe to WebSocket events (debounced to prevent multiple subscriptions)
   useEffect(() => {
     if (isConnected) {
       console.log('🔌 WebSocket connected, subscribing to events')
-      subscribeToEvents(['email_synced', 'category_updated', 'sync_status'])
+      // Use a small delay to prevent multiple rapid subscriptions
+      const timeoutId = setTimeout(() => {
+        subscribeToEvents(['email_synced', 'category_updated', 'sync_status'])
+      }, 100)
+      
+      return () => clearTimeout(timeoutId)
     } else {
       console.log('🔌 WebSocket not connected, will subscribe when connected')
     }
@@ -545,40 +550,60 @@ const Dashboard = () => {
     const urlParams = new URLSearchParams(window.location.search)
     const urlToken = urlParams.get('token')
     const connected = urlParams.get('connected')
+    const loginSuccess = urlParams.get('login')
     const error = urlParams.get('error')
     
-    if (urlToken && connected === '1') {
-      console.log('Token found in URL, storing and refreshing')
-      // Store token in localStorage and update auth context
-      localStorage.setItem('token', urlToken)
-      api.defaults.headers.common['Authorization'] = `Bearer ${urlToken}`
+    if (urlToken && (connected === '1' || loginSuccess === 'success')) {
+      console.log('🎯 OAuth callback detected - updating authentication state...')
       
-      // Show beautiful 3D glass design success toast
-      toast.success('🎉 Gmail Connected Successfully!', {
-        duration: 4000,
-        style: {
-          background: 'linear-gradient(135deg, rgba(16,185,129,0.15), rgba(5,150,105,0.1))',
-          backdropFilter: 'blur(20px)',
-          border: '1px solid rgba(16,185,129,0.3)',
-          borderRadius: '20px',
-          boxShadow: '0 25px 50px rgba(0,0,0,0.15), 0 0 0 1px rgba(16,185,129,0.2), inset 0 1px 0 rgba(255,255,255,0.3)',
-          color: '#065f46',
-          fontSize: '16px',
-          fontWeight: '700',
-          padding: '20px 24px',
-          maxWidth: '450px',
-          textAlign: 'center',
-          position: 'relative',
-          overflow: 'hidden'
-        },
-        icon: '✨'
+      // Use the new AuthContext function to update token and user data
+      updateTokenFromOAuth(urlToken).then((result) => {
+        if (result.success) {
+          console.log('✅ Authentication state updated successfully')
+          
+          // Show beautiful 3D glass design success toast
+          const isLogin = loginSuccess === 'success'
+          toast.success(isLogin ? '🎉 Login Successful! Gmail Connected Automatically!' : '🎉 Gmail Connected Successfully!', {
+            duration: 4000,
+            style: {
+              background: 'linear-gradient(135deg, rgba(16,185,129,0.15), rgba(5,150,105,0.1))',
+              backdropFilter: 'blur(20px)',
+              border: '1px solid rgba(16,185,129,0.3)',
+              borderRadius: '20px',
+              boxShadow: '0 25px 50px rgba(0,0,0,0.15), 0 0 0 1px rgba(16,185,129,0.2), inset 0 1px 0 rgba(255,255,255,0.3)',
+              color: '#065f46',
+              fontSize: '16px',
+              fontWeight: '700',
+              padding: '20px 24px',
+              maxWidth: '450px',
+              textAlign: 'center',
+              position: 'relative',
+              overflow: 'hidden'
+            },
+            icon: '✨'
+          })
+          
+          // Refresh connection status and data after successful auth update
+          setTimeout(() => {
+            checkConnectionStatus()
+            fetchStats(true)
+            loadData()
+          }, 500)
+        } else {
+          console.error('❌ Failed to update authentication state:', result.error)
+          toast.error('❌ Authentication update failed. Please refresh the page.', {
+            duration: 4000
+          })
+        }
+      }).catch((error) => {
+        console.error('❌ Error updating authentication state:', error)
+        toast.error('❌ Authentication error. Please refresh the page.', {
+          duration: 4000
+        })
       })
       
-      // Clean up URL and reload
+      // Clean up URL parameters (no page reload needed)
       window.history.replaceState({}, document.title, window.location.pathname)
-      setTimeout(() => {
-        window.location.reload()
-      }, 1000)
     } else if (error === 'gmail_connection_failed') {
       console.log('Gmail connection failed')
       // Show error toast
@@ -605,7 +630,7 @@ const Dashboard = () => {
       // Clean up URL
       window.history.replaceState({}, document.title, window.location.pathname)
     }
-  }, [])
+  }, [updateTokenFromOAuth])
 
   // Check current connection status function
     const checkConnectionStatus = async () => {
@@ -947,7 +972,12 @@ const Dashboard = () => {
                 </div>
                 <div>
                     <h3 className="text-lg font-semibold text-slate-800">Gmail</h3>
-                    <p className="text-sm text-slate-600">Connect your Gmail account</p>
+                    <p className="text-sm text-slate-600">
+                      {gmailConnected 
+                        ? 'Your Gmail is connected and syncing' 
+                        : 'Connect your Gmail account to start organizing emails'
+                      }
+                    </p>
                   </div>
                 </div>
                 <span className={`px-3 py-1 rounded-full text-xs font-medium ${
@@ -996,23 +1026,28 @@ const Dashboard = () => {
                     </button>
                   </>
                 ) : (
-              <button 
-                onClick={handleGmailConnection}
-                disabled={connectingGmail}
-                    className="w-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-lg rounded-xl px-4 py-2 font-medium hover:from-emerald-500 hover:to-emerald-700 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    {connectingGmail ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                        Connecting...
-                      </>
-                    ) : (
-                      <>
-                        <ModernIcon type="email" size={16} />
-                        Connect Gmail
-                      </>
-                    )}
-              </button>
+                  <div className="space-y-2">
+                    <button 
+                      onClick={handleGmailConnection}
+                      disabled={connectingGmail}
+                      className="w-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-lg rounded-xl px-4 py-2 font-medium hover:from-emerald-500 hover:to-emerald-700 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {connectingGmail ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                          Connecting...
+                        </>
+                      ) : (
+                        <>
+                          <ModernIcon type="email" size={16} />
+                          Connect Gmail
+                        </>
+                      )}
+                    </button>
+                    <p className="text-xs text-slate-500 text-center">
+                      If you logged in with Google but Gmail isn't connected, click here to set it up manually.
+                    </p>
+                  </div>
                 )}
               </div>
             </div>

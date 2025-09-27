@@ -56,12 +56,28 @@ const Navbar = () => {
           {/* User Menu */}
           <div className="flex items-center space-x-4">
             <div className="hidden md:flex items-center space-x-3">
-              <div className="w-8 h-8 bg-gradient-to-r from-slate-500 to-slate-700 rounded-full flex items-center justify-center">
+              {user?.avatar || user?.gmailName ? (
+                <img 
+                  src={user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.gmailName || user.name)}&background=6366f1&color=fff&size=32`}
+                  alt={user.name}
+                  className="w-8 h-8 rounded-full border-2 border-slate-300"
+                  onError={(e) => {
+                    e.target.style.display = 'none'
+                    e.target.nextSibling.style.display = 'flex'
+                  }}
+                />
+              ) : null}
+              <div 
+                className={`w-8 h-8 bg-gradient-to-r from-slate-500 to-slate-700 rounded-full flex items-center justify-center ${user?.avatar || user?.gmailName ? 'hidden' : ''}`}
+                style={{ display: user?.avatar || user?.gmailName ? 'none' : 'flex' }}
+              >
                 <span className="text-white font-semibold text-sm">
-                  {user?.name?.charAt(0) || 'U'}
+                  {user?.name?.charAt(0)?.toUpperCase() || user?.gmailName?.charAt(0)?.toUpperCase() || 'U'}
                 </span>
               </div>
-              <span className="text-slate-800 font-medium">{user?.name || 'User'}</span>
+              <span className="text-slate-800 font-medium">
+                {user?.name || user?.gmailName || 'User'}
+              </span>
             </div>
 
             {/* Mobile Menu Button */}
@@ -108,12 +124,28 @@ const Navbar = () => {
               ))}
               <div className="px-4 py-3 border-t border-slate-300/30">
                 <div className="flex items-center space-x-3 mb-3">
-                  <div className="w-8 h-8 bg-gradient-to-r from-slate-500 to-slate-700 rounded-full flex items-center justify-center">
+                  {user?.avatar || user?.gmailName ? (
+                    <img 
+                      src={user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.gmailName || user.name)}&background=6366f1&color=fff&size=32`}
+                      alt={user.name}
+                      className="w-8 h-8 rounded-full border-2 border-slate-300"
+                      onError={(e) => {
+                        e.target.style.display = 'none'
+                        e.target.nextSibling.style.display = 'flex'
+                      }}
+                    />
+                  ) : null}
+                  <div 
+                    className={`w-8 h-8 bg-gradient-to-r from-slate-500 to-slate-700 rounded-full flex items-center justify-center ${user?.avatar || user?.gmailName ? 'hidden' : ''}`}
+                    style={{ display: user?.avatar || user?.gmailName ? 'none' : 'flex' }}
+                  >
                     <span className="text-white font-semibold text-sm">
-                      {user?.name?.charAt(0) || 'U'}
+                      {user?.name?.charAt(0)?.toUpperCase() || user?.gmailName?.charAt(0)?.toUpperCase() || 'U'}
                     </span>
                   </div>
-                  <span className="text-slate-800 font-medium">{user?.name || 'User'}</span>
+                  <span className="text-slate-800 font-medium">
+                    {user?.name || user?.gmailName || 'User'}
+                  </span>
                 </div>
                 <button
                   onClick={handleLogout}

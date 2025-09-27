@@ -14,34 +14,66 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
-  const [token, setToken] = useState(localStorage.getItem('token'))
+  const [token, setToken] = useState(() => localStorage.getItem('token'))
   const [loading, setLoading] = useState(true)
+  const [isAuthenticated, setIsAuthenticated] = useState(() => !!localStorage.getItem('token'))
 
   useEffect(() => {
-    if (token) {
-      try {
-        const decoded = jwtDecode(token)
-        const currentTime = Date.now() / 1000
-        
-        if (decoded.exp > currentTime) {
-          setUser(decoded)
-          // Bootstrap on login
-          ;(async () => {
-            try {
-              await api.post('/api/bootstrap/gmail')
-            } catch (e) {
-              console.warn('Bootstrap failed:', e?.message)
-            }
-          })()
-        } else {
-          logout()
-        }
-      } catch (error) {
-        console.error('Invalid token:', error)
-        logout()
+    const fetchUserData = async () => {
+      // Check localStorage for token if token state is null but localStorage has it
+      const storedToken = localStorage.getItem('token')
+      if (!token && storedToken) {
+        console.log('🔄 AuthContext: Found token in localStorage, updating state...')
+        setToken(storedToken)
+        setIsAuthenticated(true)
+        api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`
+        return // Let the next useEffect cycle handle the rest
       }
+      
+      if (token) {
+        try {
+          const decoded = jwtDecode(token)
+          const currentTime = Date.now() / 1000
+          
+          if (decoded.exp > currentTime) {
+            // Set authenticated state immediately
+            setIsAuthenticated(true)
+            
+            // Fetch full user data from server
+            try {
+              const response = await api.get('/api/auth/me')
+              if (response.data.success) {
+                setUser(response.data.user)
+                console.log('✅ User data loaded:', response.data.user.name)
+              } else {
+                throw new Error('Failed to fetch user data')
+              }
+            } catch (error) {
+              console.error('Failed to fetch user data:', error)
+              // Fallback to token data if API fails
+              setUser({ id: decoded.id, name: 'User', email: 'user@example.com' })
+            }
+            
+            // Bootstrap on login
+            ;(async () => {
+              try {
+                await api.post('/api/bootstrap/gmail')
+              } catch (e) {
+                console.warn('Bootstrap failed:', e?.message)
+              }
+            })()
+          } else {
+            logout()
+          }
+        } catch (error) {
+          console.error('Invalid token:', error)
+          clearStoredTokens()
+        }
+      }
+      setLoading(false)
     }
-    setLoading(false)
+
+    fetchUserData()
   }, [token])
 
   const login = async (email, password) => {
@@ -49,10 +81,26 @@ export const AuthProvider = ({ children }) => {
       const response = await api.post('/api/auth/login', { email, password })
       if (response.data.success) {
         const newToken = response.data.token
-        const decoded = jwtDecode(newToken)
+        
+        // Update token state and localStorage immediately
         setToken(newToken)
-        setUser(decoded)
         localStorage.setItem('token', newToken)
+        setIsAuthenticated(true)
+        
+        // Set API headers immediately
+        api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
+        
+        // Fetch full user data
+        try {
+          const userResponse = await api.get('/api/auth/me')
+          if (userResponse.data.success) {
+            setUser(userResponse.data.user)
+            console.log('✅ User data loaded after login:', userResponse.data.user.name)
+          }
+        } catch (error) {
+          console.error('Failed to fetch user data after login:', error)
+        }
+        
         return { success: true }
       }
       return { success: false, error: response.data.message }
@@ -95,10 +143,24 @@ export const AuthProvider = ({ children }) => {
             
             if (res.data.success) {
               const newToken = res.data.token
-              const decoded = jwtDecode(newToken)
               setToken(newToken)
-              setUser(decoded)
               localStorage.setItem('token', newToken)
+              setIsAuthenticated(true)
+              
+              // Set API headers immediately
+              api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
+              
+              // Fetch full user data
+              try {
+                const userResponse = await api.get('/api/auth/me')
+                if (userResponse.data.success) {
+                  setUser(userResponse.data.user)
+                  console.log('✅ User data loaded after Google login:', userResponse.data.user.name)
+                }
+              } catch (error) {
+                console.error('Failed to fetch user data after Google login:', error)
+              }
+              
               return { success: true }
             }
             return { success: false, error: res.data.message }
@@ -122,7 +184,57 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     setToken(null)
     setUser(null)
+    setIsAuthenticated(false)
     localStorage.removeItem('token')
+    // Clear API headers
+    delete api.defaults.headers.common['Authorization']
+  }
+
+  const clearStoredTokens = () => {
+    localStorage.removeItem('token')
+    setUser(null)
+    setToken(null)
+    setIsAuthenticated(false)
+    // Clear API headers
+    delete api.defaults.headers.common['Authorization']
+    console.log('Cleared stored tokens due to authentication errors')
+  }
+
+  const updateTokenFromOAuth = async (newToken) => {
+    try {
+      console.log('🔄 Updating token from OAuth callback...')
+      
+      // Update token state and localStorage
+      setToken(newToken)
+      localStorage.setItem('token', newToken)
+      
+      // Set authenticated state immediately
+      setIsAuthenticated(true)
+      
+      // Update API headers immediately
+      api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
+      
+      // Fetch fresh user data
+      try {
+        const response = await api.get('/api/auth/me')
+        if (response.data.success) {
+          setUser(response.data.user)
+          console.log('✅ User data updated after OAuth:', response.data.user.name)
+          return { success: true, user: response.data.user }
+        } else {
+          throw new Error('Failed to fetch user data')
+        }
+      } catch (error) {
+        console.error('Failed to fetch user data after OAuth:', error)
+        // Fallback to token data if API fails
+        const decoded = jwtDecode(newToken)
+        setUser({ id: decoded.id, name: 'User', email: 'user@example.com' })
+        return { success: false, error: 'Failed to fetch user data' }
+      }
+    } catch (error) {
+      console.error('Error updating token from OAuth:', error)
+      return { success: false, error: error.message }
+    }
   }
 
   const connectGmailAccount = async () => {
@@ -201,13 +313,15 @@ export const AuthProvider = ({ children }) => {
     register,
     googleLogin,
     logout,
+    clearStoredTokens,
+    updateTokenFromOAuth,
     connectGmailAccount,
     connectMicrosoftAccount,
     forgotPassword,
     resetPassword,
     sendEmailVerification,
     verifyEmail,
-    isAuthenticated: !!user
+    isAuthenticated
   }
 
   return (

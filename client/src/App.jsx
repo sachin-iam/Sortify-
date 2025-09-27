@@ -3,11 +3,14 @@ import { Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { WebSocketProvider } from './contexts/WebSocketContext'
 import ProtectedRoute from './components/ProtectedRoute'
+import ProtectedRouteNew from './components/ProtectedRouteNew'
 import ErrorBoundary from './components/ErrorBoundary'
 import Navbar from './components/Navbar'
 import ParticleBackground from './components/ParticleBackground'
 import Login from './pages/Login'
+import LoginTest from './pages/LoginTest'
 import Dashboard from './pages/Dashboard'
+import DashboardNew from './pages/DashboardNew'
 import Settings from './pages/Settings'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
@@ -31,9 +34,9 @@ function App() {
               element={
                 <>
                   <Navbar />
-                  <ProtectedRoute>
-                    <Dashboard />
-                  </ProtectedRoute>
+                  <ProtectedRouteNew>
+                    <DashboardNew />
+                  </ProtectedRouteNew>
                 </>
               } 
             />
@@ -42,9 +45,9 @@ function App() {
               element={
                 <>
                   <Navbar />
-                  <ProtectedRoute>
-                    <Dashboard />
-                  </ProtectedRoute>
+                  <ProtectedRouteNew>
+                    <DashboardNew />
+                  </ProtectedRouteNew>
                 </>
               } 
             />

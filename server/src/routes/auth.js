@@ -224,12 +224,64 @@ router.post('/google', asyncHandler(async (req, res) => {
     // Update last login
     await user.updateLastLogin()
 
+    // Auto-connect Gmail if not already connected
+    if (!user.gmailConnected && tokens.access_token) {
+      try {
+        user.gmailConnected = true
+        user.gmailAccessToken = tokens.access_token
+        if (tokens.refresh_token) user.gmailRefreshToken = tokens.refresh_token
+        user.gmailTokenExpiry = tokens.expiry_date ? new Date(tokens.expiry_date) : null
+        user.gmailEmail = data.email
+        user.gmailName = data.name || data.email
+        await user.save()
+        console.log('✅ Auto-connected Gmail for Google OAuth user:', data.email)
+      } catch (error) {
+        console.error('❌ Failed to auto-connect Gmail:', error)
+        // Continue with login even if Gmail connection fails
+      }
+    }
+
     sendTokenResponse(user, 200, res)
   } catch (error) {
     console.error('Google OAuth error:', error)
     return res.status(401).json({
       success: false,
       message: 'Google authentication failed'
+    })
+  }
+}))
+
+// @desc    Generate Google OAuth URL for login (not Gmail connection)
+// @route   GET /api/auth/google/connect
+// @access  Public
+router.get('/google/connect', asyncHandler(async (req, res) => {
+  try {
+    const oauth2Client = getOAuth2Client()
+    
+    // Generate Google OAuth URL for login with appropriate scopes
+    const authUrl = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      prompt: 'consent',
+      scope: [
+        'openid',
+        'email', 
+        'profile',
+        'https://www.googleapis.com/auth/gmail.readonly',
+        'https://www.googleapis.com/auth/gmail.modify'
+      ],
+      state: 'google_login', // Different state for login vs Gmail connection
+      redirect_uri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/auth/gmail/callback'
+    })
+
+    res.json({
+      success: true,
+      authUrl
+    })
+  } catch (error) {
+    console.error('Google OAuth URL generation error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate Google OAuth URL'
     })
   }
 }))
@@ -429,16 +481,21 @@ router.get('/gmail/connect', asyncHandler(async (req, res) => {
   }
 }))
 
-// @desc    Gmail OAuth callback
+// @desc    Gmail OAuth callback (handles both login and Gmail connection)
 // @route   GET /api/auth/gmail/callback
 // @access  Public
 router.get('/gmail/callback', asyncHandler(async (req, res) => {
+  console.log('🔵 OAuth callback route hit!', req.query)
   try {
     const { code, state } = req.query
 
-    if (!code || !state) {
+    if (!code) {
+      console.log('❌ Missing code, redirecting to login')
       return res.redirect(`${process.env.CORS_ORIGIN}/login?error=oauth_error`)
     }
+
+    // Determine if this is a login or Gmail connection based on state
+    const isLoginFlow = state === 'google_login'
 
     // Exchange code for tokens
     const oauth2Client = getOAuth2Client()
@@ -456,9 +513,21 @@ router.get('/gmail/callback', asyncHandler(async (req, res) => {
       user = await User.create({
         name: userInfo.name || userInfo.email,
         email: userInfo.email,
-        password: 'oauth-user' // Placeholder password for OAuth users
+        password: 'oauth-user', // Placeholder password for OAuth users
+        googleId: userInfo.id,
+        avatar: userInfo.picture,
+        isEmailVerified: true
       })
-      console.log('Created new user for Gmail OAuth:', userInfo.email)
+      console.log('✅ Created new user for Google OAuth:', userInfo.email)
+    } else if (isLoginFlow) {
+      // For login flow, update Google ID if not set
+      if (!user.googleId) {
+        user.googleId = userInfo.id
+        user.avatar = userInfo.picture
+        user.isEmailVerified = true
+        await user.save()
+        console.log('✅ Updated existing user with Google ID:', userInfo.email)
+      }
     }
 
     // Update user with Gmail tokens and name
@@ -481,10 +550,14 @@ router.get('/gmail/callback', asyncHandler(async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     })
 
-    // Redirect back to dashboard with success and token
-    res.redirect(`${process.env.CORS_ORIGIN}/dashboard?connected=1&token=${token}`)
+    // Redirect based on flow type
+    if (isLoginFlow) {
+      res.redirect(`${process.env.CORS_ORIGIN}/dashboard?login=success&token=${token}`)
+    } else {
+      res.redirect(`${process.env.CORS_ORIGIN}/dashboard?connected=1&token=${token}`)
+    }
   } catch (error) {
-    console.error('Gmail OAuth callback error:', error)
+    console.error('❌ Gmail OAuth callback error:', error)
     
     // Redirect back to dashboard with error
     res.redirect(`${process.env.CORS_ORIGIN}/dashboard?error=gmail_connection_failed`)
