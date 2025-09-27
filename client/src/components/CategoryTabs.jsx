@@ -9,6 +9,8 @@ const CategoryTabs = ({ value, onChange }) => {
     { id: 'Promotions', label: 'Promotions', icon: 'promotions', color: '#8b5cf6' },
     { id: 'Placement', label: 'Placement', icon: 'placement', color: '#10b981' },
     { id: 'Spam', label: 'Spam', icon: 'spam', color: '#ef4444' },
+    { id: 'Newsletter', label: 'Newsletter', icon: 'newsletter', color: '#f59e0b' },
+    { id: 'WebSocketTestCategory', label: 'Test Category', icon: 'test', color: '#8b5cf6' },
     { id: 'Other', label: 'Other', icon: 'other', color: '#6b7280' }
   ]
 

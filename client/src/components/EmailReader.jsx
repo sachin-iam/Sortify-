@@ -1,8 +1,20 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { motion } from 'framer-motion'
 import ModernIcon from './ModernIcon'
+import QuickReply from './QuickReply'
+import ExportModal from './ExportModal'
 
 const EmailReader = ({ email, onArchive, onDelete, onExport, onClose, loading = false }) => {
+  const [showQuickReply, setShowQuickReply] = useState(false)
+  const [showExportModal, setShowExportModal] = useState(false)
+
+  const handleQuickReply = async (replyData) => {
+    // Here you would typically send the reply via your email service
+    console.log('Sending reply:', replyData)
+    // For now, we'll just close the quick reply modal
+    setShowQuickReply(false)
+  }
+
   if (loading) {
     return (
       <div className="backdrop-blur-xl bg-white/30 border border-white/20 rounded-2xl p-6">
@@ -105,7 +117,19 @@ const EmailReader = ({ email, onArchive, onDelete, onExport, onClose, loading = 
               {/* Action Buttons */}
               <div className="flex gap-2">
                 <button
-                  onClick={() => onExport(email._id)}
+                  onClick={() => setShowQuickReply(true)}
+                  className="group relative p-2 rounded-xl backdrop-blur-sm bg-gradient-to-br from-green-400/20 to-green-600/20 border border-green-300/30 hover:from-green-400/30 hover:to-green-600/30 hover:border-green-400/50 transition-all duration-300 shadow-md hover:shadow-green-200/50 hover:scale-105"
+                  title="Quick Reply"
+                >
+                  <ModernIcon 
+                    type="reply" 
+                    size={4} 
+                    color="#16a34a"
+                    className="group-hover:scale-110 transition-transform duration-200"
+                  />
+                </button>
+                <button
+                  onClick={() => setShowExportModal(true)}
                   className="group relative p-2 rounded-xl backdrop-blur-sm bg-gradient-to-br from-blue-400/20 to-blue-600/20 border border-blue-300/30 hover:from-blue-400/30 hover:to-blue-600/30 hover:border-blue-400/50 transition-all duration-300 shadow-md hover:shadow-blue-200/50 hover:scale-105"
                   title="Export"
                 >
@@ -246,6 +270,25 @@ const EmailReader = ({ email, onArchive, onDelete, onExport, onClose, loading = 
           </div>
         )}
       </motion.div>
+
+      {/* Quick Reply Modal */}
+      {showQuickReply && (
+        <QuickReply
+          email={email}
+          onReply={handleQuickReply}
+          onClose={() => setShowQuickReply(false)}
+        />
+      )}
+
+      {/* Export Modal */}
+      {showExportModal && (
+        <ExportModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          selectedEmails={email ? [email] : []}
+          onExportComplete={() => setShowExportModal(false)}
+        />
+      )}
     </div>
   )
 }

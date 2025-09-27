@@ -96,7 +96,7 @@ describe('Gmail Sync Integration', () => {
         const endIdx = startIdx + limit
         
         for (let i = startIdx; i < endIdx && i < 5000; i++) {
-          const categories = ['Academic', 'Promotions', 'Placement', 'Spam', 'Other']
+          const categories = ['Academic', 'Promotions', 'Placement', 'Spam', 'Newsletter', 'WebSocketTestCategory', 'Other']
           const categoryIndex = i % categories.length
           const emailCategory = categories[categoryIndex]
           

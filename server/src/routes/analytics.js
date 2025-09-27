@@ -65,13 +65,17 @@ router.get('/stats', protect, asyncHandler(async (req, res) => {
         .map(item => item.category)
     ).size
 
+    // Return total available categories (7) instead of just categories with emails
+    const totalAvailableCategories = 7
+
     res.json({
       success: true,
       stats: {
         totalEmails: result.totalEmails,
-        categories: categoryCount,
+        categories: totalAvailableCategories, // Always return 7 for DistilBERT categories
         processedToday: result.processedToday,
-        unreadCount: result.unreadCount
+        unreadCount: result.unreadCount,
+        activeCategories: categoryCount // Add this for reference
       }
     })
   } catch (error) {

@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+torch
+transformers
+scikit-learn
+numpy
+bs4
+python-magic
+pydantic
+

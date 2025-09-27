@@ -2,9 +2,49 @@ import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import ModernIcon from './ModernIcon'
 
-const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage = 1, totalPages = 1, onPageChange, totalEmails = 0 }) => {
+const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage = 1, totalPages = 1, onPageChange, totalEmails = 0, onBulkSelect, selectedEmails = [], gmailConnected = false }) => {
   const [hoveredPage, setHoveredPage] = useState(null)
   const [hasNavigated, setHasNavigated] = useState(false)
+  const [selectAll, setSelectAll] = useState(false)
+
+  // Handle individual email selection
+  const handleEmailSelect = (email, isSelected) => {
+    if (onBulkSelect) {
+      if (isSelected) {
+        onBulkSelect([...selectedEmails, email])
+      } else {
+        onBulkSelect(selectedEmails.filter(e => e._id !== email._id))
+      }
+    }
+  }
+
+  // Handle select all
+  const handleSelectAll = (checked) => {
+    setSelectAll(checked)
+    if (onBulkSelect) {
+      if (checked) {
+        onBulkSelect([...items])
+      } else {
+        onBulkSelect([])
+      }
+    }
+  }
+
+  // Check if email is selected
+  const isEmailSelected = (email) => {
+    return selectedEmails.some(e => e._id === email._id)
+  }
+
+  // Update select all state when selectedEmails changes
+  useEffect(() => {
+    if (selectedEmails.length === 0) {
+      setSelectAll(false)
+    } else if (selectedEmails.length === items.length) {
+      setSelectAll(true)
+    } else {
+      setSelectAll(false)
+    }
+  }, [selectedEmails, items])
 
   // Keyboard navigation logic
   const getVisiblePages = () => {
@@ -168,10 +208,21 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <ModernIcon type="email" size={48} color="#9ca3af" />
-        <h3 className="text-lg font-medium text-slate-600 mt-4">No emails found</h3>
-        <p className="text-slate-500 text-sm mt-2">
-          Try adjusting your filters or search terms
-        </p>
+        {!gmailConnected ? (
+          <>
+            <h3 className="text-lg font-medium text-slate-600 mt-4">Gmail Not Connected</h3>
+            <p className="text-slate-500 text-sm mt-2">
+              Connect your Gmail account to view and manage your emails
+            </p>
+          </>
+        ) : (
+          <>
+            <h3 className="text-lg font-medium text-slate-600 mt-4">No emails found</h3>
+            <p className="text-slate-500 text-sm mt-2">
+              Try adjusting your filters or search terms
+            </p>
+          </>
+        )}
       </div>
     )
   }
@@ -203,52 +254,100 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
 
   return (
     <div className="flex-1 overflow-y-auto">
+      {/* Bulk Selection Header */}
+      {onBulkSelect && (
+        <div className="p-4 border-b border-white/30 bg-gradient-to-r from-white/60 to-white/40">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectAll}
+                  onChange={(e) => handleSelectAll(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-slate-700">
+                  Select All ({items.length})
+                </span>
+              </label>
+              {selectedEmails.length > 0 && (
+                <span className="text-sm text-slate-600">
+                  {selectedEmails.length} selected
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      
       <div className="space-y-2 p-4">
         {items.map((email) => (
             <motion.div
               key={email._id}
-          onClick={() => onSelect(email._id)}
           className={`
-            backdrop-blur-xl border rounded-2xl p-4 cursor-pointer transition-all duration-300
+            backdrop-blur-xl border rounded-2xl p-4 transition-all duration-300
             ${
               selectedId === email._id
                 ? 'bg-white/40 border-white/40 shadow-[0_8px_25px_rgba(0,0,0,0.1)]'
                 : 'bg-white/30 border-white/20 hover:bg-white/40 hover:border-white/30'
             }
+            ${isEmailSelected(email) ? 'ring-2 ring-blue-500/50' : ''}
           `}
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.99 }}
         >
-          <div className="flex items-start justify-between mb-2">
+          <div className="flex items-start gap-3 mb-2">
+            {/* Bulk Selection Checkbox */}
+            {onBulkSelect && (
+              <div className="flex-shrink-0 pt-1">
+                <input
+                  type="checkbox"
+                  checked={isEmailSelected(email)}
+                  onChange={(e) => {
+                    e.stopPropagation()
+                    handleEmailSelect(email, e.target.checked)
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                />
+              </div>
+            )}
+            
+            {/* Email Content */}
+            <div 
+              className="flex-1 cursor-pointer"
+              onClick={() => onSelect(email._id)}
+            >
                 <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-medium text-slate-800 truncate">
-                        {email.from}
-                      </span>
-                <span
-                  className={`px-2 py-1 rounded-full text-xs font-medium ${getCategoryColor(
-                    email.category
-                  )}`}
-                >
-                  {email.category}
-                      </span>
-                    </div>
-              <h3 className="font-semibold text-slate-900 text-sm mb-1 truncate">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-medium text-slate-800 truncate">
+                      {email.from}
+                    </span>
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs font-medium ${getCategoryColor(
+                        email.category
+                      )}`}
+                    >
+                      {email.category}
+                    </span>
+                  </div>
+                  <h3 className="font-semibold text-slate-900 text-sm mb-1 truncate">
                     {email.subject}
-              </h3>
-              <p className="text-slate-600 text-sm line-clamp-2">
+                  </h3>
+                  <p className="text-slate-600 text-sm line-clamp-2">
                     {email.snippet}
                   </p>
-                    </div>
-            <div className="flex flex-col items-end gap-1 ml-3">
-              <span className="text-xs text-slate-500">
-                {formatDate(email.date)}
-              </span>
-              {!email.isRead && (
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                </div>
+                <div className="flex flex-col items-end gap-1 ml-3">
+                  <span className="text-xs text-slate-500">
+                    {formatDate(email.date)}
+                  </span>
+                  {!email.isRead && (
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                   )}
                 </div>
               </div>
+            </div>
             </motion.div>
       ))}
 

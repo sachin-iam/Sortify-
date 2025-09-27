@@ -1,0 +1,16 @@
+Subject: URGENT! Your Account Will Be Suspended
+From: "Security Team" <security@bank-security.com>
+To: user@example.com
+Date: Mon, 15 Mar 2024 14:22:00 +0000
+Authentication-Results: bank-security.com; spf=fail; dkim=none; dmarc=none
+Received: by unknown.server.com (Postfix, from userid 999)
+	id X9Y8Z7W6V5; Mon, 15 Mar 2024 14:22:00 +0000 (UTC)
+
+URGENT ACTION REQUIRED!
+
+Your bank account has been compromised. Click here immediately: https://bit.ly/secure-now
+
+This is your final warning before account suspension.
+
+Reply-To: noreply@different-domain.com
+

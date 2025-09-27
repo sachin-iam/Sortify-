@@ -48,7 +48,7 @@ const emailSchema = new mongoose.Schema({
   category: {
     type: String,
     default: 'Other',
-    enum: ['Academic', 'Promotions', 'Placement', 'Spam', 'Other']
+    enum: ['Academic', 'Promotions', 'Placement', 'Spam', 'Other', 'Newsletter', 'WebSocketTestCategory']
   },
   classification: {
     label: {

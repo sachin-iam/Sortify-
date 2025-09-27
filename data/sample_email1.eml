@@ -1,0 +1,15 @@
+Subject: Academic Notice - Midterm Exam Schedule
+From: "Academic Office" <academic@university.edu>
+To: students@university.edu
+Date: Mon, 15 Mar 2024 10:30:00 +0000
+Authentication-Results: university.edu; spf=pass; dkim=pass; dmarc=pass
+Received: by mail.university.edu (Postfix, from userid 1001)
+	id A1B2C3D4E5; Mon, 15 Mar 2024 10:30:00 +0000 (UTC)
+
+Dear Students,
+
+This is to inform you that the midterm examination schedule has been published on the university portal. Please check your individual schedules and prepare accordingly.
+
+Best regards,
+Academic Office
+

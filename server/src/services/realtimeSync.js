@@ -110,7 +110,7 @@ const syncNewEmails = async (gmail, user, lastSyncTime) => {
         const snippet = messageData.data.snippet || ''
         const body = messageData.data.payload.body?.data || ''
         
-        const classification = classifyEmail(subject, snippet, body)
+        const classification = await classifyEmail(subject, snippet, body)
 
         const emailData = {
           userId: user._id,

@@ -16,10 +16,22 @@ const emailService = {
       limit: limit.toString(),
       category,
       provider,
-      ...(search && { q: search })
+      ...(search && { q: search }),
+      t: Date.now() // Cache-busting parameter
     })
 
     const response = await api.get(`/api/emails?${queryParams}`)
+    return response.data
+  },
+
+  // Alias for list function (for compatibility)
+  getEmails: async (params = {}) => {
+    return emailService.list(params)
+  },
+
+  // Get email statistics
+  getStats: async () => {
+    const response = await api.get(`/api/analytics/stats?t=${Date.now()}`)
     return response.data
   },
 

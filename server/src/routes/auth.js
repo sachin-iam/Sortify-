@@ -373,6 +373,23 @@ router.put('/change-password', protect, [
   })
 }))
 
+// @desc    Clear blocked IPs (for testing)
+// @route   POST /api/auth/clear-blocks
+// @access  Public
+router.post('/clear-blocks', asyncHandler(async (req, res) => {
+  // Clear all blocked IPs and failed attempts
+  if (global.securityService) {
+    global.securityService.blockedIPs.clear()
+    global.securityService.failedAttempts.clear()
+    global.securityService.suspiciousActivities.clear()
+  }
+  
+  res.json({
+    success: true,
+    message: 'All blocked IPs and failed attempts cleared'
+  })
+}))
+
 // @desc    Get Gmail OAuth URL
 // @route   GET /api/auth/gmail/connect
 // @access  Public

@@ -86,7 +86,7 @@ router.post('/gmail/sync', protect, asyncHandler(async (req, res) => {
         const snippet = messageData.data.snippet || ''
         const body = messageData.data.payload.body?.data || ''
         
-        const classification = classifyEmail(subject, snippet, body)
+        const classification = await classifyEmail(subject, snippet, body)
 
         const emailData = {
           userId: user._id,
@@ -216,6 +216,13 @@ router.get('/', protect, asyncHandler(async (req, res) => {
       .select('_id subject from to snippet date category classification isRead labels')
 
     const total = await Email.countDocuments(query)
+
+    // Set cache control headers to prevent caching
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    })
 
     // Format response as requested
     res.json({

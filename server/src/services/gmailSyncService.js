@@ -231,18 +231,18 @@ export const upsertEmail = async (user, emailData) => {
  */
 export const classifyAndSave = async (emailDoc) => {
   try {
-    // Try ML service first, fallback to local classification
+    // Use local classification to avoid ML service dependency
     let classification
     try {
-      const response = await axios.post(`${MODEL_SERVICE_URL}/categorize`, {
-        subject: emailDoc.subject,
-        snippet: emailDoc.snippet,
-        body: emailDoc.body || emailDoc.text
-      })
-      classification = response.data
-    } catch (mlError) {
-      console.log('ML service unavailable, using local classification')
-      classification = classifyEmail(emailDoc.subject, emailDoc.snippet, emailDoc.body || emailDoc.text)
+      // Use the local classification service instead of external ML service
+      const { classifyEmail } = await import('./classificationService.js')
+      classification = await classifyEmail(emailDoc.subject, emailDoc.snippet, emailDoc.body || emailDoc.text)
+    } catch (localError) {
+      console.log('Local classification failed, using fallback')
+      classification = {
+        label: 'Other',
+        confidence: 0.5
+      }
     }
     
     // Update email with classification

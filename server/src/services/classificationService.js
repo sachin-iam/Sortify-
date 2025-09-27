@@ -1,102 +1,109 @@
 // Enhanced email classification service
-// This uses keyword-based classification as a fallback with improved accuracy
+// This now uses the real DistilBERT model with fallback to keyword-based classification
 
-const CATEGORIES = {
-  'Academic': [
-    // Strong academic indicators (higher weight)
-    'assignment', 'homework', 'exam', 'quiz', 'grade', 'course', 'professor', 'university', 'college', 'student', 'academic', 'study', 'research', 'thesis', 'dissertation',
-    'lecture', 'seminar', 'workshop', 'training', 'education', 'learning', 'curriculum', 'syllabus', 'schedule', 'class', 'lab', 'laboratory', 'project', 'presentation', 'deadline', 'submission',
-    'mentor', 'advisor', 'faculty', 'department', 'school', 'institute', 'academy', 'campus', 'library', 'textbook', 'notes', 'tutorial'
-  ],
-  'Promotions': [
-    // Marketing and promotional content
-    'sale', 'discount', 'offer', 'deal', 'promo', 'coupon', 'buy', 'purchase', 'shop', 'store', 'shopping', 'advertisement', 'marketing', 'newsletter',
-    'limited time', 'special', 'exclusive', 'save', 'save up to', 'buy now', 'order now', 'retail', 'ecommerce', 'amazon', 'flipkart', 'myntra', 'zomato', 'swiggy', 'uber', 'ola',
-    'update', 'news', 'announcement', 'launch', 'release', 'new product', 'feature', 'upgrade', 'subscription', 'premium', 'trial', 'free trial'
-  ],
-  'Placement': [
-    // Career and job-related content
-    'job', 'career', 'interview', 'hiring', 'recruitment', 'position', 'opportunity', 'resume', 'cv', 'placement', 'internship', 'company', 'employer',
-    'google', 'microsoft', 'amazon', 'tcs', 'infosys', 'accenture', 'ibm', 'oracle', 'sap', 'adobe', 'netflix', 'meta', 'apple', 'tesla', 'netflix',
-    'salary', 'package', 'ctc', 'lpa', 'lakh', 'crore', 'joining', 'onboarding', 'corporate', 'industry', 'professional', 'employment', 'work', 'role', 'skills'
-  ],
-  'Spam': [
-    // Spam indicators
-    'free money', 'win', 'prize', 'lottery', 'congratulations', 'urgent', 'act now', 'click here', 'limited offer', 'guaranteed',
-    'viagra', 'casino', 'poker', 'loan', 'credit', 'debt', 'weight loss', 'diet', 'supplement', 'pharmacy', 'medicine', 'prescription',
-    'unsubscribe', 'opt out', 'remove', 'stop', 'block', 'spam', 'junk', 'unwanted', 'unsolicited', 'marketing', 'advertisement',
-    'nigerian prince', 'inheritance', 'lottery winner', 'bank account', 'password', 'verify', 'confirm', 'security', 'suspended', 'locked'
-  ],
-  'Other': []
-}
+import { 
+  classifyEmailWithDistilBERT, 
+  classifyEmailsWithDistilBERT,
+  testDistilBERTConnection 
+} from './distilbertClassificationService.js'
+import { classifyEmail as mlClassifyEmail, classifyEmails as mlClassifyEmails } from './enhancedMLService.js'
+import notificationService from './notificationService.js'
 
-export const classifyEmail = (subject, snippet, body) => {
-  const text = `${subject || ''} ${snippet || ''} ${body || ''}`.toLowerCase()
-  
-  const scores = {}
-  
-  // Calculate scores for each category with weighted matching
-  Object.keys(CATEGORIES).forEach(category => {
-    if (category === 'Other') return
+// Main classification function - now uses DistilBERT model with fallback
+export const classifyEmail = async (subject, snippet, body, userId = null) => {
+  try {
+    // First, try to use the DistilBERT model
+    console.log('🤖 Attempting DistilBERT classification...')
+    const distilbertResult = await classifyEmailWithDistilBERT(subject, snippet, body)
     
-    scores[category] = 0
-    CATEGORIES[category].forEach(keyword => {
-      // Use word boundary regex for better matching
-      const regex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi')
-      const matches = text.match(regex)
-      if (matches) {
-        // Weight matches differently based on keyword importance
-        let weight = 1
-        if (keyword.length > 10) weight = 1.5  // Longer, more specific keywords
-        if (text.includes(keyword + ' ')) weight = 1.2  // Keyword followed by space
-        
-        scores[category] += matches.length * weight
+    if (distilbertResult.model === 'distilbert') {
+      console.log(`✅ DistilBERT Classification: "${subject}" -> ${distilbertResult.label} (${distilbertResult.confidence})`)
+      
+      // Send notification if user ID is provided
+      if (userId && distilbertResult.label) {
+        notificationService.sendClassificationNotification(userId, {
+          emailId: 'temp',
+          category: distilbertResult.label,
+          confidence: distilbertResult.confidence
+        })
       }
-    })
-  })
-  
-  // Find the category with highest score
-  const maxScore = Math.max(...Object.values(scores))
-  const bestCategory = Object.keys(scores).find(cat => scores[cat] === maxScore)
-  
-  // If no keywords matched, classify as 'Other'
-  if (maxScore === 0) {
+      
+      return {
+        label: distilbertResult.label,
+        confidence: distilbertResult.confidence,
+        model: 'distilbert'
+      }
+    } else {
+      // Fallback to keyword-based classification
+      console.log('🔄 DistilBERT failed, falling back to keyword-based classification...')
+      const fallbackResult = await mlClassifyEmail(subject, snippet, body)
+      
+      console.log(`🔄 Fallback Classification: "${subject}" -> ${fallbackResult.label} (${fallbackResult.confidence})`)
+      
+      // Send notification if user ID is provided
+      if (userId && fallbackResult.label) {
+        notificationService.sendClassificationNotification(userId, {
+          emailId: 'temp',
+          category: fallbackResult.label,
+          confidence: fallbackResult.confidence
+        })
+      }
+      
+      return {
+        label: fallbackResult.label,
+        confidence: fallbackResult.confidence,
+        model: 'fallback'
+      }
+    }
+  } catch (error) {
+    console.error('❌ Classification error:', error)
+    // Final fallback to simple classification
     return {
       label: 'Other',
-      confidence: 0.15 + Math.random() * 0.1  // 15-25% confidence for Other
+      confidence: 0.5,
+      model: 'error-fallback'
     }
-  }
-  
-  // Calculate confidence based on score strength and text length
-  const textLength = text.length
-  const baseConfidence = Math.min(maxScore / 8, 0.9)  // Cap at 90%
-  
-  // Adjust confidence based on text length (longer texts = more confident)
-  const lengthFactor = Math.min(textLength / 1000, 1.2)  // Boost for longer emails
-  
-  // Add some randomness to make it more realistic (avoid perfect scores)
-  const randomFactor = 0.85 + Math.random() * 0.15  // 85-100% of calculated confidence
-  
-  const finalConfidence = Math.min(baseConfidence * lengthFactor * randomFactor, 0.95)
-  
-  return {
-    label: bestCategory,
-    confidence: Math.round(finalConfidence * 100) / 100
   }
 }
 
 export const classifyEmails = async (emails) => {
-  const classifiedEmails = emails.map(email => {
-    const classification = classifyEmail(email.subject, email.snippet, email.body)
+  try {
+    // First, try to use DistilBERT for batch processing
+    console.log(`🤖 Attempting DistilBERT batch classification for ${emails.length} emails...`)
+    const distilbertResults = await classifyEmailsWithDistilBERT(emails)
+    
+    if (distilbertResults && distilbertResults.length > 0) {
+      console.log(`✅ DistilBERT batch classification completed: ${distilbertResults.length} emails processed`)
+      return distilbertResults
+    } else {
+      throw new Error('DistilBERT batch classification returned empty results')
+    }
+  } catch (error) {
+    console.error('❌ DistilBERT batch classification error:', error)
+    console.log('🔄 Falling back to keyword-based batch classification...')
+    
+    try {
+      // Fallback to keyword-based batch processing
+      return await mlClassifyEmails(emails)
+    } catch (fallbackError) {
+      console.error('❌ Keyword-based batch classification error:', fallbackError)
+      console.log('🔄 Falling back to individual classification...')
+      
+      // Final fallback to individual classification
+      const classifiedEmails = await Promise.all(emails.map(async email => {
+        const classification = await classifyEmail(email.subject, email.snippet, email.body)
     return {
       ...email,
       category: classification.label,
       classification: {
         label: classification.label,
-        confidence: classification.confidence
+            confidence: classification.confidence,
+            model: classification.model || 'individual-fallback'
       }
     }
-  })
+      }))
   
   return classifiedEmails
+    }
+  }
 }

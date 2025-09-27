@@ -5,8 +5,9 @@
   "scripts": {
     "client:dev": "cd client && npm run dev",
     "server:dev": "cd server && npm run dev",
-    "model:dev": "cd model_service && python app.py",
-    "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\" \"npm run model:dev\"",
+    "model:dev": "cd model_service && python -m uvicorn app:app --host 0.0.0.0 --port 8000 --reload",
+    "model:enhanced": "cd model_service && python -m uvicorn enhanced_app:app --host 0.0.0.0 --port 8000 --reload",
+    "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\" \"npm run model:enhanced\"",
     "install:all": "npm install && cd client && npm install && cd ../server && npm install && cd ../model_service && pip install -r requirements.txt",
     "build": "cd client && npm run build",
     "start": "cd server && npm start",
@@ -33,6 +34,9 @@
   "author": "Sortify Team",
   "license": "MIT",
   "dependencies": {
-    "node-fetch": "^3.3.2"
+    "archiver": "^7.0.1",
+    "exceljs": "^4.4.0",
+    "node-fetch": "^3.3.2",
+    "pdfkit": "^0.17.2"
   }
 }

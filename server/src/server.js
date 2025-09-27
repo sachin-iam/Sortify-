@@ -14,6 +14,7 @@ import compression from 'compression'
 import morgan from 'morgan'
 import cookieParser from 'cookie-parser'
 import rateLimit from 'express-rate-limit'
+import { createServer } from 'http'
 
 // Import routes
 import authRoutes from './routes/auth.js'
@@ -21,13 +22,39 @@ import emailRoutes from './routes/emails.js'
 import userRoutes from './routes/users.js'
 import analyticsRoutes from './routes/analytics.js'
 import bootstrapRoutes from './routes/bootstrap.js'
+import realtimeRoutes from './routes/realtime.js'
+import categoriesRoutes from './routes/categories.js'
+import advancedAnalyticsRoutes from './routes/advancedAnalytics.js'
+import bulkOperationsRoutes from './routes/bulkOperations.js'
+import emailTemplatesRoutes from './routes/emailTemplates.js'
+import notificationsRoutes from './routes/notifications.js'
+import exportRoutes from './routes/export.js'
+import performanceRoutes from './routes/performance.js'
+import securityRoutes from './routes/security.js'
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js'
 import { notFound } from './middleware/notFound.js'
+import { requestTiming, memoryMonitor, dbQueryMonitor, rateLimiter } from './middleware/performanceMonitor.js'
+import { 
+  securityValidation, 
+  ipFiltering, 
+  bruteForceProtection, 
+  securityHeaders, 
+  requestId, 
+  suspiciousActivityDetection,
+  dataSanitization 
+} from './middleware/security.js'
 
 // Import database connection
 import connectDB from './config/database.js'
+
+// Import WebSocket service
+import { initializeWebSocket } from './services/websocketService.js'
+
+// Import security service and make it globally accessible
+import securityService from './services/securityService.js'
+global.securityService = securityService
 
 const app = express()
 const PORT = process.env.PORT || 5000
@@ -59,21 +86,24 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 }))
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) => {
-    // Skip rate limiting for auth/me, analytics/stats, and gmail/connect to avoid 429 loops
-    return req.path === '/api/auth/me' || 
-           req.path === '/api/analytics/stats' || 
-           req.path === '/api/auth/gmail/connect'
-  }
-})
-app.use('/api/', limiter)
+// Rate limiting - TEMPORARILY DISABLED to fix 429 errors
+// const limiter = rateLimit({
+//   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
+//   max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000, // limit each IP to 1000 requests per windowMs
+//   message: 'Too many requests from this IP, please try again later.',
+//   standardHeaders: true,
+//   legacyHeaders: false,
+//   skip: (req) => {
+//     // Skip rate limiting for critical endpoints to avoid 429 loops
+//     return req.path === '/api/auth/me' || 
+//            req.path === '/api/analytics/stats' || 
+//            req.path === '/api/auth/gmail/connect' ||
+//            req.path.startsWith('/api/emails') ||
+//            req.path.startsWith('/api/analytics/') ||
+//            req.path.startsWith('/api/realtime/')
+//   }
+// })
+// app.use('/api/', limiter)
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }))
@@ -89,6 +119,20 @@ if (process.env.NODE_ENV === 'development') {
 } else {
   app.use(morgan('combined'))
 }
+
+// Security middleware
+app.use(requestId)
+app.use(securityHeaders)
+app.use(ipFiltering)
+app.use(bruteForceProtection)
+app.use(suspiciousActivityDetection)
+app.use(dataSanitization)
+app.use(securityValidation)
+
+// Performance monitoring middleware
+app.use(requestTiming)
+app.use(memoryMonitor)
+app.use(dbQueryMonitor)
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -107,6 +151,15 @@ app.use('/api/emails', emailRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/analytics', analyticsRoutes)
 app.use('/api/bootstrap', bootstrapRoutes)
+app.use('/api/realtime', realtimeRoutes)
+app.use('/api/realtime', categoriesRoutes)
+app.use('/api/analytics', advancedAnalyticsRoutes)
+app.use('/api/bulk', bulkOperationsRoutes)
+app.use('/api/templates', emailTemplatesRoutes)
+app.use('/api/notifications', notificationsRoutes)
+app.use('/api/export', exportRoutes)
+app.use('/api/performance', performanceRoutes)
+app.use('/api/security', securityRoutes)
 
 // OAuth callback routes (without /api prefix for Google OAuth)
 app.use('/auth', authRoutes)
@@ -137,11 +190,18 @@ const startServer = async () => {
     // Connect to database
     await connectDB()
     
+    // Create HTTP server
+    const server = createServer(app)
+    
+    // Initialize WebSocket server
+    initializeWebSocket(server)
+    
     // Start listening
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`)
       console.log(`📊 Health check: http://localhost:${PORT}/health`)
       console.log(`🔗 API base: http://localhost:${PORT}/api`)
+      console.log(`🔌 WebSocket: ws://localhost:${PORT}/ws`)
       console.log(`🌍 Environment: ${process.env.NODE_ENV}`)
       console.log(`✅ Database: Connected to MongoDB Atlas`)
     })

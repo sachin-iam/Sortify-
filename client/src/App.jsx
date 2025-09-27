@@ -1,6 +1,7 @@
 import React from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
+import { WebSocketProvider } from './contexts/WebSocketContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import ErrorBoundary from './components/ErrorBoundary'
 import Navbar from './components/Navbar'
@@ -17,9 +18,10 @@ function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <div className="App min-h-screen relative">
-          <ParticleBackground />
-          <Routes>
+        <WebSocketProvider>
+          <div className="App min-h-screen relative">
+            <ParticleBackground />
+            <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password/:resetToken" element={<ResetPassword />} />
@@ -59,7 +61,8 @@ function App() {
             />
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </div>
+          </div>
+        </WebSocketProvider>
       </AuthProvider>
     </ErrorBoundary>
   )
