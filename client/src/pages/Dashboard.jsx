@@ -543,126 +543,7 @@ const Dashboard = () => {
     }
   }, [])
 
-  // Handle token from URL parameters (Gmail OAuth callback)
-  useEffect(() => {
-    console.log('🔍 Dashboard: Checking URL parameters...', window.location.search)
-    const urlParams = new URLSearchParams(window.location.search)
-    const urlToken = urlParams.get('token')
-    const connected = urlParams.get('connected')
-    const loginSuccess = urlParams.get('login')
-    const accountCreated = urlParams.get('account_created_and_connected')
-    const loginSuccessAndConnected = urlParams.get('login_success_and_connected')
-    const gmailConnected = urlParams.get('gmail_connected')
-    const error = urlParams.get('error')
-    
-    console.log('🔍 Dashboard: URL parameters found:', {
-      urlToken: urlToken ? 'present' : 'missing',
-      connected,
-      loginSuccess,
-      accountCreated,
-      loginSuccessAndConnected,
-      gmailConnected,
-      error
-    })
-    
-    if (urlToken && (connected === '1' || loginSuccess === 'success' || accountCreated === '1' || loginSuccessAndConnected === '1' || gmailConnected === '1')) {
-      console.log('🎯 OAuth callback detected - updating authentication state...')
-      
-      // Use the new AuthContext function to update token and user data
-      updateTokenFromOAuth(urlToken).then((result) => {
-        if (result.success) {
-          console.log('✅ Authentication state updated successfully')
-          
-          // Determine the success message based on the callback type
-          let successMessage = '🎉 Success!'
-          let icon = '✨'
-          
-          if (accountCreated === '1') {
-            successMessage = '🎉 Account Created & Gmail Connected!'
-            icon = '🚀'
-          } else if (loginSuccessAndConnected === '1') {
-            successMessage = '🎉 Login Successful & Gmail Connected!'
-            icon = '✅'
-          } else if (gmailConnected === '1') {
-            successMessage = '🎉 Gmail Connected Successfully!'
-            icon = '📧'
-          } else if (loginSuccess === 'success') {
-            successMessage = '🎉 Login Successful!'
-            icon = '🔐'
-          } else {
-            successMessage = '🎉 Gmail Connected Successfully!'
-            icon = '📧'
-          }
-          
-          // Show beautiful 3D glass design success toast
-          toast.success(successMessage, {
-            duration: 4000,
-            style: {
-              background: 'linear-gradient(135deg, rgba(16,185,129,0.15), rgba(5,150,105,0.1))',
-              backdropFilter: 'blur(20px)',
-              border: '1px solid rgba(16,185,129,0.3)',
-              borderRadius: '20px',
-              boxShadow: '0 25px 50px rgba(0,0,0,0.15), 0 0 0 1px rgba(16,185,129,0.2), inset 0 1px 0 rgba(255,255,255,0.3)',
-              color: '#065f46',
-              fontSize: '16px',
-              fontWeight: '700',
-              padding: '20px 24px',
-              maxWidth: '450px',
-              textAlign: 'center',
-              position: 'relative',
-              overflow: 'hidden'
-            },
-            icon: icon
-          })
-          
-          // Refresh connection status and data after successful auth update
-          setTimeout(() => {
-            checkConnectionStatus()
-            fetchStats(true)
-            loadData()
-          }, 500)
-        } else {
-          console.error('❌ Failed to update authentication state:', result.error)
-          toast.error('❌ Authentication update failed. Please refresh the page.', {
-            duration: 4000
-          })
-        }
-      }).catch((error) => {
-        console.error('❌ Error updating authentication state:', error)
-        toast.error('❌ Authentication error. Please refresh the page.', {
-          duration: 4000
-        })
-      })
-      
-      // Clean up URL parameters (no page reload needed)
-      window.history.replaceState({}, document.title, window.location.pathname)
-    } else if (error === 'gmail_connection_failed') {
-      console.log('Gmail connection failed')
-      // Show error toast
-      toast.error('❌ Gmail connection failed. Please try again.', {
-        duration: 4000,
-        style: {
-          background: 'linear-gradient(135deg, rgba(239,68,68,0.15), rgba(220,38,38,0.1))',
-          backdropFilter: 'blur(20px)',
-          border: '1px solid rgba(239,68,68,0.3)',
-          borderRadius: '20px',
-          boxShadow: '0 25px 50px rgba(0,0,0,0.15), 0 0 0 1px rgba(239,68,68,0.2), inset 0 1px 0 rgba(255,255,255,0.3)',
-          color: '#991b1b',
-          fontSize: '16px',
-          fontWeight: '700',
-          padding: '20px 24px',
-          maxWidth: '450px',
-          textAlign: 'center',
-          position: 'relative',
-          overflow: 'hidden'
-        },
-        icon: '❌'
-      })
-      
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname)
-    }
-  }, [updateTokenFromOAuth])
+  // Note: OAuth callback processing has been moved to OAuthCallback.jsx page
 
   // Check current connection status function
     const checkConnectionStatus = async () => {
@@ -973,7 +854,7 @@ const Dashboard = () => {
           className="mb-4"
         >
           <h2 className="text-lg font-semibold text-slate-800 mb-3">Connect Your Email Services</h2>
-          {/* Gmail Card */}
+            {/* Gmail Card */}
           <div className="max-w-md mx-auto">
             <div className="backdrop-blur-xl bg-white/30 border border-white/20 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.06)] hover:scale-[1.01] transition-all duration-300 p-6">
               <div className="flex items-center justify-between mb-4">

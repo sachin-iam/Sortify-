@@ -14,6 +14,7 @@ import Settings from './pages/Settings'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import EmailVerification from './pages/EmailVerification'
+import OAuthCallback from './pages/OAuthCallback'
 import NotFound from './pages/NotFound'
 
 function App() {
@@ -30,6 +31,7 @@ function App() {
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password/:resetToken" element={<ResetPassword />} />
             <Route path="/verify-email/:verificationToken?" element={<EmailVerification />} />
+            <Route path="/oauth/callback" element={<OAuthCallback />} />
             <Route 
               path="/" 
               element={

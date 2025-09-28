@@ -26,7 +26,7 @@ const getOAuth2Client = () => {
   return new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/auth/gmail/callback'
+    process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/oauth/callback'
   )
 }
 
@@ -276,8 +276,7 @@ router.get('/google/login', asyncHandler(async (req, res) => {
         'https://www.googleapis.com/auth/gmail.labels',
         'https://www.googleapis.com/auth/gmail.settings.basic'
       ],
-      state: 'complete_login', // Complete login with email connection
-      redirect_uri: 'http://localhost:5000/api/auth/gmail/callback'
+      state: 'complete_login' // Complete login with email connection
     })
 
     res.json({
@@ -483,6 +482,94 @@ router.post('/clear-blocks', asyncHandler(async (req, res) => {
   })
 }))
 
+// @desc    OAuth callback for frontend token exchange
+// @route   GET /api/auth/oauth/callback
+// @access  Public
+router.get('/oauth/callback', asyncHandler(async (req, res) => {
+  console.log('🔵 Frontend OAuth callback route hit!', req.query)
+  
+  try {
+    const { code } = req.query
+
+    if (!code) {
+      console.log('❌ Missing OAuth code')
+      return res.status(400).json({
+        success: false,
+        message: 'OAuth authorization code is required'
+      })
+    }
+
+    // Exchange code for tokens using existing OAuth flow
+    const oauth2Client = getOAuth2Client()
+    const { tokens } = await oauth2Client.getToken(code)
+    oauth2Client.setCredentials(tokens)
+
+    // Get user info from Google
+    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client })
+    const { data: userInfo } = await oauth2.userinfo.get()
+
+    // Find or create user (same logic as existing callback)
+    let user = await User.findOne({ email: userInfo.email })
+    let isNewUser = false
+
+    if (!user) {
+      // Create new user with complete setup
+      user = await User.create({
+        name: userInfo.name || userInfo.email,
+        email: userInfo.email,
+        password: 'oauth-user', // Placeholder password for OAuth users
+        googleId: userInfo.id,
+        avatar: userInfo.picture,
+        isEmailVerified: true,
+        gmailConnected: true,
+        gmailAccessToken: tokens.access_token,
+        gmailRefreshToken: tokens.refresh_token,
+        gmailTokenExpiry: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
+        gmailEmail: userInfo.email,
+        gmailName: userInfo.name || userInfo.email
+      })
+      isNewUser = true
+      console.log('✅ Created new user via OAuth callback:', userInfo.email)
+    } else {
+      // Update existing user with Google info and Gmail connection
+      user.googleId = userInfo.id
+      user.avatar = userInfo.picture
+      user.isEmailVerified = true
+      user.gmailConnected = true
+      user.gmailAccessToken = tokens.access_token
+      if (tokens.refresh_token) user.gmailRefreshToken = tokens.refresh_token
+      user.gmailTokenExpiry = tokens.expiry_date ? new Date(tokens.expiry_date) : null
+      user.gmailEmail = userInfo.email
+      user.gmailName = userInfo.name || userInfo.email
+      await user.save()
+      console.log('✅ Updated existing user via OAuth callback:', userInfo.email)
+    }
+
+    // Generate JWT token for the user
+    const jwtToken = generateToken(user._id)
+
+    // Return JWT to frontend
+    res.json({
+      success: true,
+      token: jwtToken,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar,
+        isNewUser
+      }
+    })
+
+  } catch (error) {
+    console.error('❌ OAuth callback error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'OAuth authentication failed'
+    })
+  }
+}))
+
 // @desc    Get Gmail OAuth URL
 // @route   GET /api/auth/gmail/connect
 // @access  Public
@@ -623,13 +710,8 @@ router.get('/gmail/callback', asyncHandler(async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     })
 
-    // Redirect based on flow type
-    if (flowType === 'complete_login') {
-      const message = isNewUser ? 'account_created_and_connected' : 'login_success_and_connected'
-      res.redirect(`http://localhost:3000/dashboard?${message}=1&token=${jwtToken}`)
-    } else {
-      res.redirect(`http://localhost:3000/dashboard?gmail_connected=1&token=${jwtToken}`)
-    }
+    // Redirect to frontend OAuth callback with token
+    res.redirect(`http://localhost:3000/oauth/callback?token=${jwtToken}`)
   } catch (error) {
     console.error('❌ OAuth callback error:', error)
     
