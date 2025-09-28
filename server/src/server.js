@@ -31,6 +31,7 @@ import notificationsRoutes from './routes/notifications.js'
 import exportRoutes from './routes/export.js'
 import performanceRoutes from './routes/performance.js'
 import securityRoutes from './routes/security.js'
+import connectionsRoutes from './routes/connections.js'
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js'
@@ -159,10 +160,10 @@ app.use('/api/templates', emailTemplatesRoutes)
 app.use('/api/notifications', notificationsRoutes)
 app.use('/api/export', exportRoutes)
 app.use('/api/performance', performanceRoutes)
+app.use('/api/connections', connectionsRoutes)
 app.use('/api/security', securityRoutes)
 
-// OAuth callback routes (without /api prefix for Google OAuth)
-app.use('/auth', authRoutes)
+// OAuth callback routes are now handled under /api/auth
 
 // Root endpoint
 app.get('/', (req, res) => {

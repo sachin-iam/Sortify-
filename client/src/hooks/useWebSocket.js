@@ -28,7 +28,7 @@ export const useWebSocket = () => {
     }
 
     try {
-      const wsUrl = `ws://localhost:5000/ws?token=${encodeURIComponent(token)}`
+      const wsUrl = `${import.meta.env.VITE_WS_URL || 'ws://localhost:5000'}/ws?token=${encodeURIComponent(token)}`
       console.log('Connecting to WebSocket:', wsUrl)
       
       wsRef.current = new WebSocket(wsUrl)

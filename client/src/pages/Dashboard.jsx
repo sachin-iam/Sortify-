@@ -20,15 +20,13 @@ import emailService from '../services/emailService'
 import ModernIcon from '../components/ModernIcon'
 
 const Dashboard = () => {
-  const { user, token, connectGmailAccount, connectMicrosoftAccount, updateTokenFromOAuth } = useAuth()
+  const { user, token, connectGmailAccount, updateTokenFromOAuth } = useAuth()
   const { isConnected, connectionStatus, subscribeToEvents } = useWebSocketContext()
   const [activeView, setActiveView] = useState('emails')
   const [syncLoading, setSyncLoading] = useState(false)
   const [gmailConnected, setGmailConnected] = useState(false)
-  const [outlookConnected, setOutlookConnected] = useState(false)
   const [loadingConnections, setLoadingConnections] = useState(true)
   const [connectingGmail, setConnectingGmail] = useState(false)
-  const [connectingOutlook, setConnectingOutlook] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
   const [stats, setStats] = useState({
     totalEmails: 0,
@@ -547,13 +545,27 @@ const Dashboard = () => {
 
   // Handle token from URL parameters (Gmail OAuth callback)
   useEffect(() => {
+    console.log('🔍 Dashboard: Checking URL parameters...', window.location.search)
     const urlParams = new URLSearchParams(window.location.search)
     const urlToken = urlParams.get('token')
     const connected = urlParams.get('connected')
     const loginSuccess = urlParams.get('login')
+    const accountCreated = urlParams.get('account_created_and_connected')
+    const loginSuccessAndConnected = urlParams.get('login_success_and_connected')
+    const gmailConnected = urlParams.get('gmail_connected')
     const error = urlParams.get('error')
     
-    if (urlToken && (connected === '1' || loginSuccess === 'success')) {
+    console.log('🔍 Dashboard: URL parameters found:', {
+      urlToken: urlToken ? 'present' : 'missing',
+      connected,
+      loginSuccess,
+      accountCreated,
+      loginSuccessAndConnected,
+      gmailConnected,
+      error
+    })
+    
+    if (urlToken && (connected === '1' || loginSuccess === 'success' || accountCreated === '1' || loginSuccessAndConnected === '1' || gmailConnected === '1')) {
       console.log('🎯 OAuth callback detected - updating authentication state...')
       
       // Use the new AuthContext function to update token and user data
@@ -561,9 +573,29 @@ const Dashboard = () => {
         if (result.success) {
           console.log('✅ Authentication state updated successfully')
           
+          // Determine the success message based on the callback type
+          let successMessage = '🎉 Success!'
+          let icon = '✨'
+          
+          if (accountCreated === '1') {
+            successMessage = '🎉 Account Created & Gmail Connected!'
+            icon = '🚀'
+          } else if (loginSuccessAndConnected === '1') {
+            successMessage = '🎉 Login Successful & Gmail Connected!'
+            icon = '✅'
+          } else if (gmailConnected === '1') {
+            successMessage = '🎉 Gmail Connected Successfully!'
+            icon = '📧'
+          } else if (loginSuccess === 'success') {
+            successMessage = '🎉 Login Successful!'
+            icon = '🔐'
+          } else {
+            successMessage = '🎉 Gmail Connected Successfully!'
+            icon = '📧'
+          }
+          
           // Show beautiful 3D glass design success toast
-          const isLogin = loginSuccess === 'success'
-          toast.success(isLogin ? '🎉 Login Successful! Gmail Connected Automatically!' : '🎉 Gmail Connected Successfully!', {
+          toast.success(successMessage, {
             duration: 4000,
             style: {
               background: 'linear-gradient(135deg, rgba(16,185,129,0.15), rgba(5,150,105,0.1))',
@@ -580,7 +612,7 @@ const Dashboard = () => {
               position: 'relative',
               overflow: 'hidden'
             },
-            icon: '✨'
+            icon: icon
           })
           
           // Refresh connection status and data after successful auth update
@@ -640,10 +672,9 @@ const Dashboard = () => {
       }
 
       try {
-        const response = await api.get('/api/auth/me')
+        const response = await api.get('/auth/me')
         if (response.data.success) {
           setGmailConnected(response.data.user.gmailConnected || false)
-          setOutlookConnected(response.data.user.outlookConnected || false)
         // Update user object with Gmail name if available
         if (response.data.user.gmailName && user) {
           user.gmailName = response.data.user.gmailName
@@ -706,7 +737,7 @@ const Dashboard = () => {
     
     setConnectingGmail(true)
     try {
-      const response = await api.get('/api/auth/gmail/connect')
+      const response = await api.get('/auth/gmail/connect')
       if (response.data.success) {
         console.log('Redirecting to Gmail OAuth:', response.data.authUrl)
         
@@ -756,22 +787,6 @@ const Dashboard = () => {
     }
   }
 
-  const handleOutlookConnection = async () => {
-    setConnectingOutlook(true)
-    try {
-      const result = await connectMicrosoftAccount()
-      if (result.success) {
-        setOutlookConnected(true)
-        toast.success(result.message || 'Microsoft Outlook account connected successfully!')
-      } else {
-        toast.error(result.error || 'Failed to connect Microsoft Outlook account')
-      }
-    } catch (error) {
-      toast.error('Microsoft Outlook integration is not yet implemented. Please use Gmail for now.')
-    } finally {
-      setConnectingOutlook(false)
-    }
-  }
 
   const syncGmailEmails = async () => {
     if (!token) {
@@ -787,7 +802,7 @@ const Dashboard = () => {
     setSyncLoading(true)
     try {
       console.log('🔄 Starting Gmail sync...')
-      const { data } = await api.post('/api/emails/gmail/sync-all')
+      const data = await emailService.syncGmail()
       console.log('✅ Gmail sync response:', data)
       
       if (data.success) {
@@ -931,10 +946,6 @@ const Dashboard = () => {
     setSelectedEmail(null)
   }
 
-  const syncOutlookEmails = async () => {
-    // Outlook sync is coming soon
-    toast.error('Outlook sync coming soon!', { duration: 3000 })
-  }
 
   return (
     <div className="min-h-screen p-4">
@@ -962,16 +973,16 @@ const Dashboard = () => {
           className="mb-4"
         >
           <h2 className="text-lg font-semibold text-slate-800 mb-3">Connect Your Email Services</h2>
-          <div className="grid md:grid-cols-2 gap-4">
-            {/* Gmail Card */}
-            <div className="backdrop-blur-xl bg-white/30 border border-white/20 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.06)] hover:scale-[1.01] transition-all duration-300 p-4">
-              <div className="flex items-center justify-between mb-3">
+          {/* Gmail Card */}
+          <div className="max-w-md mx-auto">
+            <div className="backdrop-blur-xl bg-white/30 border border-white/20 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.06)] hover:scale-[1.01] transition-all duration-300 p-6">
+              <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-orange-500 rounded-lg flex items-center justify-center">
-                    <ModernIcon type="email" size={20} color="#ffffff" glassEffect={false} />
+                  <div className="w-12 h-12 bg-gradient-to-r from-red-500 to-orange-500 rounded-xl flex items-center justify-center">
+                    <ModernIcon type="email" size={24} color="#ffffff" glassEffect={false} />
                 </div>
                 <div>
-                    <h3 className="text-lg font-semibold text-slate-800">Gmail</h3>
+                    <h3 className="text-xl font-semibold text-slate-800">Gmail</h3>
                     <p className="text-sm text-slate-600">
                       {gmailConnected 
                         ? 'Your Gmail is connected and syncing' 
@@ -991,55 +1002,55 @@ const Dashboard = () => {
               
               {/* Mini Stats */}
               {gmailConnected && (
-                <div className="grid grid-cols-3 gap-3 mb-3 p-2 bg-white/20 rounded-lg">
+                <div className="grid grid-cols-3 gap-3 mb-4 p-3 bg-white/20 rounded-lg">
                   <div className="text-center">
-                    <div className="text-sm font-bold text-slate-800">{stats?.totalEmails || 0}</div>
+                    <div className="text-lg font-bold text-slate-800">{stats?.totalEmails || 0}</div>
                     <div className="text-xs text-slate-600">Total</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-sm font-bold text-slate-800">{stats?.categories || 7}</div>
+                    <div className="text-lg font-bold text-slate-800">{stats?.categories || 7}</div>
                     <div className="text-xs text-slate-600">Categories</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-sm font-bold text-slate-800">{stats?.processedToday || 0}</div>
+                    <div className="text-lg font-bold text-slate-800">{stats?.processedToday || 0}</div>
                     <div className="text-xs text-slate-600">Today</div>
                   </div>
                 </div>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex gap-3">
                 {gmailConnected ? (
                   <>
                     <button 
                       onClick={syncGmailEmails}
                       disabled={syncLoading}
-                      className="flex-1 bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-lg rounded-lg px-3 py-1.5 text-sm font-medium hover:from-emerald-500 hover:to-emerald-700 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                      className="flex-1 bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-lg rounded-lg px-4 py-2 text-sm font-medium hover:from-emerald-500 hover:to-emerald-700 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
                     >
-                      <ModernIcon type="sync" size={8} />
+                      <ModernIcon type="sync" size={16} />
                       {syncLoading ? 'Syncing...' : 'Sync Now'}
                     </button>
                     <button 
                       onClick={handleGmailDisconnection}
-                      className="bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-300"
+                      className="bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-300"
                     >
                       Disconnect
                     </button>
                   </>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-3 w-full">
                     <button 
                       onClick={handleGmailConnection}
                       disabled={connectingGmail}
-                      className="w-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-lg rounded-xl px-4 py-2 font-medium hover:from-emerald-500 hover:to-emerald-700 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
+                      className="w-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-lg rounded-xl px-6 py-3 font-medium hover:from-emerald-500 hover:to-emerald-700 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
                     >
                       {connectingGmail ? (
                         <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                          <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
                           Connecting...
                         </>
                       ) : (
                         <>
-                          <ModernIcon type="email" size={16} />
+                          <ModernIcon type="email" size={18} />
                           Connect Gmail
                         </>
                       )}
@@ -1050,32 +1061,6 @@ const Dashboard = () => {
                   </div>
                 )}
               </div>
-            </div>
-
-            {/* Outlook Card */}
-            <div className="backdrop-blur-xl bg-white/30 border border-white/20 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.06)] hover:scale-[1.01] transition-all duration-300 p-4 opacity-60">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center">
-                    <ModernIcon type="outlook" size={20} color="#ffffff" glassEffect={false} />
-                </div>
-                <div>
-                    <h3 className="text-lg font-semibold text-slate-800">Microsoft Outlook</h3>
-                    <p className="text-sm text-slate-600">Coming soon - Use Gmail for now</p>
-                  </div>
-                </div>
-                <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                  Coming Soon
-                </span>
-              </div>
-              
-              <button 
-                disabled
-                className="w-full bg-slate-200/60 text-slate-400 rounded-xl px-4 py-2 font-medium cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                <ModernIcon type="outlook" size={16} />
-                Coming Soon
-              </button>
             </div>
           </div>
         </motion.div>
@@ -1232,17 +1217,6 @@ const Dashboard = () => {
                   Refresh Data
                 </button>
               )}
-                
-                {/* Outlook Sync Button */}
-              <button 
-                onClick={syncOutlookEmails}
-                  disabled={true}
-                  className="w-full py-1.5 px-2 text-[10px] bg-gradient-to-r from-gray-400/25 to-gray-500/25 text-gray-600 rounded-lg cursor-not-allowed flex items-center justify-center gap-1 font-semibold border border-gray-300/40 opacity-70"
-                  title="Outlook sync coming soon"
-              >
-                  <ModernIcon type="outlook" size={10} color="#6b7280" />
-                  Outlook (Soon)
-              </button>
               </div>
             </div>
           </div>
@@ -1331,7 +1305,7 @@ const Dashboard = () => {
               {/* Top Bar with Provider Selector and Search */}
               <div className="backdrop-blur-xl bg-gradient-to-r from-white/40 via-white/30 to-blue-50/40 border border-white/30 rounded-3xl p-6 shadow-2xl shadow-blue-100/20">
                 <div className="flex flex-col lg:flex-row gap-6">
-                  {/* Provider Selector */}
+                  {/* Gmail Status */}
                   <div className="flex gap-3">
                     <button className="group relative px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-2xl font-semibold shadow-lg hover:shadow-xl hover:from-emerald-600 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105">
                       <div className="flex items-center gap-2">
@@ -1347,18 +1321,6 @@ const Dashboard = () => {
                         )}
                       </div>
                       <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                    </button>
-                    <button 
-                      disabled
-                      className="group relative px-6 py-3 bg-gradient-to-r from-slate-200/80 to-slate-300/60 text-slate-500 rounded-2xl font-semibold cursor-not-allowed border border-slate-300/50"
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-slate-400 rounded-full"></div>
-                        <span>Outlook</span>
-                        <span className="ml-2 text-xs bg-gradient-to-r from-blue-500 to-blue-600 text-white px-3 py-1 rounded-full shadow-md">
-                          Coming Soon
-                        </span>
-                      </div>
                     </button>
                   </div>
                   

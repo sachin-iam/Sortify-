@@ -7,7 +7,7 @@ import toast from 'react-hot-toast'
 import { api } from '../services/api'
 
 const Login = () => {
-  const { login, register, googleLogin, isAuthenticated, clearStoredTokens } = useAuth()
+  const { login, register, googleLogin, loginWithGoogle, isAuthenticated, clearStoredTokens } = useAuth()
   const navigate = useNavigate()
   const [isLogin, setIsLogin] = useState(true)
   const [loading, setLoading] = useState(false)
@@ -78,31 +78,21 @@ const Login = () => {
   const handleGoogleLogin = async () => {
     try {
       setLoading(true)
-      console.log('🚀 Starting Google login process...')
+      console.log('🚀 Starting complete Google login with Gmail connection...')
       
-      // Use the new Google OAuth login endpoint
-      console.log('📡 Making API request to /api/auth/google/connect')
-      const response = await api.get('/api/auth/google/connect')
+      // Use the new complete Google OAuth login endpoint
+      const result = await loginWithGoogle()
       
-      console.log('✅ API response received:', response.status, response.data)
-      
-      if (response.data.success) {
-        console.log('Redirecting to Google OAuth for login:', response.data.authUrl)
-        // Redirect to Google OAuth in the same tab
-        window.location.href = response.data.authUrl
+      if (result.success) {
+        console.log('✅ Redirecting to Google OAuth for complete login')
+        toast.success('Redirecting to Google for login and Gmail connection...')
       } else {
-        console.error('❌ API returned success: false')
-        toast.error('Failed to initiate Google login')
+        console.error('❌ Google login failed:', result.error)
+        toast.error(result.error || 'Failed to initiate Google login')
         setLoading(false)
       }
     } catch (error) {
       console.error('❌ Google login error:', error)
-      console.error('❌ Error details:', {
-        message: error.message,
-        code: error.code,
-        response: error.response?.data,
-        status: error.response?.status
-      })
       toast.error('Google login failed')
       setLoading(false)
     }
