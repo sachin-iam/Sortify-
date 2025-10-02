@@ -12,6 +12,7 @@ export const useWebSocket = () => {
   const reconnectTimeoutRef = useRef(null)
   const reconnectAttempts = useRef(0)
   const pendingSubscriptions = useRef(null)
+  const subscribedEvents = useRef(new Set())
   const maxReconnectAttempts = 5
   const reconnectDelay = 3000
 
@@ -27,7 +28,7 @@ export const useWebSocket = () => {
     }
 
     try {
-      const wsUrl = `ws://localhost:5000/ws?token=${encodeURIComponent(token)}`
+      const wsUrl = `${import.meta.env.VITE_WS_URL || 'ws://localhost:5000'}/ws?token=${encodeURIComponent(token)}`
       console.log('Connecting to WebSocket:', wsUrl)
       
       wsRef.current = new WebSocket(wsUrl)
@@ -236,6 +237,50 @@ export const useWebSocket = () => {
     pendingSubscriptions.current = events
   }, [])
 
+  const smartSubscribeToEvents = useCallback((events) => {
+    if (!Array.isArray(events)) return
+
+    // Check if we already have all these events subscribed
+    const newEvents = events.filter(event => !subscribedEvents.current.has(event))
+    
+    if (newEvents.length === 0) {
+      console.log('📡 All events already subscribed:', events)
+      return
+    }
+
+    console.log('📡 Subscribing to new events:', newEvents)
+    
+    // Add to subscribed events
+    newEvents.forEach(event => subscribedEvents.current.add(event))
+
+    if (isConnected) {
+      sendMessage({
+        type: 'subscribe',
+        events: newEvents
+      })
+    } else {
+      // Store for when connected
+      if (pendingSubscriptions.current) {
+        pendingSubscriptions.current = [...new Set([...pendingSubscriptions.current, ...newEvents])]
+      } else {
+        pendingSubscriptions.current = newEvents
+      }
+    }
+  }, [isConnected, sendMessage])
+
+  const unsubscribeFromEvents = useCallback((events) => {
+    if (!Array.isArray(events)) return
+
+    events.forEach(event => subscribedEvents.current.delete(event))
+    
+    if (isConnected) {
+      sendMessage({
+        type: 'unsubscribe',
+        events
+      })
+    }
+  }, [isConnected, sendMessage])
+
   return {
     isConnected,
     connectionStatus,
@@ -243,6 +288,8 @@ export const useWebSocket = () => {
     connect,
     disconnect,
     sendMessage,
-    setPendingSubscriptions
+    setPendingSubscriptions,
+    smartSubscribeToEvents,
+    unsubscribeFromEvents
   }
 }

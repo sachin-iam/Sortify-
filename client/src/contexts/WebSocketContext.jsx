@@ -39,18 +39,8 @@ export const WebSocketProvider = ({ children, onEmailSync, onCategoryUpdate, onS
   const value = {
     ...webSocket,
     // Additional methods for specific actions
-    subscribeToEvents: (events) => {
-      if (webSocket.isConnected) {
-        webSocket.sendMessage({
-          type: 'subscribe',
-          events
-        })
-      } else {
-        console.log('WebSocket not connected, will subscribe when connected')
-        // Store events to subscribe when connected
-        webSocket.setPendingSubscriptions(events)
-      }
-    },
+    subscribeToEvents: webSocket.smartSubscribeToEvents,
+    unsubscribeFromEvents: webSocket.unsubscribeFromEvents,
     requestSyncStatus: () => {
       webSocket.sendMessage({
         type: 'get_sync_status'

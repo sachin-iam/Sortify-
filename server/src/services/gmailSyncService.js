@@ -211,14 +211,48 @@ export const upsertEmail = async (user, emailData) => {
       ...emailData
     }
 
+    // Try to find existing email by gmailId first, then by messageId
+    let query = { userId: user._id }
+    if (emailData.gmailId) {
+      query.gmailId = emailData.gmailId
+    } else if (emailData.messageId) {
+      query.messageId = emailData.messageId
+    }
+
     const savedEmail = await Email.findOneAndUpdate(
-      { gmailId: emailData.gmailId, userId: user._id },
+      query,
       emailDoc,
-      { upsert: true, new: true }
+      { upsert: true, new: true, runValidators: false }
     )
 
     return savedEmail
   } catch (error) {
+    // If it's a duplicate key error, try to find the existing email
+    if (error.code === 11000) {
+      console.log('🔄 Duplicate key error, attempting to find existing email...')
+      try {
+        // Try to find by gmailId
+        let existingEmail = null
+        if (emailData.gmailId) {
+          existingEmail = await Email.findOne({ gmailId: emailData.gmailId, userId: user._id })
+        }
+        // If not found by gmailId, try by messageId
+        if (!existingEmail && emailData.messageId) {
+          existingEmail = await Email.findOne({ messageId: emailData.messageId, userId: user._id })
+        }
+        
+        if (existingEmail) {
+          // Update the existing email with new data
+          Object.assign(existingEmail, emailData)
+          await existingEmail.save()
+          console.log('✅ Updated existing email:', emailData.gmailId || emailData.messageId)
+          return existingEmail
+        }
+      } catch (updateError) {
+        console.error('❌ Error updating existing email:', updateError)
+      }
+    }
+    
     console.error('❌ Error upserting email:', error)
     throw error
   }

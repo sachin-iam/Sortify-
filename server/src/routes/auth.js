@@ -18,10 +18,15 @@ const getOAuth2Client = () => {
     redirectUri: process.env.GOOGLE_REDIRECT_URI
   })
 
+  // Check if OAuth credentials are available
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    throw new Error('Google OAuth credentials not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env file.')
+  }
+
   return new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/auth/gmail/callback'
+    process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/oauth/callback'
   )
 }
 
@@ -224,12 +229,99 @@ router.post('/google', asyncHandler(async (req, res) => {
     // Update last login
     await user.updateLastLogin()
 
+    // Auto-connect Gmail if not already connected
+    if (!user.gmailConnected && tokens.access_token) {
+      try {
+        user.gmailConnected = true
+        user.gmailAccessToken = tokens.access_token
+        if (tokens.refresh_token) user.gmailRefreshToken = tokens.refresh_token
+        user.gmailTokenExpiry = tokens.expiry_date ? new Date(tokens.expiry_date) : null
+        user.gmailEmail = data.email
+        user.gmailName = data.name || data.email
+        await user.save()
+        console.log('✅ Auto-connected Gmail for Google OAuth user:', data.email)
+      } catch (error) {
+        console.error('❌ Failed to auto-connect Gmail:', error)
+        // Continue with login even if Gmail connection fails
+      }
+    }
+
     sendTokenResponse(user, 200, res)
   } catch (error) {
     console.error('Google OAuth error:', error)
     return res.status(401).json({
       success: false,
       message: 'Google authentication failed'
+    })
+  }
+}))
+
+// @desc    Generate Google OAuth URL for complete login with email connection
+// @route   GET /api/auth/google/login
+// @access  Public
+router.get('/google/login', asyncHandler(async (req, res) => {
+  try {
+    const oauth2Client = getOAuth2Client()
+    
+    // Generate Google OAuth URL for complete login with Gmail connection
+    const authUrl = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      prompt: 'consent',
+      scope: [
+        'openid',
+        'email', 
+        'profile',
+        'https://www.googleapis.com/auth/gmail.readonly',
+        'https://www.googleapis.com/auth/gmail.modify',
+        'https://www.googleapis.com/auth/gmail.labels',
+        'https://www.googleapis.com/auth/gmail.settings.basic'
+      ],
+      state: 'complete_login' // Complete login with email connection
+    })
+
+    res.json({
+      success: true,
+      authUrl
+    })
+  } catch (error) {
+    console.error('Google OAuth URL generation error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate Google OAuth URL'
+    })
+  }
+}))
+
+// @desc    Generate Google OAuth URL for Gmail connection only
+// @route   GET /api/auth/google/connect
+// @access  Private
+router.get('/google/connect', protect, asyncHandler(async (req, res) => {
+  try {
+    const oauth2Client = getOAuth2Client()
+    
+    // Generate Google OAuth URL for Gmail connection only
+    const authUrl = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      prompt: 'consent',
+      scope: [
+        'https://www.googleapis.com/auth/gmail.readonly',
+        'https://www.googleapis.com/auth/gmail.modify',
+        'https://www.googleapis.com/auth/gmail.labels',
+        'https://www.googleapis.com/auth/gmail.settings.basic'
+      ],
+      state: 'gmail_connect', // Gmail connection only
+      redirect_uri: 'http://localhost:5000/api/auth/gmail/callback'
+    })
+
+    res.json({
+      success: true,
+      authUrl
+    })
+  } catch (error) {
+    console.error('Google OAuth URL generation error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate Google OAuth URL'
     })
   }
 }))
@@ -390,6 +482,94 @@ router.post('/clear-blocks', asyncHandler(async (req, res) => {
   })
 }))
 
+// @desc    OAuth callback for frontend token exchange
+// @route   GET /api/auth/oauth/callback
+// @access  Public
+router.get('/oauth/callback', asyncHandler(async (req, res) => {
+  console.log('🔵 Frontend OAuth callback route hit!', req.query)
+  
+  try {
+    const { code } = req.query
+
+    if (!code) {
+      console.log('❌ Missing OAuth code')
+      return res.status(400).json({
+        success: false,
+        message: 'OAuth authorization code is required'
+      })
+    }
+
+    // Exchange code for tokens using existing OAuth flow
+    const oauth2Client = getOAuth2Client()
+    const { tokens } = await oauth2Client.getToken(code)
+    oauth2Client.setCredentials(tokens)
+
+    // Get user info from Google
+    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client })
+    const { data: userInfo } = await oauth2.userinfo.get()
+
+    // Find or create user (same logic as existing callback)
+    let user = await User.findOne({ email: userInfo.email })
+    let isNewUser = false
+
+    if (!user) {
+      // Create new user with complete setup
+      user = await User.create({
+        name: userInfo.name || userInfo.email,
+        email: userInfo.email,
+        password: 'oauth-user', // Placeholder password for OAuth users
+        googleId: userInfo.id,
+        avatar: userInfo.picture,
+        isEmailVerified: true,
+        gmailConnected: true,
+        gmailAccessToken: tokens.access_token,
+        gmailRefreshToken: tokens.refresh_token,
+        gmailTokenExpiry: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
+        gmailEmail: userInfo.email,
+        gmailName: userInfo.name || userInfo.email
+      })
+      isNewUser = true
+      console.log('✅ Created new user via OAuth callback:', userInfo.email)
+    } else {
+      // Update existing user with Google info and Gmail connection
+      user.googleId = userInfo.id
+      user.avatar = userInfo.picture
+      user.isEmailVerified = true
+      user.gmailConnected = true
+      user.gmailAccessToken = tokens.access_token
+      if (tokens.refresh_token) user.gmailRefreshToken = tokens.refresh_token
+      user.gmailTokenExpiry = tokens.expiry_date ? new Date(tokens.expiry_date) : null
+      user.gmailEmail = userInfo.email
+      user.gmailName = userInfo.name || userInfo.email
+      await user.save()
+      console.log('✅ Updated existing user via OAuth callback:', userInfo.email)
+    }
+
+    // Generate JWT token for the user
+    const jwtToken = generateToken(user._id)
+
+    // Return JWT to frontend
+    res.json({
+      success: true,
+      token: jwtToken,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar,
+        isNewUser
+      }
+    })
+
+  } catch (error) {
+    console.error('❌ OAuth callback error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'OAuth authentication failed'
+    })
+  }
+}))
+
 // @desc    Get Gmail OAuth URL
 // @route   GET /api/auth/gmail/connect
 // @access  Public
@@ -429,16 +609,22 @@ router.get('/gmail/connect', asyncHandler(async (req, res) => {
   }
 }))
 
-// @desc    Gmail OAuth callback
+// @desc    Complete OAuth callback (handles login + email connection)
 // @route   GET /api/auth/gmail/callback
 // @access  Public
 router.get('/gmail/callback', asyncHandler(async (req, res) => {
+  console.log('🔵 OAuth callback route hit!', req.query)
   try {
     const { code, state } = req.query
 
-    if (!code || !state) {
-      return res.redirect(`${process.env.CORS_ORIGIN}/login?error=oauth_error`)
+    if (!code) {
+      console.log('❌ Missing code, redirecting to login')
+      return res.redirect(`http://localhost:3000/login?error=oauth_error`)
     }
+
+    // Determine flow type based on state
+    const flowType = state || 'complete_login'
+    console.log('🔄 OAuth flow type:', flowType)
 
     // Exchange code for tokens
     const oauth2Client = getOAuth2Client()
@@ -449,45 +635,89 @@ router.get('/gmail/callback', asyncHandler(async (req, res) => {
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client })
     const { data: userInfo } = await oauth2.userinfo.get()
 
-    // Find or create user by email from Google
-    let user = await User.findOne({ email: userInfo.email })
-    if (!user) {
-      // Create new user if doesn't exist
-      user = await User.create({
-        name: userInfo.name || userInfo.email,
-        email: userInfo.email,
-        password: 'oauth-user' // Placeholder password for OAuth users
-      })
-      console.log('Created new user for Gmail OAuth:', userInfo.email)
+    let user
+    let isNewUser = false
+
+    if (flowType === 'complete_login') {
+      // Complete login flow - create or find user
+      user = await User.findOne({ email: userInfo.email })
+      if (!user) {
+        // Create new user with complete setup
+        user = await User.create({
+          name: userInfo.name || userInfo.email,
+          email: userInfo.email,
+          password: 'oauth-user', // Placeholder password for OAuth users
+          googleId: userInfo.id,
+          avatar: userInfo.picture,
+          isEmailVerified: true,
+          gmailConnected: true,
+          gmailAccessToken: tokens.access_token,
+          gmailRefreshToken: tokens.refresh_token,
+          gmailTokenExpiry: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
+          gmailEmail: userInfo.email,
+          gmailName: userInfo.name || userInfo.email
+        })
+        isNewUser = true
+        console.log('✅ Created new user with complete Gmail setup:', userInfo.email)
+      } else {
+        // Update existing user with Google info and Gmail connection
+        user.googleId = userInfo.id
+        user.avatar = userInfo.picture
+        user.isEmailVerified = true
+        user.gmailConnected = true
+        user.gmailAccessToken = tokens.access_token
+        if (tokens.refresh_token) user.gmailRefreshToken = tokens.refresh_token
+        user.gmailTokenExpiry = tokens.expiry_date ? new Date(tokens.expiry_date) : null
+        user.gmailEmail = userInfo.email
+        user.gmailName = userInfo.name || userInfo.email
+        await user.save()
+        console.log('✅ Updated existing user with complete Gmail setup:', userInfo.email)
+      }
+    } else if (flowType === 'gmail_connect') {
+      // Gmail connection only flow - user must be authenticated
+      const authHeader = req.headers.authorization
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.redirect(`http://localhost:3000/login?error=auth_required`)
+      }
+      
+      const token = authHeader.substring(7)
+      const decoded = jwt.verify(token, process.env.JWT_SECRET)
+      user = await User.findById(decoded.id)
+      
+      if (!user) {
+        return res.redirect(`http://localhost:3000/login?error=user_not_found`)
+      }
+
+      // Connect Gmail to existing user
+      user.gmailConnected = true
+      user.gmailAccessToken = tokens.access_token
+      if (tokens.refresh_token) user.gmailRefreshToken = tokens.refresh_token
+      user.gmailTokenExpiry = tokens.expiry_date ? new Date(tokens.expiry_date) : null
+      user.gmailEmail = userInfo.email
+      user.gmailName = userInfo.name || userInfo.email
+      await user.save()
+      console.log('✅ Connected Gmail to existing user:', userInfo.email)
     }
 
-    // Update user with Gmail tokens and name
-    user.gmailConnected = true
-    user.gmailAccessToken = tokens.access_token
-    if (tokens.refresh_token) user.gmailRefreshToken = tokens.refresh_token
-    user.gmailTokenExpiry = tokens.expiry_date ? new Date(tokens.expiry_date) : null
-    user.gmailEmail = userInfo.email
-    user.gmailName = userInfo.name || userInfo.email
-    await user.save()
-
     // Generate JWT token for the user
-    const token = generateToken(user._id)
+    const jwtToken = generateToken(user._id)
     
     // Set cookie with token
-    res.cookie('token', token, {
+    res.cookie('token', jwtToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     })
 
-    // Redirect back to dashboard with success and token
-    res.redirect(`${process.env.CORS_ORIGIN}/dashboard?connected=1&token=${token}`)
+    // Redirect to frontend OAuth callback with token
+    res.redirect(`http://localhost:3000/oauth/callback?token=${jwtToken}`)
   } catch (error) {
-    console.error('Gmail OAuth callback error:', error)
+    console.error('❌ OAuth callback error:', error)
     
-    // Redirect back to dashboard with error
-    res.redirect(`${process.env.CORS_ORIGIN}/dashboard?error=gmail_connection_failed`)
+    // Redirect back to appropriate page with error
+    const errorType = error.message.includes('jwt') ? 'auth_error' : 'oauth_error'
+    res.redirect(`http://localhost:3000/dashboard?error=${errorType}`)
   }
 }))
 

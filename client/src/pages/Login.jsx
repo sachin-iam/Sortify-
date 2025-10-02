@@ -4,9 +4,10 @@ import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
+import { api } from '../services/api'
 
 const Login = () => {
-  const { login, register, googleLogin, isAuthenticated } = useAuth()
+  const { login, register, googleLogin, loginWithGoogle, isAuthenticated, clearStoredTokens } = useAuth()
   const navigate = useNavigate()
   const [isLogin, setIsLogin] = useState(true)
   const [loading, setLoading] = useState(false)
@@ -77,16 +78,22 @@ const Login = () => {
   const handleGoogleLogin = async () => {
     try {
       setLoading(true)
-      const result = await googleLogin()
+      console.log('🚀 Starting complete Google login with Gmail connection...')
+      
+      // Use the new complete Google OAuth login endpoint
+      const result = await loginWithGoogle()
+      
       if (result.success) {
-        toast.success('Google login successful!')
-        // Redirect will happen automatically due to useEffect
+        console.log('✅ Redirecting to Google OAuth for complete login')
+        toast.success('Redirecting to Google for login and Gmail connection...')
       } else {
-        toast.error(result.error || 'Google login failed')
+        console.error('❌ Google login failed:', result.error)
+        toast.error(result.error || 'Failed to initiate Google login')
+        setLoading(false)
       }
     } catch (error) {
+      console.error('❌ Google login error:', error)
       toast.error('Google login failed')
-    } finally {
       setLoading(false)
     }
   }
@@ -101,53 +108,170 @@ const Login = () => {
     })
   }
 
+  const handleClearCache = () => {
+    clearStoredTokens()
+    localStorage.clear()
+    toast.success('Cache cleared! Please try logging in again.')
+    window.location.reload()
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-2">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Enhanced Background decorative elements */}
+      <div className="absolute inset-0 overflow-hidden">
+        <motion.div 
+          className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-purple-400/20 to-pink-400/20 rounded-full blur-3xl"
+          animate={{ 
+            scale: [1, 1.2, 1],
+            rotate: [0, 180, 360],
+          }}
+          transition={{ 
+            duration: 20,
+            repeat: Infinity,
+            ease: "linear"
+          }}
+        ></motion.div>
+        <motion.div 
+          className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-br from-blue-400/20 to-indigo-400/20 rounded-full blur-3xl"
+          animate={{ 
+            scale: [1.2, 1, 1.2],
+            rotate: [360, 180, 0],
+          }}
+          transition={{ 
+            duration: 25,
+            repeat: Infinity,
+            ease: "linear"
+          }}
+        ></motion.div>
+        <motion.div 
+          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-br from-emerald-400/10 to-cyan-400/10 rounded-full blur-3xl"
+          animate={{ 
+            scale: [1, 1.5, 1],
+            opacity: [0.3, 0.6, 0.3],
+          }}
+          transition={{ 
+            duration: 15,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+        ></motion.div>
+      </div>
+      
       <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-md"
+        initial={{ opacity: 0, scale: 0.8, rotateY: -15 }}
+        animate={{ opacity: 1, scale: 1, rotateY: 0 }}
+        transition={{ 
+          duration: 0.8,
+          type: "spring",
+          stiffness: 100,
+          damping: 15
+        }}
+        className="w-full max-w-md relative z-10"
       >
-        <div className="glass-card p-6">
-          {/* Header */}
-          <motion.div 
-            initial={{ y: -20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="text-center mb-6"
+        <motion.div 
+          className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/30"
+          whileHover={{ 
+            scale: 1.02,
+            rotateY: 2,
+            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.5)"
+          }}
+          transition={{ duration: 0.3 }}
+        >
+          {/* Enhanced Header */}
+      <motion.div
+            initial={{ y: -30, opacity: 0, rotateX: -90 }}
+            animate={{ y: 0, opacity: 1, rotateX: 0 }}
+            transition={{ 
+              delay: 0.2,
+              duration: 0.8,
+              type: "spring",
+              stiffness: 120
+            }}
+            className="text-center mb-8"
           >
-            <div className="w-12 h-12 bg-gradient-to-r from-slate-600 to-slate-800 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-lg">
-              <span className="text-white text-xl font-bold">S</span>
-            </div>
-            <h1 className="text-2xl font-bold text-slate-800 mb-1">Sortify</h1>
-            <p className="text-slate-600 text-sm">
-              {isLogin ? 'Welcome back!' : 'Create your account'}
-            </p>
+          <motion.div 
+              className="w-20 h-20 bg-gradient-to-r from-purple-500 via-pink-500 to-indigo-500 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-2xl"
+              whileHover={{ 
+                scale: 1.1,
+                rotate: [0, -10, 10, 0],
+                boxShadow: "0 20px 40px rgba(147, 51, 234, 0.4)"
+              }}
+              animate={{ 
+                rotate: [0, 5, -5, 0],
+                scale: [1, 1.05, 1]
+              }}
+              transition={{ 
+                rotate: { duration: 4, repeat: Infinity, ease: "easeInOut" },
+                scale: { duration: 2, repeat: Infinity, ease: "easeInOut" }
+              }}
+            >
+              <span className="text-white text-3xl font-bold">S</span>
+            </motion.div>
+            <motion.h1 
+              className="text-4xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600 bg-clip-text text-transparent mb-3"
+              whileHover={{ 
+                scale: 1.05,
+                backgroundPosition: "200% center"
+              }}
+              animate={{
+                backgroundPosition: ["0% center", "100% center", "0% center"]
+              }}
+              transition={{
+                backgroundPosition: { duration: 3, repeat: Infinity, ease: "easeInOut" }
+              }}
+              style={{
+                backgroundSize: "200% auto"
+              }}
+            >
+              Sortify
+            </motion.h1>
+            <motion.p 
+              className="text-slate-600 text-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.6 }}
+            >
+              {isLogin ? 'Welcome back! 👋' : 'Create your account ✨'}
+            </motion.p>
           </motion.div>
 
-          {/* Form */}
+          {/* Enhanced Form */}
           <motion.form
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.3 }}
+            initial={{ y: 30, opacity: 0, rotateX: 90 }}
+            animate={{ y: 0, opacity: 1, rotateX: 0 }}
+            transition={{ 
+              delay: 0.3,
+              duration: 0.8,
+              type: "spring",
+              stiffness: 100
+            }}
             onSubmit={handleSubmit}
-            className="space-y-4"
+            className="space-y-5"
           >
             {!isLogin && (
               <div>
                 <label htmlFor="name" className="block text-slate-700 text-sm font-medium mb-2">
                   Full Name
                 </label>
-                <input
+                <motion.input
                   type="text"
                   id="name"
                   name="name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  className="input-glass w-full"
+                  className="w-full px-4 py-3 bg-white/80 border border-purple-200/50 rounded-xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-400 transition-all duration-300 placeholder-slate-400 shadow-sm"
                   placeholder="Enter your full name"
+                  autoComplete="name"
                   required={!isLogin}
+                  whileHover={{ 
+                    scale: 1.02,
+                    boxShadow: "0 8px 25px rgba(147, 51, 234, 0.15)"
+                  }}
+                  whileFocus={{ 
+                    scale: 1.03,
+                    boxShadow: "0 12px 30px rgba(147, 51, 234, 0.2)"
+                  }}
+                  transition={{ duration: 0.2 }}
                 />
               </div>
             )}
@@ -156,15 +280,25 @@ const Login = () => {
               <label htmlFor="email" className="block text-slate-700 text-sm font-medium mb-2">
                 Email
               </label>
-              <input
+              <motion.input
                 type="email"
                 id="email"
                 name="email"
                 value={formData.email}
                 onChange={handleInputChange}
-                className="input-glass w-full"
+                className="w-full px-4 py-3 bg-white/80 border border-purple-200/50 rounded-xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-400 transition-all duration-300 placeholder-slate-400 shadow-sm"
                 placeholder="Enter your email"
+                autoComplete="email"
                 required
+                whileHover={{ 
+                  scale: 1.02,
+                  boxShadow: "0 8px 25px rgba(147, 51, 234, 0.15)"
+                }}
+                whileFocus={{ 
+                  scale: 1.03,
+                  boxShadow: "0 12px 30px rgba(147, 51, 234, 0.2)"
+                }}
+                transition={{ duration: 0.2 }}
               />
             </div>
 
@@ -182,15 +316,25 @@ const Login = () => {
                   </Link>
                 )}
               </div>
-              <input
+              <motion.input
                 type="password"
                 id="password"
                 name="password"
                 value={formData.password}
                 onChange={handleInputChange}
-                className="input-glass w-full"
+                className="w-full px-4 py-3 bg-white/80 border border-purple-200/50 rounded-xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-400 transition-all duration-300 placeholder-slate-400 shadow-sm"
                 placeholder="Enter your password"
+                autoComplete={isLogin ? "current-password" : "new-password"}
                 required
+                whileHover={{ 
+                  scale: 1.02,
+                  boxShadow: "0 8px 25px rgba(147, 51, 234, 0.15)"
+                }}
+                whileFocus={{ 
+                  scale: 1.03,
+                  boxShadow: "0 12px 30px rgba(147, 51, 234, 0.2)"
+                }}
+                transition={{ duration: 0.2 }}
               />
             </div>
 
@@ -199,25 +343,52 @@ const Login = () => {
                 <label htmlFor="confirmPassword" className="block text-slate-700 text-sm font-medium mb-2">
                   Confirm Password
                 </label>
-                <input
+                <motion.input
                   type="password"
                   id="confirmPassword"
                   name="confirmPassword"
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
-                  className="input-glass w-full"
+                  className="w-full px-4 py-3 bg-white/80 border border-purple-200/50 rounded-xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-400 transition-all duration-300 placeholder-slate-400 shadow-sm"
                   placeholder="Confirm your password"
+                  autoComplete="new-password"
                   required={!isLogin}
+                  whileHover={{ 
+                    scale: 1.02,
+                    boxShadow: "0 8px 25px rgba(147, 51, 234, 0.15)"
+                  }}
+                  whileFocus={{ 
+                    scale: 1.03,
+                    boxShadow: "0 12px 30px rgba(147, 51, 234, 0.2)"
+                  }}
+                  transition={{ duration: 0.2 }}
                 />
               </div>
             )}
 
             <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={{ 
+                scale: 1.05,
+                rotateX: 5,
+                boxShadow: "0 20px 40px rgba(147, 51, 234, 0.4)"
+              }}
+              whileTap={{ 
+                scale: 0.95,
+                rotateX: -2
+              }}
+              animate={{
+                boxShadow: [
+                  "0 10px 25px rgba(147, 51, 234, 0.2)",
+                  "0 15px 35px rgba(147, 51, 234, 0.3)",
+                  "0 10px 25px rgba(147, 51, 234, 0.2)"
+                ]
+              }}
+              transition={{
+                boxShadow: { duration: 2, repeat: Infinity, ease: "easeInOut" }
+              }}
               type="submit"
               disabled={loading}
-              className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold py-4 px-6 rounded-xl shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <div className="flex items-center justify-center">
@@ -230,25 +401,46 @@ const Login = () => {
             </motion.button>
           </motion.form>
 
-          {/* Google Login */}
+          {/* Enhanced Google Login */}
           <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            className="mt-4"
+            initial={{ y: 20, opacity: 0, rotateX: 90 }}
+            animate={{ y: 0, opacity: 1, rotateX: 0 }}
+            transition={{ 
+              delay: 0.4,
+              duration: 0.8,
+              type: "spring",
+              stiffness: 100
+            }}
+            className="mt-6"
           >
-            <div className="relative">
+            <motion.div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-300/30"></div>
+                <motion.div 
+                  className="w-full border-t border-slate-300/30"
+                  initial={{ scaleX: 0 }}
+                  animate={{ scaleX: 1 }}
+                  transition={{ delay: 0.6, duration: 0.5 }}
+                ></motion.div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-transparent text-slate-500">Or continue with</span>
+                <span className="px-3 bg-white text-slate-500">Or continue with</span>
               </div>
-            </div>
+            </motion.div>
 
-            <button
+            <motion.button
               onClick={handleGoogleLogin}
-              className="mt-4 w-full flex items-center justify-center px-4 py-3 border border-slate-300/50 rounded-xl text-slate-700 hover:bg-slate-100/50 transition-all duration-300"
+              className="mt-4 w-full flex items-center justify-center px-4 py-3 bg-white border-2 border-gray-200 rounded-xl text-slate-700 shadow-sm"
+              whileHover={{ 
+                scale: 1.03,
+                borderColor: "rgb(147, 51, 234)",
+                backgroundColor: "rgb(249, 245, 255)",
+                boxShadow: "0 10px 25px rgba(0, 0, 0, 0.1)"
+              }}
+              whileTap={{ 
+                scale: 0.97,
+                rotateX: -2
+              }}
+              transition={{ duration: 0.2 }}
             >
               <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -257,48 +449,58 @@ const Login = () => {
                 <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
               </svg>
               Continue with Google
-            </button>
+            </motion.button>
           </motion.div>
 
-          {/* Toggle Mode */}
+          {/* Enhanced Toggle Mode */}
           <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="mt-4 text-center"
+            initial={{ y: 20, opacity: 0, rotateX: 90 }}
+            animate={{ y: 0, opacity: 1, rotateX: 0 }}
+            transition={{ 
+              delay: 0.5,
+              duration: 0.8,
+              type: "spring",
+              stiffness: 100
+            }}
+            className="mt-6 text-center"
           >
-            <button
+            <motion.button
               onClick={toggleMode}
-              className="text-slate-600 hover:text-slate-800 transition-colors"
+              className="text-slate-600 transition-colors"
+              whileHover={{ 
+                scale: 1.05,
+                color: "rgb(147, 51, 234)"
+              }}
+              whileTap={{ scale: 0.95 }}
+              transition={{ duration: 0.2 }}
             >
               {isLogin ? (
                 <>
-                  Don't have an account? <span className="text-slate-600 font-semibold">Sign up</span>
+                  Don't have an account? <motion.span 
+                    className="text-purple-600 font-semibold"
+                    whileHover={{ 
+                      scale: 1.1,
+                      color: "rgb(124, 58, 237)"
+                    }}
+                    transition={{ duration: 0.2 }}
+                  >Sign up</motion.span>
                 </>
               ) : (
                 <>
-                  Already have an account? <span className="text-slate-600 font-semibold">Sign in</span>
+                  Already have an account? <motion.span 
+                    className="text-purple-600 font-semibold"
+                    whileHover={{ 
+                      scale: 1.1,
+                      color: "rgb(124, 58, 237)"
+                    }}
+                    transition={{ duration: 0.2 }}
+                  >Sign in</motion.span>
                 </>
               )}
-            </button>
+            </motion.button>
           </motion.div>
 
-          {/* Demo Credentials */}
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.6 }}
-            className="mt-4 p-3 glass rounded-lg border border-slate-300/30"
-          >
-            <p className="text-slate-500 text-sm text-center mb-2">Demo Credentials:</p>
-            <p className="text-slate-600 text-sm text-center">
-              Email: <span className="text-slate-700 font-semibold">demo@example.com</span>
-            </p>
-            <p className="text-slate-600 text-sm text-center">
-              Password: <span className="text-slate-700 font-semibold">demo123</span>
-            </p>
           </motion.div>
-        </div>
       </motion.div>
     </div>
   )

@@ -242,6 +242,56 @@ router.get('/', protect, asyncHandler(async (req, res) => {
   }
 }))
 
+// @desc    Get email statistics
+// @route   GET /api/emails/stats
+// @access  Private
+router.get('/stats', protect, asyncHandler(async (req, res) => {
+  try {
+    const stats = await Email.aggregate([
+      { $match: { userId: req.user._id } },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          unread: {
+            $sum: { $cond: [{ $eq: ['$isRead', false] }, 1, 0] }
+          },
+          important: {
+            $sum: { $cond: [{ $eq: ['$classification', 'important'] }, 1, 0] }
+          },
+          spam: {
+            $sum: { $cond: [{ $eq: ['$classification', 'spam'] }, 1, 0] }
+          }
+        }
+      }
+    ])
+
+    const result = stats[0] || {
+      total: 0,
+      unread: 0,
+      important: 0,
+      spam: 0
+    }
+
+    res.json({
+      success: true,
+      stats: {
+        total: result.total,
+        unread: result.unread,
+        important: result.important,
+        spam: result.spam
+      }
+    })
+
+  } catch (error) {
+    console.error('Get email stats error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch email statistics'
+    })
+  }
+}))
+
 // @desc    Get single email by ID
 // @route   GET /api/emails/:id
 // @access  Private
