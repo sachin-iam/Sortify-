@@ -1063,4 +1063,170 @@ router.post('/outlook/sync-all', protect, asyncHandler(async (req, res) => {
   })
 }))
 
+// @desc    Get full email content (lazy loading)
+// @route   GET /api/emails/:id/full-content
+// @access  Private
+router.get('/:id/full-content', protect, asyncHandler(async (req, res) => {
+  try {
+    const emailId = req.params.id
+    const user = await User.findById(req.user._id)
+
+    // Find email and verify it belongs to the user
+    const email = await Email.findOne({ 
+      _id: emailId, 
+      userId: req.user._id 
+    })
+
+    if (!email) {
+      return res.status(404).json({
+        success: false,
+        message: 'Email not found'
+      })
+    }
+
+    // If full content is already loaded, return it
+    if (email.isFullContentLoaded && email.html) {
+      // Mark as accessed for cleanup scheduling
+      email.lastAccessedAt = new Date()
+      await email.save()
+
+      return res.json({
+        success: true,
+        email: {
+          _id: email._id,
+          subject: email.subject,
+          from: email.from,
+          to: email.to,
+          date: email.date,
+          html: email.html,
+          text: email.text,
+          body: email.body,
+          snippet: email.snippet,
+          attachments: email.attachments,
+          category: email.category,
+          isRead: email.isRead,
+          labels: email.labels,
+          isFullContentLoaded: email.isFullContentLoaded,
+          fullContentLoadedAt: email.fullContentLoadedAt
+        }
+      })
+    }
+
+    // Check if user has Gmail connected
+    if (!user.gmailConnected || !user.gmailAccessToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'Gmail account not connected'
+      })
+    }
+
+    // Fetch full content from Gmail API
+    const gmail = getGmailClient(user.gmailAccessToken, user.gmailRefreshToken)
+    
+    try {
+      const messageData = await gmail.users.messages.get({
+        userId: 'me',
+        id: email.gmailId,
+        format: 'full'
+      })
+
+      const headers = messageData.data.payload.headers
+      const getHeader = (name) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value
+
+      // Parse email body content (HTML and text)
+      let html = ''
+      let text = ''
+      let body = ''
+      const attachments = []
+
+      const extractContent = (part) => {
+        if (part.mimeType === 'text/html' && part.body?.data) {
+          html = Buffer.from(part.body.data, 'base64').toString('utf-8')
+        } else if (part.mimeType === 'text/plain' && part.body?.data) {
+          text = Buffer.from(part.body.data, 'base64').toString('utf-8')
+          body = text // Keep for backward compatibility
+        } else if (part.mimeType.startsWith('multipart/')) {
+          // Handle multipart messages
+          if (part.parts) {
+            for (const subPart of part.parts) {
+              extractContent(subPart)
+            }
+          }
+        } else if (part.body?.attachmentId) {
+          // Handle attachments
+          attachments.push({
+            attachmentId: part.body.attachmentId,
+            filename: part.filename || `attachment_${part.body.attachmentId}`,
+            mimeType: part.mimeType,
+            size: part.body.size || 0
+          })
+        }
+      }
+
+      if (messageData.data.payload?.body?.data) {
+        // Simple message
+        if (messageData.data.payload.mimeType === 'text/html') {
+          html = Buffer.from(messageData.data.payload.body.data, 'base64').toString('utf-8')
+        } else if (messageData.data.payload.mimeType === 'text/plain') {
+          text = Buffer.from(messageData.data.payload.body.data, 'base64').toString('utf-8')
+          body = text
+        }
+      } else if (messageData.data.payload?.parts) {
+        // Multipart message
+        for (const part of messageData.data.payload.parts) {
+          extractContent(part)
+        }
+      }
+
+      // Update email with full content
+      email.html = html
+      email.text = text
+      email.body = body
+      email.attachments = attachments
+      email.isFullContentLoaded = true
+      email.fullContentLoadedAt = new Date()
+      email.lastAccessedAt = new Date()
+      
+      await email.save()
+
+      console.log(`✅ Loaded full content for email: ${email.subject}`)
+
+      return res.json({
+        success: true,
+        email: {
+          _id: email._id,
+          subject: email.subject,
+          from: email.from,
+          to: email.to,
+          date: email.date,
+          html: email.html,
+          text: email.text,
+          body: email.body,
+          snippet: email.snippet,
+          attachments: email.attachments,
+          category: email.category,
+          isRead: email.isRead,
+          labels: email.labels,
+          isFullContentLoaded: email.isFullContentLoaded,
+          fullContentLoadedAt: email.fullContentLoadedAt
+        }
+      })
+
+    } catch (gmailError) {
+      console.error('Gmail API error:', gmailError.message)
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to fetch email content from Gmail'
+      })
+    }
+
+  } catch (error) {
+    console.error('Get full email content error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to load email content'
+    })
+  }
+}))
+
 export default router

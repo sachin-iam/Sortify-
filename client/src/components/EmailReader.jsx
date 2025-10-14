@@ -1,12 +1,49 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import ModernIcon from './ModernIcon'
 import QuickReply from './QuickReply'
-import ExportModal from './ExportModal'
+import emailService from '../services/emailService'
 
 const EmailReader = ({ email, onArchive, onDelete, onExport, onClose, loading = false }) => {
   const [showQuickReply, setShowQuickReply] = useState(false)
-  const [showExportModal, setShowExportModal] = useState(false)
+  const [fullEmail, setFullEmail] = useState(null)
+  const [loadingFullContent, setLoadingFullContent] = useState(false)
+  const [loadError, setLoadError] = useState(null)
+
+  // Load full content when email changes
+  useEffect(() => {
+    if (email) {
+      // Reset states
+      setFullEmail(null)
+      setLoadError(null)
+      
+      // Check if email has full content loaded
+      if (email.isFullContentLoaded && (email.html || email.body)) {
+        setFullEmail(email)
+        return
+      }
+      
+      // Load full content if not already loaded
+      setLoadingFullContent(true)
+      
+      emailService.getFullEmailContent(email._id)
+        .then(response => {
+          if (response.success) {
+            setFullEmail(response.email)
+            console.log('✅ Full email content loaded:', email.subject)
+          } else {
+            setLoadError('Failed to load email content')
+          }
+        })
+        .catch(error => {
+          console.error('Error loading full email content:', error)
+          setLoadError('Failed to load email content')
+        })
+        .finally(() => {
+          setLoadingFullContent(false)
+        })
+    }
+  }, [email])
 
   const handleQuickReply = async (replyData) => {
     // Here you would typically send the reply via your email service
@@ -15,7 +52,7 @@ const EmailReader = ({ email, onArchive, onDelete, onExport, onClose, loading = 
     setShowQuickReply(false)
   }
 
-  if (loading) {
+  if (loading || loadingFullContent) {
     return (
       <div className="backdrop-blur-xl bg-white/30 border border-white/20 rounded-2xl p-6">
         <div className="animate-pulse space-y-4">
@@ -23,6 +60,11 @@ const EmailReader = ({ email, onArchive, onDelete, onExport, onClose, loading = 
           <div className="h-4 bg-white/20 rounded mb-2"></div>
           <div className="h-4 bg-white/20 rounded mb-2 w-3/4"></div>
           <div className="h-32 bg-white/20 rounded"></div>
+          {loadingFullContent && (
+            <div className="text-center text-sm text-slate-600 mt-4">
+              Loading full email content...
+            </div>
+          )}
         </div>
       </div>
     )
@@ -58,23 +100,57 @@ const EmailReader = ({ email, onArchive, onDelete, onExport, onClose, loading = 
   }
 
   const renderEmailBody = () => {
-    if (email.html) {
+    // Use fullEmail if available, otherwise fall back to email
+    const currentEmail = fullEmail || email
+    
+    if (loadError) {
+      return (
+        <div className="text-center py-8">
+          <div className="text-red-600 mb-2">Failed to load email content</div>
+          <button 
+            onClick={() => {
+              setLoadError(null)
+              setLoadingFullContent(true)
+              emailService.getFullEmailContent(email._id)
+                .then(response => {
+                  if (response.success) {
+                    setFullEmail(response.email)
+                  } else {
+                    setLoadError('Failed to load email content')
+                  }
+                })
+                .catch(error => {
+                  setLoadError('Failed to load email content')
+                })
+                .finally(() => {
+                  setLoadingFullContent(false)
+                })
+            }}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Retry
+          </button>
+        </div>
+      )
+    }
+    
+    if (currentEmail.html) {
       return (
         <div
           className="prose prose-sm max-w-none"
-          dangerouslySetInnerHTML={{ __html: email.html }}
+          dangerouslySetInnerHTML={{ __html: currentEmail.html }}
         />
       )
-    } else if (email.body) {
+    } else if (currentEmail.body) {
       return (
         <div className="whitespace-pre-wrap text-slate-700">
-          {email.body}
+          {currentEmail.body}
         </div>
       )
     } else {
       return (
         <div className="text-slate-600 italic">
-          {email.snippet}
+          {currentEmail.snippet}
         </div>
       )
     }
@@ -118,60 +194,48 @@ const EmailReader = ({ email, onArchive, onDelete, onExport, onClose, loading = 
               <div className="flex gap-2">
                 <button
                   onClick={() => setShowQuickReply(true)}
-                  className="group relative p-2 rounded-xl backdrop-blur-sm bg-gradient-to-br from-green-400/20 to-green-600/20 border border-green-300/30 hover:from-green-400/30 hover:to-green-600/30 hover:border-green-400/50 transition-all duration-300 shadow-md hover:shadow-green-200/50 hover:scale-105"
+                  className="group relative p-3 rounded-xl backdrop-blur-sm bg-gradient-to-br from-green-400/20 to-green-600/20 border border-green-300/30 hover:from-green-400/30 hover:to-green-600/30 hover:border-green-400/50 transition-all duration-300 shadow-md hover:shadow-green-200/50 hover:scale-105 flex items-center justify-center"
                   title="Quick Reply"
                 >
                   <ModernIcon 
                     type="reply" 
-                    size={4} 
+                    size={15} 
                     color="#16a34a"
                     className="group-hover:scale-110 transition-transform duration-200"
                   />
                 </button>
                 <button
-                  onClick={() => setShowExportModal(true)}
-                  className="group relative p-2 rounded-xl backdrop-blur-sm bg-gradient-to-br from-blue-400/20 to-blue-600/20 border border-blue-300/30 hover:from-blue-400/30 hover:to-blue-600/30 hover:border-blue-400/50 transition-all duration-300 shadow-md hover:shadow-blue-200/50 hover:scale-105"
-                  title="Export"
-                >
-                  <ModernIcon 
-                    type="export" 
-                    size={4} 
-                    color="#2563eb"
-                    className="group-hover:scale-110 transition-transform duration-200"
-                  />
-                </button>
-                <button
                   onClick={() => onArchive(email._id)}
-                  className="group relative p-2 rounded-xl backdrop-blur-sm bg-gradient-to-br from-orange-400/20 to-orange-600/20 border border-orange-300/30 hover:from-orange-400/30 hover:to-orange-600/30 hover:border-orange-400/50 transition-all duration-300 shadow-md hover:shadow-orange-200/50 hover:scale-105"
+                  className="group relative p-3 rounded-xl backdrop-blur-sm bg-gradient-to-br from-orange-400/20 to-orange-600/20 border border-orange-300/30 hover:from-orange-400/30 hover:to-orange-600/30 hover:border-orange-400/50 transition-all duration-300 shadow-md hover:shadow-orange-200/50 hover:scale-105 flex items-center justify-center"
                   title="Archive"
                 >
                   <ModernIcon 
                     type="archive" 
-                    size={4} 
+                    size={15} 
                     color="#ea580c"
                     className="group-hover:scale-110 transition-transform duration-200"
                   />
                 </button>
                 <button
                   onClick={() => onDelete(email._id)}
-                  className="group relative p-2 rounded-xl backdrop-blur-sm bg-gradient-to-br from-red-400/20 to-red-600/20 border border-red-300/30 hover:from-red-400/30 hover:to-red-600/30 hover:border-red-400/50 transition-all duration-300 shadow-md hover:shadow-red-200/50 hover:scale-105"
+                  className="group relative p-3 rounded-xl backdrop-blur-sm bg-gradient-to-br from-red-400/20 to-red-600/20 border border-red-300/30 hover:from-red-400/30 hover:to-red-600/30 hover:border-red-400/50 transition-all duration-300 shadow-md hover:shadow-red-200/50 hover:scale-105 flex items-center justify-center"
                   title="Delete"
                 >
                   <ModernIcon 
                     type="delete" 
-                    size={4} 
+                    size={15} 
                     color="#dc2626"
                     className="group-hover:scale-110 transition-transform duration-200"
                   />
                 </button>
                 <button
                   onClick={onClose}
-                  className="group relative p-2 rounded-xl backdrop-blur-sm bg-gradient-to-br from-gray-400/20 to-gray-600/20 border border-gray-300/30 hover:from-gray-400/30 hover:to-gray-600/30 hover:border-gray-400/50 transition-all duration-300 shadow-md hover:shadow-gray-200/50 hover:scale-105"
+                  className="group relative p-3 rounded-xl backdrop-blur-sm bg-gradient-to-br from-gray-400/20 to-gray-600/20 border border-gray-300/30 hover:from-gray-400/30 hover:to-gray-600/30 hover:border-gray-400/50 transition-all duration-300 shadow-md hover:shadow-gray-200/50 hover:scale-105 flex items-center justify-center"
                   title="Close"
                 >
                   <ModernIcon 
                     type="close" 
-                    size={4} 
+                    size={15} 
                     color="#6b7280"
                     className="group-hover:scale-110 transition-transform duration-200"
                   />
@@ -226,7 +290,7 @@ const EmailReader = ({ email, onArchive, onDelete, onExport, onClose, loading = 
         </div>
 
         {/* Attachments Section */}
-        {email.attachments && email.attachments.length > 0 && (
+        {(fullEmail?.attachments || email.attachments) && (fullEmail?.attachments?.length > 0 || email.attachments?.length > 0) && (
           <div className="border-t border-white/30 bg-gradient-to-r from-slate-50/50 to-blue-50/30">
             <div className="p-6">
               <div className="flex items-center gap-3 mb-4">
@@ -234,11 +298,11 @@ const EmailReader = ({ email, onArchive, onDelete, onExport, onClose, loading = 
                   <ModernIcon type="attachment" size={3} color="#2563eb" />
                 </div>
                 <h3 className="text-lg font-semibold text-slate-900">
-                  Attachments ({email.attachments.length})
+                  Attachments ({(fullEmail?.attachments || email.attachments).length})
                 </h3>
               </div>
               <div className="space-y-3">
-                {email.attachments.map((attachment, index) => (
+                {(fullEmail?.attachments || email.attachments).map((attachment, index) => (
                   <div
                     key={index}
                     className="flex items-center justify-between p-4 bg-white/60 backdrop-blur-sm rounded-2xl border border-white/30 hover:bg-white/80 transition-all duration-200 shadow-sm hover:shadow-md"
@@ -280,15 +344,6 @@ const EmailReader = ({ email, onArchive, onDelete, onExport, onClose, loading = 
         />
       )}
 
-      {/* Export Modal */}
-      {showExportModal && (
-        <ExportModal
-          isOpen={showExportModal}
-          onClose={() => setShowExportModal(false)}
-          selectedEmails={email ? [email] : []}
-          onExportComplete={() => setShowExportModal(false)}
-        />
-      )}
     </div>
   )
 }

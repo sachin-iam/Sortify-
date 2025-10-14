@@ -156,7 +156,7 @@ const CategoryManagement = ({ onCategoryUpdate }) => {
   }
 
   return (
-    <div className="relative">
+    <div className="relative z-[100]">
       {/* Toggle Button */}
       <motion.button
         onClick={() => setIsOpen(!isOpen)}
@@ -187,7 +187,7 @@ const CategoryManagement = ({ onCategoryUpdate }) => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="absolute top-full right-0 mt-2 w-80 bg-white/90 backdrop-blur-xl border border-white/30 rounded-2xl shadow-2xl shadow-purple-100/20 z-50"
+            className="absolute top-full right-0 mt-2 w-80 bg-white/90 backdrop-blur-xl border border-white/30 rounded-2xl shadow-2xl shadow-purple-100/20 z-[9999]"
           >
             <div className="p-4">
               <div className="flex items-center justify-between mb-4">

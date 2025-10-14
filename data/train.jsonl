@@ -1,6 +1,0 @@
-{"raw_path": "data/sample_email1.eml", "label": "Academic", "group": "university.edu"}
-{"raw_path": "data/sample_email2.eml", "label": "Spam", "group": "suspicious.com"}
-{"raw_path": "data/sample_email3.eml", "label": "Placement", "group": "techcompany.com"}
-{"raw_path": "data/sample_email4.eml", "label": "Promotions", "group": "learning-platform.com"}
-{"raw_path": "data/sample_email5.eml", "label": "Other", "group": "company.com"}
-

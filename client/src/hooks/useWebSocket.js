@@ -1,10 +1,12 @@
 // WebSocket hook for real-time updates
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { useAuth } from '../contexts/AuthContext'
+import { useState, useEffect, useRef, useCallback, useContext } from 'react'
+import { AuthContext } from '../contexts/AuthContext'
 import toast from 'react-hot-toast'
 
 export const useWebSocket = () => {
-  const { token } = useAuth()
+  // Use useContext directly to avoid the error thrown by useAuth when context is not available
+  const authContext = useContext(AuthContext)
+  const token = authContext?.token
   const [isConnected, setIsConnected] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState('disconnected')
   const [lastMessage, setLastMessage] = useState(null)
@@ -219,12 +221,15 @@ export const useWebSocket = () => {
   useEffect(() => {
     if (token && !isConnected) {
       connect()
+    } else if (!token && isConnected) {
+      // Disconnect if token is lost
+      disconnect()
     }
     
     return () => {
       disconnect()
     }
-  }, [token, connect, disconnect]) // Removed isConnected from dependencies
+  }, [token, connect, disconnect, isConnected])
 
   // Cleanup on unmount
   useEffect(() => {

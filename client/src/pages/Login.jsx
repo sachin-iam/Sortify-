@@ -11,6 +11,8 @@ const Login = () => {
   const navigate = useNavigate()
   const [isLogin, setIsLogin] = useState(true)
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -31,6 +33,14 @@ const Login = () => {
       ...prev,
       [name]: value
     }))
+  }
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword)
+  }
+
+  const toggleConfirmPasswordVisibility = () => {
+    setShowConfirmPassword(!showConfirmPassword)
   }
 
   const handleSubmit = async (e) => {
@@ -106,6 +116,8 @@ const Login = () => {
       password: '',
       confirmPassword: ''
     })
+    setShowPassword(false)
+    setShowConfirmPassword(false)
   }
 
   const handleClearCache = () => {
@@ -116,226 +128,115 @@ const Login = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Enhanced Background decorative elements */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Minimal Background */}
       <div className="absolute inset-0 overflow-hidden">
-        <motion.div 
-          className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-purple-400/20 to-pink-400/20 rounded-full blur-3xl"
-          animate={{ 
-            scale: [1, 1.2, 1],
-            rotate: [0, 180, 360],
-          }}
-          transition={{ 
-            duration: 20,
-            repeat: Infinity,
-            ease: "linear"
-          }}
-        ></motion.div>
-        <motion.div 
-          className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-br from-blue-400/20 to-indigo-400/20 rounded-full blur-3xl"
-          animate={{ 
-            scale: [1.2, 1, 1.2],
-            rotate: [360, 180, 0],
-          }}
-          transition={{ 
-            duration: 25,
-            repeat: Infinity,
-            ease: "linear"
-          }}
-        ></motion.div>
-        <motion.div 
-          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-br from-emerald-400/10 to-cyan-400/10 rounded-full blur-3xl"
-          animate={{ 
-            scale: [1, 1.5, 1],
-            opacity: [0.3, 0.6, 0.3],
-          }}
-          transition={{ 
-            duration: 15,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-        ></motion.div>
+        <div className="absolute top-1/4 right-1/4 w-64 h-64 bg-slate-200/20 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-1/4 left-1/4 w-64 h-64 bg-slate-300/20 rounded-full blur-3xl"></div>
       </div>
       
       <motion.div
-        initial={{ opacity: 0, scale: 0.8, rotateY: -15 }}
-        animate={{ opacity: 1, scale: 1, rotateY: 0 }}
-        transition={{ 
-          duration: 0.8,
-          type: "spring",
-          stiffness: 100,
-          damping: 15
-        }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
         className="w-full max-w-md relative z-10"
       >
-        <motion.div 
-          className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/30"
-          whileHover={{ 
-            scale: 1.02,
-            rotateY: 2,
-            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.5)"
-          }}
-          transition={{ duration: 0.3 }}
-        >
-          {/* Enhanced Header */}
-      <motion.div
-            initial={{ y: -30, opacity: 0, rotateX: -90 }}
-            animate={{ y: 0, opacity: 1, rotateX: 0 }}
-            transition={{ 
-              delay: 0.2,
-              duration: 0.8,
-              type: "spring",
-              stiffness: 120
-            }}
-            className="text-center mb-8"
-          >
-          <motion.div 
-              className="w-20 h-20 bg-gradient-to-r from-purple-500 via-pink-500 to-indigo-500 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-2xl"
-              whileHover={{ 
-                scale: 1.1,
-                rotate: [0, -10, 10, 0],
-                boxShadow: "0 20px 40px rgba(147, 51, 234, 0.4)"
-              }}
-              animate={{ 
-                rotate: [0, 5, -5, 0],
-                scale: [1, 1.05, 1]
-              }}
-              transition={{ 
-                rotate: { duration: 4, repeat: Infinity, ease: "easeInOut" },
-                scale: { duration: 2, repeat: Infinity, ease: "easeInOut" }
-              }}
-            >
-              <span className="text-white text-3xl font-bold">S</span>
-            </motion.div>
-            <motion.h1 
-              className="text-4xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600 bg-clip-text text-transparent mb-3"
-              whileHover={{ 
-                scale: 1.05,
-                backgroundPosition: "200% center"
-              }}
-              animate={{
-                backgroundPosition: ["0% center", "100% center", "0% center"]
-              }}
-              transition={{
-                backgroundPosition: { duration: 3, repeat: Infinity, ease: "easeInOut" }
-              }}
-              style={{
-                backgroundSize: "200% auto"
-              }}
-            >
-              Sortify
-            </motion.h1>
-            <motion.p 
-              className="text-slate-600 text-sm"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.6 }}
-            >
-              {isLogin ? 'Welcome back! 👋' : 'Create your account ✨'}
-            </motion.p>
-          </motion.div>
+        <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-sm p-6 border border-slate-200/60">
+          {/* Header */}
+          <div className="text-center mb-6">
+            <div className="w-14 h-14 bg-slate-700 rounded-lg flex items-center justify-center mx-auto mb-4">
+              <span className="text-white text-xl font-medium">S</span>
+            </div>
+            <h1 className="text-2xl font-light text-slate-800 mb-2">Sortify</h1>
+            <p className="text-slate-500 text-xs">
+              {isLogin ? 'Welcome back' : 'Create your account'}
+            </p>
+          </div>
 
-          {/* Enhanced Form */}
-          <motion.form
-            initial={{ y: 30, opacity: 0, rotateX: 90 }}
-            animate={{ y: 0, opacity: 1, rotateX: 0 }}
-            transition={{ 
-              delay: 0.3,
-              duration: 0.8,
-              type: "spring",
-              stiffness: 100
-            }}
+          {/* Form */}
+          <form
             onSubmit={handleSubmit}
-            className="space-y-5"
+            className="space-y-4"
           >
             {!isLogin && (
               <div>
-                <label htmlFor="name" className="block text-slate-700 text-sm font-medium mb-2">
+                <label htmlFor="name" className="block text-slate-700 text-xs font-normal mb-1.5">
                   Full Name
                 </label>
-                <motion.input
+                <input
                   type="text"
                   id="name"
                   name="name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 bg-white/80 border border-purple-200/50 rounded-xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-400 transition-all duration-300 placeholder-slate-400 shadow-sm"
+                  className="w-full px-3 py-2 bg-white/80 border border-slate-200 rounded-lg focus:ring-1 focus:ring-slate-400/50 focus:border-slate-400 transition-all duration-200 placeholder-slate-500 text-sm font-normal"
                   placeholder="Enter your full name"
                   autoComplete="name"
                   required={!isLogin}
-                  whileHover={{ 
-                    scale: 1.02,
-                    boxShadow: "0 8px 25px rgba(147, 51, 234, 0.15)"
-                  }}
-                  whileFocus={{ 
-                    scale: 1.03,
-                    boxShadow: "0 12px 30px rgba(147, 51, 234, 0.2)"
-                  }}
-                  transition={{ duration: 0.2 }}
                 />
               </div>
             )}
 
             <div>
-              <label htmlFor="email" className="block text-slate-700 text-sm font-medium mb-2">
+              <label htmlFor="email" className="block text-slate-700 text-xs font-normal mb-1.5">
                 Email
               </label>
-              <motion.input
+              <input
                 type="email"
                 id="email"
                 name="email"
                 value={formData.email}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 bg-white/80 border border-purple-200/50 rounded-xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-400 transition-all duration-300 placeholder-slate-400 shadow-sm"
+                className="w-full px-3 py-2 bg-white/80 border border-slate-200 rounded-lg focus:ring-1 focus:ring-slate-400/50 focus:border-slate-400 transition-all duration-200 placeholder-slate-500 text-sm font-normal"
                 placeholder="Enter your email"
                 autoComplete="email"
                 required
-                whileHover={{ 
-                  scale: 1.02,
-                  boxShadow: "0 8px 25px rgba(147, 51, 234, 0.15)"
-                }}
-                whileFocus={{ 
-                  scale: 1.03,
-                  boxShadow: "0 12px 30px rgba(147, 51, 234, 0.2)"
-                }}
-                transition={{ duration: 0.2 }}
               />
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label htmlFor="password" className="block text-slate-700 text-sm font-medium">
+              <div className="flex items-center justify-between mb-1.5">
+                <label htmlFor="password" className="block text-slate-700 text-xs font-normal">
                   Password
                 </label>
                 {isLogin && (
                   <Link
                     to="/forgot-password"
-                    className="text-sm text-emerald-600 hover:text-emerald-700 transition-colors"
+                    className="text-xs text-slate-500 hover:text-slate-700 transition-colors"
                   >
                     Forgot password?
                   </Link>
                 )}
               </div>
-              <motion.input
-                type="password"
-                id="password"
-                name="password"
-                value={formData.password}
-                onChange={handleInputChange}
-                className="w-full px-4 py-3 bg-white/80 border border-purple-200/50 rounded-xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-400 transition-all duration-300 placeholder-slate-400 shadow-sm"
-                placeholder="Enter your password"
-                autoComplete={isLogin ? "current-password" : "new-password"}
-                required
-                whileHover={{ 
-                  scale: 1.02,
-                  boxShadow: "0 8px 25px rgba(147, 51, 234, 0.15)"
-                }}
-                whileFocus={{ 
-                  scale: 1.03,
-                  boxShadow: "0 12px 30px rgba(147, 51, 234, 0.2)"
-                }}
-                transition={{ duration: 0.2 }}
-              />
+              <div className="relative flex items-center">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  id="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 pr-10 bg-white/80 border border-slate-200 rounded-lg focus:ring-1 focus:ring-slate-400/50 focus:border-slate-400 transition-all duration-200 placeholder-slate-500 text-sm font-normal"
+                  placeholder="Enter your password"
+                  autoComplete={isLogin ? "current-password" : "new-password"}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={togglePasswordVisibility}
+                  className="absolute right-3 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none flex items-center justify-center w-5 h-5"
+                >
+                  {showPassword ? (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </div>
 
             {!isLogin && (
@@ -343,63 +244,62 @@ const Login = () => {
                 <label htmlFor="confirmPassword" className="block text-slate-700 text-sm font-medium mb-2">
                   Confirm Password
                 </label>
-                <motion.input
-                  type="password"
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 bg-white/80 border border-purple-200/50 rounded-xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-400 transition-all duration-300 placeholder-slate-400 shadow-sm"
-                  placeholder="Confirm your password"
-                  autoComplete="new-password"
-                  required={!isLogin}
-                  whileHover={{ 
-                    scale: 1.02,
-                    boxShadow: "0 8px 25px rgba(147, 51, 234, 0.15)"
-                  }}
-                  whileFocus={{ 
-                    scale: 1.03,
-                    boxShadow: "0 12px 30px rgba(147, 51, 234, 0.2)"
-                  }}
-                  transition={{ duration: 0.2 }}
-                />
+                <div className="relative flex items-center">
+                  <motion.input
+                    type={showConfirmPassword ? "text" : "password"}
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 pr-12 bg-white/80 border border-purple-200/50 rounded-xl focus:ring-2 focus:ring-purple-500/50 focus:border-purple-400 transition-all duration-300 placeholder-slate-400 shadow-sm"
+                    placeholder="Confirm your password"
+                    autoComplete="new-password"
+                    required={!isLogin}
+                    whileHover={{ 
+                      scale: 1.02,
+                      boxShadow: "0 8px 25px rgba(147, 51, 234, 0.15)"
+                    }}
+                    whileFocus={{ 
+                      scale: 1.03,
+                      boxShadow: "0 12px 30px rgba(147, 51, 234, 0.2)"
+                    }}
+                    transition={{ duration: 0.2 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={toggleConfirmPasswordVisibility}
+                    className="absolute right-3 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none flex items-center justify-center w-6 h-6 hover:scale-110 active:scale-95 transition-transform duration-200"
+                  >
+                    {showConfirmPassword ? (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
               </div>
             )}
 
-            <motion.button
-              whileHover={{ 
-                scale: 1.05,
-                rotateX: 5,
-                boxShadow: "0 20px 40px rgba(147, 51, 234, 0.4)"
-              }}
-              whileTap={{ 
-                scale: 0.95,
-                rotateX: -2
-              }}
-              animate={{
-                boxShadow: [
-                  "0 10px 25px rgba(147, 51, 234, 0.2)",
-                  "0 15px 35px rgba(147, 51, 234, 0.3)",
-                  "0 10px 25px rgba(147, 51, 234, 0.2)"
-                ]
-              }}
-              transition={{
-                boxShadow: { duration: 2, repeat: Infinity, ease: "easeInOut" }
-              }}
+            <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold py-4 px-6 rounded-xl shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-slate-700 text-white font-normal py-2 px-4 rounded-lg shadow-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-800"
             >
               {loading ? (
                 <div className="flex items-center justify-center">
-                  <div className="spinner w-5 h-5 mr-2"></div>
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
                   {isLogin ? 'Signing in...' : 'Creating account...'}
                 </div>
               ) : (
                 isLogin ? 'Sign In' : 'Create Account'
               )}
-            </motion.button>
-          </motion.form>
+            </button>
+          </form>
 
           {/* Enhanced Google Login */}
           <motion.div
@@ -499,11 +399,11 @@ const Login = () => {
               )}
             </motion.button>
           </motion.div>
-
-          </motion.div>
+        </div>
       </motion.div>
     </div>
   )
 }
 
 export default Login
+

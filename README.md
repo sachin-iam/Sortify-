@@ -56,32 +56,32 @@ Sortify is a cutting-edge full-stack application that uses machine learning to a
    cd sortify
    ```
 
-2. **Install dependencies**
+2. **Install all dependencies (including Python venv)**
    ```bash
-   npm run install:all
+   npm run install:deps
    ```
+   
+   This command will:
+   - Install root npm dependencies
+   - Install client (React) dependencies
+   - Install server (Node.js) dependencies
+   - Create Python virtual environment in `model_service/venv/`
+   - Install Python ML dependencies
 
-3. **Environment Setup**
+3. **Environment Setup** _(Already configured)_
    
-   Create environment files:
-   
-   **Server (.env)**
-   ```env
-   PORT=5000
-   NODE_ENV=development
-   MONGO_URI=mongodb+srv://sachin-iam:Sachin123@cluster0.eypacgq.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
-   GOOGLE_CLIENT_ID=948082154353-negb3bcn21s4p0qlqllt0mvbr5mvpfec.apps.googleusercontent.com
-   GOOGLE_CLIENT_SECRET=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
-   GOOGLE_REDIRECT_URI=http://localhost:5000/auth/google/callback
-   JWT_SECRET=sortify-jwt-secret-key-2024-development
-   JWT_EXPIRES_IN=7d
-   CORS_ORIGIN=http://localhost:3000
-   ```
+   The `.env` file in the `server/` directory is already set up with default values.
+   You can modify it if needed for custom configuration.
 
 4. **Start the application**
    ```bash
    npm run dev
    ```
+   
+   This single command starts all three services:
+   - Frontend: http://localhost:3000
+   - Backend: http://localhost:5000
+   - ML Service: http://localhost:8000
 
 **Access the application:**
 - 🌐 **Frontend**: http://localhost:3000

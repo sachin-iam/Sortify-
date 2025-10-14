@@ -10,11 +10,8 @@ import AnalyticsDashboard from '../components/AnalyticsDashboard'
 import AdvancedAnalytics from '../components/AdvancedAnalytics'
 import CategoryManagement from '../components/CategoryManagement'
 import BulkOperations from '../components/BulkOperations'
-import EmailTemplates from '../components/EmailTemplates'
 import NotificationCenter from '../components/NotificationCenter'
-import ExportModal from '../components/ExportModal'
 import PerformanceDashboard from '../components/PerformanceDashboard'
-import SecurityDashboard from '../components/SecurityDashboard'
 import { api } from '../services/api'
 import emailService from '../services/emailService'
 import ModernIcon from '../components/ModernIcon'
@@ -58,11 +55,8 @@ const Dashboard = () => {
   const [emailDetailLoading, setEmailDetailLoading] = useState(false)
   const [selectedEmails, setSelectedEmails] = useState([])
   const [showBulkOperations, setShowBulkOperations] = useState(false)
-  const [showEmailTemplates, setShowEmailTemplates] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
-  const [showExportModal, setShowExportModal] = useState(false)
   const [showPerformanceDashboard, setShowPerformanceDashboard] = useState(false)
-  const [showSecurityDashboard, setShowSecurityDashboard] = useState(false)
   
   // Rate limiting for API calls
   const [lastApiCall, setLastApiCall] = useState(0)
@@ -443,11 +437,6 @@ const Dashboard = () => {
 
 
 
-  const handleTemplateSelect = (template) => {
-    // Handle template selection (could be used for composing new emails)
-    console.log('Template selected:', template)
-    setShowEmailTemplates(false)
-  }
 
   // Subscribe to WebSocket events (debounced to prevent multiple subscriptions)
   useEffect(() => {
@@ -829,19 +818,19 @@ const Dashboard = () => {
 
 
   return (
-    <div className="min-h-screen p-4">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen p-3 relative">
+      <div className="max-w-6xl mx-auto relative">
         {/* Header */}
         <motion.div
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          className="mb-6"
+          className="mb-4"
         >
-          <h1 className="text-3xl font-bold text-slate-800 mb-1 flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-slate-800 mb-1 flex items-center gap-2">
             Welcome back, {user?.gmailName || user?.name || 'User'}! 
-            <ModernIcon type="welcome" size={28} color="#3b82f6" />
+            <ModernIcon type="welcome" size={20} color="#3b82f6" />
           </h1>
-          <p className="text-slate-600 text-base">
+          <p className="text-slate-600 text-sm">
             Manage and organize your emails efficiently with AI-powered classification
           </p>
         </motion.div>
@@ -853,95 +842,176 @@ const Dashboard = () => {
           transition={{ delay: 0.1 }}
           className="mb-4"
         >
-          <h2 className="text-lg font-semibold text-slate-800 mb-3">Connect Your Email Services</h2>
-            {/* Gmail Card */}
-          <div className="max-w-md mx-auto">
-            <div className="backdrop-blur-xl bg-white/30 border border-white/20 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.06)] hover:scale-[1.01] transition-all duration-300 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-gradient-to-r from-red-500 to-orange-500 rounded-xl flex items-center justify-center">
-                    <ModernIcon type="email" size={24} color="#ffffff" glassEffect={false} />
-                </div>
-                <div>
-                    <h3 className="text-xl font-semibold text-slate-800">Gmail</h3>
-                    <p className="text-sm text-slate-600">
-                      {gmailConnected 
-                        ? 'Your Gmail is connected and syncing' 
-                        : 'Connect your Gmail account to start organizing emails'
-                      }
-                    </p>
+          <h2 className="text-base font-semibold text-slate-800 mb-3">Connect Your Email Services</h2>
+          
+          {/* Gmail Connection + Sync Status Cards */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4">
+            {/* LEFT: Quick Stats Cards */}
+            <div className="lg:col-span-3 space-y-3 grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-3 lg:space-y-3">
+              {/* Unread Card */}
+              <div className="bg-blue-400/30 backdrop-blur-xl border border-blue-200/20 rounded-xl p-2 hover:shadow-lg hover:scale-105 transition-all duration-300 cursor-pointer">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <ModernIcon type="email" size={12} color="#2563eb" />
+                    <span className="text-xs text-slate-600 font-medium">Unread</span>
                   </div>
-                </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                  gmailConnected 
-                    ? 'bg-green-100 text-green-800' 
-                    : 'bg-slate-100 text-slate-600'
-                }`}>
-                  {gmailConnected ? 'Connected' : 'Disconnected'}
-                </span>
+                <h3 className="text-xl font-bold text-slate-800">2920</h3>
               </div>
-              
-              {/* Mini Stats */}
-              {gmailConnected && (
-                <div className="grid grid-cols-3 gap-3 mb-4 p-3 bg-white/20 rounded-lg">
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-slate-800">{stats?.totalEmails || 0}</div>
-                    <div className="text-xs text-slate-600">Total</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-slate-800">{stats?.categories || 7}</div>
-                    <div className="text-xs text-slate-600">Categories</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-slate-800">{stats?.processedToday || 0}</div>
-                    <div className="text-xs text-slate-600">Today</div>
-                  </div>
-                </div>
-              )}
 
-              <div className="flex gap-3">
-                {gmailConnected ? (
-                  <>
-                    <button 
-                      onClick={syncGmailEmails}
-                      disabled={syncLoading}
-                      className="flex-1 bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-lg rounded-lg px-4 py-2 text-sm font-medium hover:from-emerald-500 hover:to-emerald-700 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      <ModernIcon type="sync" size={16} />
-                      {syncLoading ? 'Syncing...' : 'Sync Now'}
-                    </button>
-                    <button 
-                      onClick={handleGmailDisconnection}
-                      className="bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-300"
-                    >
-                      Disconnect
-                    </button>
-                  </>
-                ) : (
-                  <div className="space-y-3 w-full">
-                    <button 
-                      onClick={handleGmailConnection}
-                      disabled={connectingGmail}
-                      className="w-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-lg rounded-xl px-6 py-3 font-medium hover:from-emerald-500 hover:to-emerald-700 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      {connectingGmail ? (
-                        <>
-                          <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                          Connecting...
-                        </>
-                      ) : (
-                        <>
-                          <ModernIcon type="email" size={18} />
-                          Connect Gmail
-                        </>
-                      )}
-                    </button>
-                    <p className="text-xs text-slate-500 text-center">
-                      If you logged in with Google but Gmail isn't connected, click here to set it up manually.
-                    </p>
-                  </div>
-                )}
+              {/* Starred Card */}
+              <div className="bg-orange-400/30 backdrop-blur-xl border border-orange-200/20 rounded-xl p-2 hover:shadow-lg hover:scale-105 transition-all duration-300 cursor-pointer">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <span className="text-sm text-yellow-500">⭐</span>
+                  <span className="text-xs text-slate-600 font-medium">Starred</span>
+                </div>
+                <h3 className="text-xl font-bold text-slate-800">18</h3>
               </div>
+
+              {/* Draft Card */}
+              <div className="bg-gray-400/30 backdrop-blur-xl border border-gray-200/20 rounded-xl p-2 hover:shadow-lg hover:scale-105 transition-all duration-300 cursor-pointer">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <span className="text-sm text-yellow-400">✏️</span>
+                  <span className="text-xs text-slate-600 font-medium">Draft</span>
+                </div>
+                <h3 className="text-xl font-bold text-slate-800">5</h3>
+              </div>
+            </div>
+
+            {/* RIGHT: Gmail + Sync Cards */}
+            <div className="lg:col-span-9 grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4">
+            {/* Gmail Connection Card */}
+            <div className="lg:col-span-8 bg-gradient-to-br from-blue-400/60 to-purple-10/40 backdrop-blur-xl border border-white/30 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-500">
+              <div className="flex items-start gap-4">
+                <div className="p-2 bg-blue-200 rounded-xl">
+                  <ModernIcon type="email" size={18} color="#3b82f6" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xl font-bold text-slate-800">Gmail</h3>
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                      gmailConnected 
+                        ? 'bg-green-100 text-green-700' 
+                        : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {gmailConnected ? 'Connected' : 'Disconnected'}
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-600 mb-4">
+                    {gmailConnected 
+                      ? 'Your Gmail is connected and syncing' 
+                      : 'Connect your Gmail account to start organizing emails'
+                    }
+                  </p>
+                  
+                  {/* Stats Row */}
+                  {gmailConnected && (
+                    <div className="bg-white border border-gray-100 rounded-xl p-4 mb-4">
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="text-center">
+                          <h4 className="text-2xl font-bold text-slate-800">{stats?.totalEmails || 6187}</h4>
+                          <p className="text-sm text-slate-600">Total</p>
+                        </div>
+                        <div className="text-center">
+                          <h4 className="text-2xl font-bold text-slate-800">{stats?.categories || 7}</h4>
+                          <p className="text-sm text-slate-600">Categories</p>
+                        </div>
+                        <div className="text-center">
+                          <h4 className="text-2xl font-bold text-slate-800">{stats?.processedToday || 12}</h4>
+                          <p className="text-sm text-slate-600">Today</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-2">
+                    {gmailConnected ? (
+                      <>
+                        <button 
+                          onClick={syncGmailEmails}
+                          disabled={syncLoading}
+                          className="flex-1 bg-blue-500 text-white py-2 rounded-lg font-semibold hover:bg-blue-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          {syncLoading ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                              Syncing...
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                              Sync Now
+                            </>
+                          )}
+                        </button>
+                        <button 
+                          onClick={handleGmailDisconnection}
+                          className="px-3 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-all"
+                        >
+                          Disconnect
+                        </button>
+                      </>
+                    ) : (
+                      <button 
+                        onClick={handleGmailConnection}
+                        disabled={connectingGmail}
+                        className="w-full bg-blue-500 text-white py-2 rounded-lg font-semibold hover:bg-blue-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {connectingGmail ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                            Connecting...
+                          </>
+                        ) : (
+                          <>
+                            <ModernIcon type="email" size={12} />
+                            Connect Gmail
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Sync Status Card */}
+            <div className="lg:col-span-4 bg-gradient-to-br from-green-300/80 to-green-50/60 backdrop-blur-xl border border-green-200/30 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-500">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-green-200/60 rounded-xl">
+                  <ModernIcon type="sync" size={16} color="#10b981" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className="text-lg font-bold text-slate-800">Sync Status</h3>
+                    <span className="px-2 py-1 bg-green-500 text-white text-xs font-medium rounded-full">
+                      Complete
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 mb-3">
+                    All systems operational
+                  </p>
+                  
+                  {/* Progress Box */}
+                  <div className="bg-white/80 border border-white/50 rounded-xl p-3 mb-3 text-center">
+                    <h4 className="text-3xl font-bold text-slate-800">99%</h4>
+                    <p className="text-xs text-slate-600">Progress</p>
+                  </div>
+
+                  {/* Check Status Button */}
+                  <button 
+                    onClick={() => fetchStats(true)}
+                    className="w-full bg-blue-500 text-white py-2 rounded-lg font-semibold hover:bg-blue-600 transition-all flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Check Status
+                  </button>
+                </div>
+              </div>
+            </div>
             </div>
           </div>
         </motion.div>
@@ -951,154 +1021,99 @@ const Dashboard = () => {
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.2 }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 mb-4"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4"
         >
-          {/* Email Overview Card */}
-          <div className="group relative backdrop-blur-xl bg-gradient-to-br from-blue-50/50 to-blue-100/40 border border-blue-200/40 rounded-2xl p-2.5 hover:shadow-lg hover:shadow-blue-200/30 transition-all duration-500 hover:scale-105 cursor-pointer">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-400/15 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-            <div className="relative">
-              <div className="flex items-center justify-between mb-2">
-                <div className="p-1.5 rounded-lg bg-blue-100/50 group-hover:bg-blue-200/60 transition-colors duration-300">
-                  <ModernIcon type="email" size={14} color="#3b82f6" />
-                </div>
-                <div className="text-right">
-                  <div className="text-[10px] text-blue-600 font-medium">+12%</div>
-                  <div className="text-[9px] text-slate-500">vs last week</div>
-                </div>
-              </div>
-              <h3 className="text-lg font-bold text-slate-800 mb-0.5">{(stats?.totalEmails || 0).toLocaleString()}</h3>
-              <p className="text-xs text-slate-600 font-medium">Total Emails</p>
-              <div className="mt-1.5 h-0.5 bg-blue-100/50 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full transition-all duration-1000"
-                  style={{ width: `${Math.min((stats?.totalEmails || 0) / 10000 * 100, 100)}%` }}
-                ></div>
-              </div>
+          {/* Total Emails Card */}
+          <div className="group relative bg-blue-300/30 backdrop-blur-xl border border-blue-200/30 rounded-2xl p-4 shadow-lg hover:shadow-xl transition-all duration-500 cursor-pointer">
+            <div className="absolute top-2 right-2">
+              <span className="px-1.5 py-0.5 bg-blue-200/60 text-blue-700 text-[9px] font-medium rounded-full">
+                +12%
+              </span>
+              <p className="text-[7px] text-slate-500 text-right mt-0.5">vs last week</p>
             </div>
+            <div className="p-1.5 bg-blue-200/60 rounded-lg inline-block mb-2">
+              <ModernIcon type="email" size={16} color="#3b82f6" />
+            </div>
+            <h3 className="text-2xl font-bold text-slate-800 mb-1">6,175</h3>
+            <p className="text-xs text-slate-600 font-medium">Total Emails</p>
           </div>
 
           {/* Categories Card */}
-          <div className="group relative backdrop-blur-xl bg-gradient-to-br from-emerald-50/50 to-emerald-100/40 border border-emerald-200/40 rounded-2xl p-2.5 hover:shadow-lg hover:shadow-emerald-200/30 transition-all duration-500 hover:scale-105 cursor-pointer">
-            <div className="absolute inset-0 bg-gradient-to-br from-emerald-400/15 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-            <div className="relative">
-              <div className="flex items-center justify-between mb-2">
-                <div className="p-1.5 rounded-lg bg-emerald-100/50 group-hover:bg-emerald-200/60 transition-colors duration-300">
-                  <ModernIcon type="folder" size={14} color="#10b981" />
+          <div className="group relative bg-gradient-to-br from-green-50/30 to-white/60 backdrop-blur-xl border border-green-200/20 rounded-2xl p-4 hover:shadow-2xl hover:scale-105 transition-all duration-500 cursor-pointer">
+            <div className="absolute top-2 right-2">
+              <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-[9px] font-medium rounded-full">
+                Auto
+              </span>
+              <p className="text-[7px] text-slate-500 text-right mt-0.5">Classified</p>
+            </div>
+            <div className="p-1.5 bg-green-100/30 rounded-lg inline-block mb-2">
+              <ModernIcon type="folder" size={16} color="#10b981" />
+            </div>
+            <h3 className="text-2xl font-bold text-slate-800 mb-1">7</h3>
+            <p className="text-xs text-slate-600 font-medium">Categories</p>
+            {/* Mini bars visualization */}
+            <div className="mt-2 flex gap-1">
+              {[30, 20, 15, 15, 10, 5, 5].map((width, i) => (
+                <div key={i} className="flex-1 h-1 bg-green-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-green-400 to-green-600" style={{width: `${width}%`}}></div>
                 </div>
-                <div className="text-right">
-                  <div className="text-[10px] text-emerald-600 font-medium">Auto</div>
-                  <div className="text-[9px] text-slate-500">Classified</div>
-                </div>
-              </div>
-              <h3 className="text-lg font-bold text-slate-800 mb-0.5">{stats?.categories || 7}</h3>
-              <p className="text-xs text-slate-600 font-medium">Categories</p>
-              <div className="mt-1.5 flex gap-0.5">
-                {['Academic', 'Promotions', 'Placement', 'Spam', 'Newsletter', 'WebSocketTestCategory', 'Other'].slice(0, stats?.categories || 7).map((cat, i) => {
-                  // Calculate actual percentage based on email distribution (simulate real data)
-                  const categoryDistribution = {
-                    'Academic': 30,
-                    'Promotions': 20, 
-                    'Placement': 15,
-                    'Spam': 15,
-                    'Newsletter': 10,
-                    'WebSocketTestCategory': 5,
-                    'Other': 5
-                  }
-                  const percentage = categoryDistribution[cat] || 20
-                  
-                  return (
-                    <div key={cat} className="h-0.5 bg-emerald-100/50 rounded-full flex-1 overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-full transition-all duration-1000"
-                        style={{ width: `${percentage}%`, transitionDelay: `${i * 200}ms` }}
-                      ></div>
-                    </div>
-                  )
-                })}
-              </div>
+              ))}
             </div>
           </div>
 
-          {/* Activity Card */}
-          <div className="group relative backdrop-blur-xl bg-gradient-to-br from-amber-50/50 to-amber-100/40 border border-amber-200/40 rounded-2xl p-2.5 hover:shadow-lg hover:shadow-amber-200/30 transition-all duration-500 hover:scale-105 cursor-pointer">
-            <div className="absolute inset-0 bg-gradient-to-br from-amber-400/15 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-            <div className="relative">
-              <div className="flex items-center justify-between mb-2">
-                <div className="p-1.5 rounded-lg bg-amber-100/50 group-hover:bg-amber-200/60 transition-colors duration-300">
-                  <ModernIcon type="sync" size={14} color="#f59e0b" />
-                </div>
-                <div className="text-right">
-                  <div className="text-[10px] text-amber-600 font-medium">Live</div>
-                  <div className="text-[9px] text-slate-500">Real-time</div>
-                </div>
+          {/* Processed Today Card */}
+          <div className="group relative bg-gradient-to-br from-orange-50/30 to-white/60 backdrop-blur-xl border border-orange-200/20 rounded-2xl p-4 hover:shadow-2xl hover:scale-105 transition-all duration-500 cursor-pointer">
+            <div className="absolute top-2 right-2">
+              <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 text-[9px] font-medium rounded-full">
+                Live
+              </span>
+              <p className="text-[7px] text-slate-500 text-right mt-0.5">Real-time</p>
+            </div>
+            <div className="p-1.5 bg-orange-100/30 rounded-lg inline-block mb-2">
+              <ModernIcon type="sync" size={16} color="#f59e0b" />
+            </div>
+            <h3 className="text-2xl font-bold text-slate-800 mb-1">0</h3>
+            <p className="text-xs text-slate-600 font-medium">Processed Today</p>
+            {/* Progress bar with pulse */}
+            <div className="mt-2 flex items-center gap-2">
+              <div className="flex-1 h-1 bg-orange-100 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-orange-400 to-orange-600 w-0"></div>
               </div>
-              <h3 className="text-lg font-bold text-slate-800 mb-0.5">{stats?.processedToday || 0}</h3>
-              <p className="text-xs text-slate-600 font-medium">Processed Today</p>
-              <div className="mt-1.5 flex items-center gap-1.5">
-                <div className="flex-1 h-0.5 bg-amber-100/50 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-amber-400 to-amber-600 rounded-full transition-all duration-1000"
-                    style={{ width: `${Math.min((stats?.processedToday || 0) / 100 * 100, 100)}%` }}
-                  ></div>
-                </div>
-                <div className={`w-1.5 h-1.5 rounded-full ${(stats?.processedToday || 0) > 0 ? 'bg-amber-400 animate-pulse' : 'bg-amber-200'}`}></div>
-              </div>
+              <div className="w-2 h-2 bg-orange-200 rounded-full"></div>
             </div>
           </div>
 
-          {/* Quick Actions Card */}
-          <div className="group relative backdrop-blur-xl bg-gradient-to-br from-purple-50/50 to-purple-100/40 border border-purple-200/40 rounded-2xl p-2.5 hover:shadow-lg hover:shadow-purple-200/30 transition-all duration-500">
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-400/15 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-            <div className="relative">
-              <div className="flex items-center justify-between mb-2">
-                <div className="p-1.5 rounded-lg bg-purple-100/50 group-hover:bg-purple-200/60 transition-colors duration-300">
-                  <ModernIcon type="email" size={14} color="#8b5cf6" />
-                </div>
-                <div className="text-right">
-                  <div className={`text-[10px] font-medium ${gmailConnected ? 'text-green-600' : 'text-red-500'}`}>
-                    {gmailConnected ? 'Connected' : 'Disconnected'}
-                  </div>
-                  <div className="text-[9px] text-slate-500">Gmail Status</div>
-                </div>
-              </div>
-              
-              <div className="space-y-1.5">
-                {/* Gmail Sync Button */}
+          {/* Gmail Status Card */}
+          <div className="group relative bg-gradient-to-br from-pink-50/30 to-white/60 backdrop-blur-xl border border-pink-200/20 rounded-2xl p-4 hover:shadow-2xl hover:scale-105 transition-all duration-500">
+            <div className="absolute top-2 right-2">
+              <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-[9px] font-medium rounded-full">
+                Connected
+              </span>
+              <p className="text-[7px] text-slate-500 text-right mt-0.5">Gmail Status</p>
+            </div>
+            <div className="p-1.5 bg-pink-100/30 rounded-lg inline-block mb-2">
+              <ModernIcon type="email" size={16} color="#ec4899" />
+            </div>
+            <div className="space-y-2 mt-2">
               <button 
                 onClick={syncGmailEmails}
                 disabled={syncLoading || !gmailConnected}
-                  className="w-full py-1.5 px-2 text-[10px] bg-gradient-to-r from-green-500/25 to-green-600/25 text-green-700 rounded-lg hover:from-green-500/35 hover:to-green-600/35 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-1 font-semibold border border-green-300/40 hover:shadow-md hover:shadow-green-200/40 hover:scale-105"
-                >
-                  {syncLoading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-2.5 w-2.5 border-2 border-green-600 border-t-transparent"></div>
-                      Syncing...
-                    </>
-                  ) : (
-                    <>
-                      <ModernIcon type="email" size={10} color="#059669" />
-                      {gmailConnected ? 'Sync Gmail' : 'Connect Gmail'}
-                    </>
-                  )}
+                className="w-full bg-green-500 text-white py-1.5 rounded-lg text-xs font-semibold hover:bg-green-600 transition-all disabled:opacity-50 flex items-center justify-center gap-1"
+              >
+                ✉️ Sync Gmail
               </button>
-              
-              {/* Refresh Data Button */}
-              {gmailConnected && (
-                <button 
-                  onClick={() => {
-                    console.log('🔄 Force refreshing data and categories...')
-                    setForceRefresh(prev => prev + 1)
-                    fetchStats(true) // Force fetch stats
-                    fetchEmails(true) // Force fetch emails
-                    toast.success('Data refreshed!')
-                  }}
-                  className="w-full py-1.5 px-2 text-[10px] bg-gradient-to-r from-blue-500/25 to-blue-600/25 text-blue-700 rounded-lg hover:from-blue-500/35 hover:to-blue-600/35 transition-all duration-300 flex items-center justify-center gap-1 font-semibold border border-blue-300/40 hover:shadow-md hover:shadow-blue-200/40 hover:scale-105"
-                >
-                  <ModernIcon type="refresh" size={8} />
-                  Refresh Data
-                </button>
-              )}
-              </div>
+              <button 
+                onClick={() => {
+                  console.log('🔄 Force refreshing data and categories...')
+                  setForceRefresh(prev => prev + 1)
+                  fetchStats(true)
+                  fetchEmails(true)
+                  toast.success('Data refreshed!')
+                }}
+                className="w-full bg-blue-500 text-white py-1.5 rounded-lg text-xs font-semibold hover:bg-blue-600 transition-all flex items-center justify-center gap-1"
+              >
+                🔄 Refresh Data
+              </button>
             </div>
           </div>
         </motion.div>
@@ -1108,68 +1123,65 @@ const Dashboard = () => {
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.3 }}
-          className="mb-6"
+          className="mb-4"
         >
-          <div className="flex space-x-2 glass p-1 rounded-xl w-fit">
+          <div className="flex space-x-1 glass p-0.5 rounded-lg w-fit">
             <button 
-              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${
+              className={`px-2.5 py-1.5 rounded-md text-sm font-medium transition-all duration-300 flex items-center gap-1 ${
                 activeView === 'emails' 
-                  ? 'bg-slate-200/50 text-slate-800' 
-                  : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/50'
+                  ? 'bg-blue-500 text-white' 
+                  : 'text-slate-600 hover:bg-blue-50 hover:text-blue-600'
               }`}
               onClick={() => setActiveView('emails')}
             >
-              📧 Emails
+              <svg className={`w-2 h-2 ${activeView === 'emails' ? 'text-white' : 'text-slate-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              Emails
             </button>
             <button 
-              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${
+              className={`px-2.5 py-1.5 rounded-md text-sm font-medium transition-all duration-300 flex items-center gap-1 ${
                 activeView === 'analytics' 
-                  ? 'bg-slate-200/50 text-slate-800' 
-                  : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/50'
+                  ? 'bg-blue-500 text-white' 
+                  : 'text-slate-600 hover:bg-blue-50 hover:text-blue-600'
               }`}
               onClick={() => setActiveView('analytics')}
             >
-              📊 Analytics
+              <svg className={`w-2 h-2 ${activeView === 'analytics' ? 'text-white' : 'text-slate-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              Analytics
             </button>
             <button 
-              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${
+              className={`px-2.5 py-1.5 rounded-md text-sm font-medium transition-all duration-300 flex items-center gap-1 ${
                 activeView === 'advanced-analytics' 
-                  ? 'bg-slate-200/50 text-slate-800' 
-                  : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/50'
+                  ? 'bg-blue-500 text-white' 
+                  : 'text-slate-600 hover:bg-blue-50 hover:text-blue-600'
               }`}
               onClick={() => setActiveView('advanced-analytics')}
             >
-              📈 Advanced
+              <svg className={`w-2 h-2 ${activeView === 'advanced-analytics' ? 'text-white' : 'text-slate-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+              Advanced
             </button>
             <button 
-              className="px-6 py-3 rounded-lg font-semibold transition-all duration-300 text-slate-600 hover:text-slate-800 hover:bg-slate-100/50"
-              onClick={() => setShowEmailTemplates(true)}
-            >
-              📝 Templates
-            </button>
-            <button 
-              className="px-6 py-3 rounded-lg font-semibold transition-all duration-300 text-slate-600 hover:text-slate-800 hover:bg-slate-100/50 relative"
+              className="px-2.5 py-1.5 rounded-md text-sm font-medium transition-all duration-300 text-slate-600 hover:bg-blue-50 hover:text-blue-600 relative flex items-center gap-1"
               onClick={() => setShowNotifications(true)}
             >
-              🔔 Notifications
+              <svg className="w-2 h-2 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM4 19h6v-5H4v5zM9 12h6v-5H9v5zM4 12h5V7H4v5z" />
+              </svg>
+              Notifications
             </button>
             <button 
-              className="px-6 py-3 rounded-lg font-semibold transition-all duration-300 text-slate-600 hover:text-slate-800 hover:bg-slate-100/50 relative"
-              onClick={() => setShowExportModal(true)}
-            >
-              📤 Export
-            </button>
-            <button 
-              className="px-6 py-3 rounded-lg font-semibold transition-all duration-300 text-slate-600 hover:text-slate-800 hover:bg-slate-100/50 relative"
+              className="px-2.5 py-1.5 rounded-md text-sm font-medium transition-all duration-300 text-slate-600 hover:bg-blue-50 hover:text-blue-600 relative flex items-center gap-1"
               onClick={() => setShowPerformanceDashboard(true)}
             >
-              ⚡ Performance
-            </button>
-            <button 
-              className="px-6 py-3 rounded-lg font-semibold transition-all duration-300 text-slate-600 hover:text-slate-800 hover:bg-slate-100/50 relative"
-              onClick={() => setShowSecurityDashboard(true)}
-            >
-              🔒 Security
+              <svg className="w-2 h-2 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              Performance
             </button>
           </div>
         </motion.div>
@@ -1182,37 +1194,37 @@ const Dashboard = () => {
           transition={{ delay: 0.4 }}
         >
           {activeView === 'emails' ? (
-            <div className="space-y-8">
+            <div className="space-y-6">
               {/* Top Bar with Provider Selector and Search */}
-              <div className="backdrop-blur-xl bg-gradient-to-r from-white/40 via-white/30 to-blue-50/40 border border-white/30 rounded-3xl p-6 shadow-2xl shadow-blue-100/20">
-                <div className="flex flex-col lg:flex-row gap-6">
+              <div className="backdrop-blur-xl bg-gradient-to-r from-white/60 via-white/50 to-white/40 border border-white/40 rounded-2xl p-4 shadow-lg shadow-blue-100/10 relative z-20">
+                <div className="flex flex-col lg:flex-row gap-4">
                   {/* Gmail Status */}
-                  <div className="flex gap-3">
-                    <button className="group relative px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-2xl font-semibold shadow-lg hover:shadow-xl hover:from-emerald-600 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${
+                  <div className="flex gap-2">
+                    <button className="group relative px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl font-medium shadow-lg hover:shadow-xl hover:from-emerald-600 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105">
+                      <div className="flex items-center gap-1.5">
+                        <div className={`w-1.5 h-1.5 rounded-full ${
                           gmailConnected ? 'bg-white' : 'bg-white/60'
                         }`}></div>
                         <span>Gmail</span>
                         {gmailConnected && (
                           <div className="flex items-center gap-1 text-xs">
-                            <div className="w-1 h-1 bg-white rounded-full"></div>
+                            <div className="w-0.5 h-0.5 bg-white rounded-full"></div>
                             <span>Live</span>
                           </div>
                         )}
                       </div>
-                      <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                       <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     </button>
                   </div>
                   
                   {/* Search Input */}
                   <div className="flex-1">
                     <div className="relative group">
-                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
                         {isSearching ? (
                           <div className="animate-spin">
                             <svg 
-                              className="h-5 w-5 text-emerald-600" 
+                              className="h-4 w-4 text-emerald-600" 
                               fill="none" 
                               stroke="currentColor" 
                               viewBox="0 0 24 24"
@@ -1227,7 +1239,7 @@ const Dashboard = () => {
                           </div>
                         ) : (
                           <svg 
-                            className="h-5 w-5 text-slate-500 transition-colors duration-300 group-focus-within:text-emerald-600" 
+                            className="h-4 w-4 text-slate-500 transition-colors duration-300 group-focus-within:text-emerald-600" 
                             fill="none" 
                             stroke="currentColor" 
                             viewBox="0 0 24 24"
@@ -1247,18 +1259,18 @@ const Dashboard = () => {
                         value={searchQuery}
                         onChange={(e) => handleSearchChange(e.target.value)}
                         disabled={isSearching}
-                        className="w-full pl-12 pr-12 py-3 bg-gradient-to-r from-white/60 to-white/40 border border-white/50 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/70 shadow-lg hover:shadow-xl transition-all duration-300 text-slate-800 placeholder-slate-500 font-medium backdrop-blur-sm disabled:opacity-70 disabled:cursor-wait"
+                        className="w-full pl-10 pr-10 py-2 bg-gradient-to-r from-white/60 to-white/40 border border-white/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/70 shadow-lg hover:shadow-xl transition-all duration-300 text-slate-800 placeholder-slate-500 font-medium backdrop-blur-sm disabled:opacity-70 disabled:cursor-wait"
                       />
                       
                       {/* Clear Search Button */}
                       {searchQuery && (
                         <button
                           onClick={clearSearch}
-                          className="absolute inset-y-0 right-0 pr-4 flex items-center z-10 hover:bg-white/20 rounded-r-2xl transition-colors duration-200"
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center z-10 hover:bg-white/20 rounded-r-xl transition-colors duration-200"
                           disabled={isSearching}
                         >
                           <svg 
-                            className="h-4 w-4 text-slate-500 hover:text-slate-700 transition-colors duration-200" 
+                            className="h-3 w-3 text-slate-500 hover:text-slate-700 transition-colors duration-200" 
                             fill="none" 
                             stroke="currentColor" 
                             viewBox="0 0 24 24"
@@ -1282,23 +1294,23 @@ const Dashboard = () => {
 
               {/* Search Results Indicator */}
               {searchQuery && (
-                <div className="backdrop-blur-xl bg-gradient-to-r from-blue-50/40 via-white/30 to-blue-50/40 border border-white/30 rounded-2xl p-4 shadow-lg">
-                  <div className="flex items-center gap-3">
-                    <ModernIcon type="search" size={20} color="#3b82f6" />
+                <div className="backdrop-blur-xl bg-gradient-to-r from-blue-50/40 via-white/30 to-blue-50/40 border border-white/30 rounded-xl p-3 shadow-lg relative z-15">
+                  <div className="flex items-center gap-2">
+                    <ModernIcon type="search" size={16} color="#3b82f6" />
                     <div className="flex-1">
-                      <span className="text-sm font-medium text-slate-700">
+                      <span className="text-xs font-medium text-slate-700">
                         Search results for "{searchQuery}"
                       </span>
-                      <span className="text-xs text-slate-500 ml-2">
+                      <span className="text-xs text-slate-500 ml-1">
                         {emails.length} emails found
                       </span>
                       {isSearching && (
-                        <span className="text-xs text-blue-600 ml-2 animate-pulse">
+                        <span className="text-xs text-blue-600 ml-1 animate-pulse">
                           Searching server...
                         </span>
                       )}
                       {searchQuery.trim().length < 2 && (
-                        <span className="text-xs text-amber-600 ml-2">
+                        <span className="text-xs text-amber-600 ml-1">
                           Showing client-side results
                         </span>
                       )}
@@ -1319,56 +1331,59 @@ const Dashboard = () => {
                 onChange={handleCategoryChange} 
               />
 
-              {/* Dynamic Split Layout */}
-              <div
-                className="
-                  relative
-                  flex lg:flex-row flex-col
-                  gap-4 lg:gap-6
-                  h-[calc(100vh-200px)]
-                  transition-all
-                "
-              >
+              {/* Main Layout */}
+              <div className="space-y-4">
+                  {/* Dynamic Split Layout */}
+                  <div
+                    className="
+                      relative
+                      flex lg:flex-row flex-col
+                      gap-3 lg:gap-4
+                      h-[calc(100vh-180px)]
+                      transition-all duration-500 ease-out
+                    "
+                  >
                 {/* LEFT: Email List pane */}
                 <section
                   className={[
-                    "bg-gradient-to-br from-white/50 to-white/30 backdrop-blur-xl border border-white/30 rounded-3xl shadow-2xl shadow-blue-100/20",
-                    "overflow-hidden flex flex-col",
+                    "bg-gradient-to-br from-white/50 to-white/30 backdrop-blur-xl border border-white/30 rounded-2xl shadow-2xl shadow-blue-100/20",
+                    "overflow-hidden flex flex-col relative z-10",
                     "transition-[flex-basis] duration-300 ease-out",
-                    selectedEmail ? "lg:basis-[min(460px,40%)] basis-full" : "basis-full"
+                    selectedEmail ? "lg:flex-[0_0_42%] lg:min-w-[400px] lg:max-w-[500px] basis-full" : "basis-full"
                   ].join(" ")}
                 >
-                  <div className="flex items-center justify-between p-6 border-b border-white/30 bg-gradient-to-r from-white/60 to-white/40">
-                    <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                      <ModernIcon type="email" size={20} color="#3b82f6" />
+                  <div className="flex items-center justify-between p-4 border-b border-white/30 bg-gradient-to-r from-white/60 to-white/40">
+                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-1.5">
+                      <ModernIcon type="email" size={16} color="#3b82f6" />
                       Emails
                     </h3>
-                    <span className="text-sm font-semibold text-slate-600 bg-gradient-to-r from-emerald-100 to-blue-100 px-3 py-1 rounded-full">
+                    <span className="text-xs font-semibold text-slate-600 bg-gradient-to-r from-emerald-100 to-blue-100 px-2 py-0.5 rounded-full">
                       {stats?.totalEmails || 0} emails
                     </span>
                   </div>
-                  <div className="flex-1 overflow-y-auto min-h-[calc(100vh-300px)] max-h-[calc(100vh-100px)]">
-                    <EmailList
-                      items={emails}
-                      selectedId={selectedEmailId}
-                      onSelect={handleEmailSelect}
-                      loading={emailsLoading}
-                      onPageChange={handlePageChange}
-                      totalEmails={stats?.totalEmails || 0}
-                      currentPage={currentPage}
-                      totalPages={totalPages}
-                      onBulkSelect={handleBulkSelect}
-                      selectedEmails={selectedEmails}
-                      gmailConnected={gmailConnected}
-                    />
+                  <div className="flex-1 overflow-y-auto min-h-[calc(100vh-280px)] max-h-[calc(100vh-80px)]">
+                     <EmailList
+                       items={emails}
+                       selectedId={selectedEmailId}
+                       onSelect={handleEmailSelect}
+                       loading={emailsLoading}
+                       onPageChange={handlePageChange}
+                       totalEmails={stats?.totalEmails || 0}
+                       currentPage={currentPage}
+                       totalPages={totalPages}
+                       onBulkSelect={handleBulkSelect}
+                       selectedEmails={selectedEmails}
+                       gmailConnected={gmailConnected}
+                       isCompact={!!selectedEmail}
+                     />
                   </div>
                 </section>
 
                 {/* RIGHT: Email Reader pane (hidden until selected) */}
                 <section
                   className={[
-                    "bg-gradient-to-br from-white/50 to-white/30 backdrop-blur-xl border border-white/30 rounded-3xl shadow-2xl shadow-blue-100/20",
-                    "overflow-hidden flex flex-col lg:flex-1",
+                    "bg-gradient-to-br from-white/50 to-white/30 backdrop-blur-xl border border-white/30 rounded-2xl shadow-2xl shadow-blue-100/20",
+                    "overflow-hidden flex flex-col lg:flex-[0_0_58%] lg:min-w-[600px] relative z-10",
                     "transition-opacity duration-200",
                     selectedEmail ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
                   ].join(" ")}
@@ -1385,6 +1400,7 @@ const Dashboard = () => {
                     />
                   </div>
                 </section>
+                  </div>
               </div>
             </div>
           ) : activeView === 'analytics' ? (
@@ -1404,14 +1420,6 @@ const Dashboard = () => {
         />
       )}
 
-      {/* Email Templates Modal */}
-      {showEmailTemplates && (
-        <EmailTemplates
-          onTemplateSelect={handleTemplateSelect}
-          onClose={() => setShowEmailTemplates(false)}
-          selectedCategory={currentCategory}
-        />
-      )}
 
       {/* Notification Center Modal */}
       <NotificationCenter
@@ -1419,13 +1427,6 @@ const Dashboard = () => {
         onClose={() => setShowNotifications(false)}
       />
 
-      {/* Export Modal */}
-      <ExportModal
-        isOpen={showExportModal}
-        onClose={() => setShowExportModal(false)}
-        selectedEmails={selectedEmails}
-        onExportComplete={() => setShowExportModal(false)}
-      />
 
       {/* Performance Dashboard */}
       <PerformanceDashboard
@@ -1433,11 +1434,6 @@ const Dashboard = () => {
         onClose={() => setShowPerformanceDashboard(false)}
       />
 
-      {/* Security Dashboard */}
-      <SecurityDashboard
-        isOpen={showSecurityDashboard}
-        onClose={() => setShowSecurityDashboard(false)}
-      />
     </div>
   )
 }

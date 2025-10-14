@@ -39,14 +39,6 @@ const AnalyticsDashboard = () => {
     }
   }
 
-  const handleExport = async (format) => {
-    try {
-      const result = await analyticsService.exportAnalyticsData(format)
-      toast.success(`${format.toUpperCase()} file exported successfully!`)
-    } catch (error) {
-      toast.error(`Failed to export ${format.toUpperCase()} file`)
-    }
-  }
 
   if (loading) {
     return (
@@ -72,29 +64,6 @@ const AnalyticsDashboard = () => {
             <ModernIcon type="analytics" size={28} color="#3b82f6" />
             Analytics Dashboard
           </h2>
-          <div className="flex space-x-2">
-            <button 
-              onClick={() => handleExport('csv')}
-              className="btn-glass"
-            >
-              <ModernIcon type="export" size={20} color="#3b82f6" glassEffect={false} />
-              <span className="ml-2">CSV</span>
-            </button>
-            <button 
-              onClick={() => handleExport('pdf')}
-              className="btn-glass"
-            >
-              <ModernIcon type="file" size={20} color="#ef4444" glassEffect={false} />
-              <span className="ml-2">PDF</span>
-            </button>
-            <button 
-              onClick={() => handleExport('excel')}
-              className="btn-glass"
-            >
-              <ModernIcon type="table" size={20} color="#10b981" glassEffect={false} />
-              <span className="ml-2">Excel</span>
-            </button>
-          </div>
         </div>
       </div>
 

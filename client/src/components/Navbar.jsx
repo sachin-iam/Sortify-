@@ -10,8 +10,8 @@ const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   const navItems = [
-    { path: '/', label: 'Dashboard', icon: '📊' },
-    { path: '/settings', label: 'Settings', icon: '⚙️' },
+    { path: '/', label: 'Dashboard', icon: 'analytics' },
+    { path: '/settings', label: 'Settings', icon: 'settings' },
   ]
 
   const handleLogout = () => {
@@ -21,33 +21,33 @@ const Navbar = () => {
 
   return (
     <motion.nav 
-      initial={{ y: -100 }}
-      animate={{ y: 0 }}
-      className="glass border-b border-slate-300/30 sticky top-0 z-50"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="bg-gradient-to-r from-purple-900 via-violet-900 to-indigo-900 backdrop-blur-md border-b border-purple-700/30 sticky top-0 z-50 shadow-lg shadow-purple-900/20"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
+        <div className="flex justify-between items-center h-14">
           {/* Logo */}
-          <Link to="/" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-r from-slate-600 to-slate-800 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">S</span>
+          <Link to="/" className="flex items-center space-x-3">
+            <div className="w-7 h-7 bg-gradient-to-br from-white/20 to-white/10 backdrop-blur-sm rounded-md flex items-center justify-center border border-white/20">
+              <span className="text-white font-semibold text-sm">S</span>
             </div>
-            <span className="text-slate-800 font-bold text-xl gradient-text">Sortify</span>
+            <span className="text-white font-semibold text-lg tracking-wide">Sortify</span>
           </Link>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-8">
+          <div className="hidden md:flex items-center space-x-6">
             {navItems.map((item) => (
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-300 ${
+                className={`flex items-center space-x-2 px-3 py-1.5 text-sm font-medium transition-all duration-200 ${
                   location.pathname === item.path
-                    ? 'bg-slate-200/50 text-slate-800'
-                    : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/50'
+                    ? 'text-white border-b border-white/60 bg-white/10 rounded-md'
+                    : 'text-white/80 hover:text-white hover:border-b hover:border-white/40 hover:bg-white/5 rounded-md'
                 }`}
               >
-                <span>{item.icon}</span>
+                <ModernIcon type={item.icon} size={14} color={location.pathname === item.path ? '#ffffff' : '#e2e8f0'} />
                 <span>{item.label}</span>
               </Link>
             ))}
@@ -58,9 +58,9 @@ const Navbar = () => {
             <div className="hidden md:flex items-center space-x-3">
               {user?.avatar || user?.gmailName ? (
                 <img 
-                  src={user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.gmailName || user.name)}&background=6366f1&color=fff&size=32`}
+                  src={user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.gmailName || user.name)}&background=64748b&color=fff&size=28`}
                   alt={user.name}
-                  className="w-8 h-8 rounded-full border-2 border-slate-300"
+                  className="w-7 h-7 rounded-full border border-slate-200"
                   onError={(e) => {
                     e.target.style.display = 'none'
                     e.target.nextSibling.style.display = 'flex'
@@ -68,14 +68,14 @@ const Navbar = () => {
                 />
               ) : null}
               <div 
-                className={`w-8 h-8 bg-gradient-to-r from-slate-500 to-slate-700 rounded-full flex items-center justify-center ${user?.avatar || user?.gmailName ? 'hidden' : ''}`}
+                className={`w-7 h-7 bg-slate-600 rounded-full flex items-center justify-center ${user?.avatar || user?.gmailName ? 'hidden' : ''}`}
                 style={{ display: user?.avatar || user?.gmailName ? 'none' : 'flex' }}
               >
-                <span className="text-white font-semibold text-sm">
+                <span className="text-white font-medium text-xs">
                   {user?.name?.charAt(0)?.toUpperCase() || user?.gmailName?.charAt(0)?.toUpperCase() || 'U'}
                 </span>
               </div>
-              <span className="text-slate-800 font-medium">
+              <span className="text-white font-medium text-sm">
                 {user?.name || user?.gmailName || 'User'}
               </span>
             </div>
@@ -83,15 +83,15 @@ const Navbar = () => {
             {/* Mobile Menu Button */}
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="md:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100/50 transition-colors"
+              className="md:hidden p-1.5 rounded-md text-white/80 hover:bg-white/10 transition-colors"
             >
-              <ModernIcon type="menu" size={24} color="#64748b" glassEffect={false} />
+              <ModernIcon type="menu" size={18} color="#e2e8f0" glassEffect={false} />
             </button>
 
             {/* Logout Button */}
             <button
               onClick={handleLogout}
-              className="hidden md:block px-4 py-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100/50 rounded-lg transition-all duration-300"
+              className="hidden md:block px-3 py-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-md transition-all duration-200 text-sm font-medium border border-white/20 hover:border-white/30"
             >
               Logout
             </button>
@@ -104,31 +104,31 @@ const Navbar = () => {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="md:hidden border-t border-slate-300/30"
+            className="md:hidden border-t border-white/20 bg-gradient-to-r from-purple-800/50 to-violet-800/50 backdrop-blur-md"
           >
-            <div className="py-4 space-y-2">
+            <div className="py-3 space-y-1">
               {navItems.map((item) => (
                 <Link
                   key={item.path}
                   to={item.path}
                   onClick={() => setIsMenuOpen(false)}
-                  className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-300 ${
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md transition-all duration-200 ${
                     location.pathname === item.path
-                      ? 'bg-slate-200/50 text-slate-800'
-                      : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/50'
+                      ? 'bg-white/20 text-white'
+                      : 'text-white/80 hover:text-white hover:bg-white/10'
                   }`}
                 >
-                  <span>{item.icon}</span>
-                  <span>{item.label}</span>
+                  <ModernIcon type={item.icon} size={14} color={location.pathname === item.path ? '#ffffff' : '#e2e8f0'} />
+                  <span className="text-sm font-normal">{item.label}</span>
                 </Link>
               ))}
-              <div className="px-4 py-3 border-t border-slate-300/30">
+              <div className="px-4 py-3 border-t border-white/20">
                 <div className="flex items-center space-x-3 mb-3">
                   {user?.avatar || user?.gmailName ? (
                     <img 
-                      src={user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.gmailName || user.name)}&background=6366f1&color=fff&size=32`}
+                      src={user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.gmailName || user.name)}&background=64748b&color=fff&size=28`}
                       alt={user.name}
-                      className="w-8 h-8 rounded-full border-2 border-slate-300"
+                      className="w-7 h-7 rounded-full border border-slate-200"
                       onError={(e) => {
                         e.target.style.display = 'none'
                         e.target.nextSibling.style.display = 'flex'
@@ -136,20 +136,20 @@ const Navbar = () => {
                     />
                   ) : null}
                   <div 
-                    className={`w-8 h-8 bg-gradient-to-r from-slate-500 to-slate-700 rounded-full flex items-center justify-center ${user?.avatar || user?.gmailName ? 'hidden' : ''}`}
+                    className={`w-7 h-7 bg-slate-600 rounded-full flex items-center justify-center ${user?.avatar || user?.gmailName ? 'hidden' : ''}`}
                     style={{ display: user?.avatar || user?.gmailName ? 'none' : 'flex' }}
                   >
-                    <span className="text-white font-semibold text-sm">
+                    <span className="text-white font-medium text-xs">
                       {user?.name?.charAt(0)?.toUpperCase() || user?.gmailName?.charAt(0)?.toUpperCase() || 'U'}
                     </span>
                   </div>
-                  <span className="text-slate-800 font-medium">
+                  <span className="text-white font-medium text-sm">
                     {user?.name || user?.gmailName || 'User'}
                   </span>
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="w-full text-left px-4 py-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100/50 rounded-lg transition-all duration-300"
+                  className="w-full text-left px-4 py-2 text-white/80 hover:text-white hover:bg-white/10 rounded-md transition-all duration-200 text-sm font-medium border border-white/20 hover:border-white/30"
                 >
                   Logout
                 </button>

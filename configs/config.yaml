@@ -1,9 +1,0 @@
-model_name: distilbert-base-uncased
-max_length: 512
-batch_size: 8
-epochs: 3
-lr: 3e-5
-artifact_dir: artifacts
-target_metric: weighted_f1
-gate_min_weighted_f1: 0.90
-

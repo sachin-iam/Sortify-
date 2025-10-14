@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import ModernIcon from './ModernIcon'
 
-const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage = 1, totalPages = 1, onPageChange, totalEmails = 0, onBulkSelect, selectedEmails = [], gmailConnected = false }) => {
+const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage = 1, totalPages = 1, onPageChange, totalEmails = 0, onBulkSelect, selectedEmails = [], gmailConnected = false, isCompact = false }) => {
   const [hoveredPage, setHoveredPage] = useState(null)
   const [hasNavigated, setHasNavigated] = useState(false)
   const [selectAll, setSelectAll] = useState(false)

@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { jwtDecode } from 'jwt-decode'
 import { api } from '../services/api'
 
-const AuthContext = createContext()
+export const AuthContext = createContext()
 
 export const useAuth = () => {
   const context = useContext(AuthContext)
@@ -17,16 +17,19 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [token, setToken] = useState(() => {
     const stored = localStorage.getItem('token')
-    console.log('🔧 AuthContext: Initializing token from localStorage:', stored ? 'present' : 'null')
+    // Only log if there's a token to reduce console noise
+    if (stored) {
+      console.log('🔧 AuthContext: Token found in localStorage')
+    }
     return stored
   })
   const [loading, setLoading] = useState(false) // Start as false to avoid loading loops
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     const stored = localStorage.getItem('token')
-    const hasToken = !!stored
-    console.log('🔧 AuthContext: Initializing isAuthenticated:', hasToken)
-    return hasToken
+    return !!stored
   })
+  const [initialized, setInitialized] = useState(false) // Track initialization state
+  const initializationRef = useRef(false) // Use ref to prevent multiple initializations
 
   // Helper function to update all auth state atomically
   const updateAuthState = useCallback((newToken, userData = null) => {
@@ -59,8 +62,14 @@ export const AuthProvider = ({ children }) => {
 
   // Initialize authentication on mount
   useEffect(() => {
+    if (initializationRef.current) {
+      console.log('🔄 AuthContext: Already initialized, skipping...')
+      return
+    }
+
     const initializeAuth = async () => {
       console.log('🚀 AuthContext: Initializing authentication...')
+      initializationRef.current = true
       setLoading(true)
       
       const storedToken = localStorage.getItem('token')
@@ -74,10 +83,8 @@ export const AuthProvider = ({ children }) => {
           if (decoded.exp > currentTime) {
             console.log('✅ AuthContext: Valid token found, fetching user data...')
             
-            // Set auth state
-            setToken(storedToken)
-            setIsAuthenticated(true)
-            api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`
+            // Use updateAuthState to ensure consistency
+            updateAuthState(storedToken)
             
             // Fetch user data
             try {
@@ -99,16 +106,17 @@ export const AuthProvider = ({ children }) => {
           updateAuthState(null)
         }
       } else {
-        console.log('ℹ️ AuthContext: No token found')
+        console.log('ℹ️ AuthContext: No token found - user needs to login')
         setIsAuthenticated(false)
       }
       
       setLoading(false)
+      setInitialized(true)
       console.log('🏁 AuthContext: Initialization complete')
     }
 
     initializeAuth()
-  }, []) // Remove updateAuthState dependency to prevent re-initialization
+  }, [updateAuthState]) // Remove initialized from dependencies
 
   const login = async (email, password) => {
     console.log('🚀 AuthContext: Starting login process...')
@@ -122,18 +130,20 @@ export const AuthProvider = ({ children }) => {
         const newToken = response.data.token
         console.log('🎯 AuthContext: Login successful, token received')
         
-        // Update auth state atomically
-        updateAuthState(newToken)
+        // Update auth state atomically with user data if available
+        updateAuthState(newToken, response.data.user)
         
-        // Fetch user data
-        try {
-          const userResponse = await api.get('/auth/me')
-          if (userResponse.data.success) {
-            setUser(userResponse.data.user)
-            console.log('✅ AuthContext: User data loaded after login:', userResponse.data.user.name)
+        // If user data wasn't included in login response, fetch it
+        if (!response.data.user) {
+          try {
+            const userResponse = await api.get('/auth/me')
+            if (userResponse.data.success) {
+              setUser(userResponse.data.user)
+              console.log('✅ AuthContext: User data loaded after login:', userResponse.data.user.name)
+            }
+          } catch (error) {
+            console.error('Failed to fetch user data after login:', error)
           }
-        } catch (error) {
-          console.error('Failed to fetch user data after login:', error)
         }
         
         setLoading(false)
@@ -167,8 +177,16 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
-  const logout = () => {
+  const logout = async () => {
     console.log('🚪 AuthContext: Logging out...')
+    try {
+      // Call backend logout to trigger cleanup
+      await api.post('/api/auth/logout')
+      console.log('✅ Backend logout successful')
+    } catch (error) {
+      console.error('❌ Backend logout error:', error)
+      // Continue with local logout even if backend fails
+    }
     updateAuthState(null)
     setUser(null)
   }

@@ -22,15 +22,36 @@ router.post('/gmail', protect, asyncHandler(async (req, res) => {
     const count = await Email.countDocuments({ userId: req.user._id, provider: 'gmail' })
     
     if (count === 0) {
-      // Fire-and-forget sync so response is fast
+      // Fire-and-forget thumbnail sync so response is fast
       ;(async () => {
         try {
-          const { fullSync } = await import('../services/gmailSyncService.js')
-          await fullSync(req.user)
+          const { syncEmailThumbnails } = await import('../services/gmailSyncService.js')
+          const result = await syncEmailThumbnails(req.user, { maxResults: 1000 })
+          console.log(`✅ Bootstrap thumbnail sync completed for ${req.user.email}:`, result)
         } catch (e) {
-          console.error('bootstrap sync error', e?.message)
+          console.error('bootstrap thumbnail sync error', e?.message)
         }
       })()
+    } else {
+      // Check if we need to sync more thumbnails for existing users
+      const thumbnailCount = await Email.countDocuments({ 
+        userId: req.user._id, 
+        provider: 'gmail',
+        isFullContentLoaded: false 
+      })
+      
+      if (thumbnailCount < 500) {
+        // Continue syncing thumbnails in background for existing users
+        ;(async () => {
+          try {
+            const { syncEmailThumbnails } = await import('../services/gmailSyncService.js')
+            const result = await syncEmailThumbnails(req.user, { maxResults: 1000 })
+            console.log(`✅ Background thumbnail sync completed for ${req.user.email}:`, result)
+          } catch (e) {
+            console.error('background thumbnail sync error', e?.message)
+          }
+        })()
+      }
     }
     
     res.json({ 

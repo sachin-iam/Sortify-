@@ -31,12 +31,12 @@ const seedData = async () => {
     // Create sample emails
     const sampleEmails = [
       {
-        user: demoUser._id,
+        userId: demoUser._id,
         messageId: 'gmail-1',
         threadId: 'thread-1',
         subject: 'Welcome to Gmail',
         from: 'noreply@gmail.com',
-        to: [demoUser.email],
+        to: demoUser.email,
         body: 'Welcome to Gmail! This is a sample email for testing purposes. You can use this to test the email classification features.',
         snippet: 'Welcome to Gmail! This is a sample email for testing purposes...',
         date: new Date(),
@@ -57,12 +57,12 @@ const seedData = async () => {
         }
       },
       {
-        user: demoUser._id,
+        userId: demoUser._id,
         messageId: 'gmail-2',
         threadId: 'thread-2',
         subject: 'Academic Newsletter - Spring 2024',
         from: 'newsletter@university.edu',
-        to: [demoUser.email],
+        to: demoUser.email,
         body: 'This is an academic newsletter with important updates about courses, research opportunities, and campus events for the Spring 2024 semester.',
         snippet: 'This is an academic newsletter with important updates about courses...',
         date: new Date(Date.now() - 86400000), // 1 day ago
@@ -83,12 +83,12 @@ const seedData = async () => {
         }
       },
       {
-        user: demoUser._id,
+        userId: demoUser._id,
         messageId: 'gmail-3',
         threadId: 'thread-3',
         subject: 'Special Offer - 50% Off All Courses!',
         from: 'offers@onlinelearning.com',
-        to: [demoUser.email],
+        to: demoUser.email,
         body: 'Don\'t miss out on our special offer! Get 50% off on all online courses for a limited time. Use code SAVE50 at checkout.',
         snippet: 'Don\'t miss out on our special offer! Get 50% off on all online courses...',
         date: new Date(Date.now() - 172800000), // 2 days ago
@@ -109,12 +109,12 @@ const seedData = async () => {
         }
       },
       {
-        user: demoUser._id,
+        userId: demoUser._id,
         messageId: 'outlook-1',
         threadId: 'thread-4',
         subject: 'Job Opportunity - Software Engineer',
         from: 'hr@techcompany.com',
-        to: [demoUser.email],
+        to: demoUser.email,
         body: 'We have an exciting opportunity for a Software Engineer position. Please review the attached job description and let us know if you\'re interested.',
         snippet: 'We have an exciting opportunity for a Software Engineer position...',
         date: new Date(Date.now() - 259200000), // 3 days ago
@@ -135,12 +135,12 @@ const seedData = async () => {
         }
       },
       {
-        user: demoUser._id,
+        userId: demoUser._id,
         messageId: 'gmail-4',
         threadId: 'thread-5',
         subject: 'URGENT: Claim Your Prize Now!',
         from: 'winner@lottery.com',
-        to: [demoUser.email],
+        to: demoUser.email,
         body: 'Congratulations! You have won $1,000,000! Click here to claim your prize immediately! This offer expires in 24 hours.',
         snippet: 'Congratulations! You have won $1,000,000! Click here to claim...',
         date: new Date(Date.now() - 345600000), // 4 days ago
@@ -161,12 +161,12 @@ const seedData = async () => {
         }
       },
       {
-        user: demoUser._id,
+        userId: demoUser._id,
         messageId: 'outlook-2',
         threadId: 'thread-6',
         subject: 'Microsoft 365 Updates',
         from: 'updates@microsoft.com',
-        to: [demoUser.email],
+        to: demoUser.email,
         body: 'Stay updated with the latest Microsoft 365 features and improvements. New security enhancements and productivity tools are now available.',
         snippet: 'Stay updated with the latest Microsoft 365 features and improvements...',
         date: new Date(Date.now() - 432000000), // 5 days ago

@@ -11,7 +11,6 @@ jest.mock('../services/emailService', () => ({
   detail: jest.fn(),
   archive: jest.fn(),
   remove: jest.fn(),
-  export: jest.fn(),
   downloadAttachment: jest.fn(),
   startRealtime: jest.fn()
 }))

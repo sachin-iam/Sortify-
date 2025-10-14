@@ -7,8 +7,6 @@ import ErrorBoundary from './components/ErrorBoundary'
 import Navbar from './components/Navbar'
 import ParticleBackground from './components/ParticleBackground'
 import Login from './pages/Login'
-import LoginTest from './pages/LoginTest'
-import SimpleLoginTest from './pages/SimpleLoginTest'
 import Dashboard from './pages/Dashboard'
 import Settings from './pages/Settings'
 import ForgotPassword from './pages/ForgotPassword'
@@ -26,8 +24,6 @@ function App() {
             <ParticleBackground />
             <Routes>
             <Route path="/login" element={<Login />} />
-            <Route path="/login-test" element={<LoginTest />} />
-            <Route path="/simple-login-test" element={<SimpleLoginTest />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password/:resetToken" element={<ResetPassword />} />
             <Route path="/verify-email/:verificationToken?" element={<EmailVerification />} />

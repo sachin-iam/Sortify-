@@ -11,7 +11,6 @@ jest.mock('../services/emailService', () => ({
   detail: jest.fn(),
   archive: jest.fn(),
   remove: jest.fn(),
-  export: jest.fn(),
   downloadAttachment: jest.fn(),
   startRealtime: jest.fn()
 }))
@@ -155,7 +154,6 @@ describe('Dashboard Inbox Rendering', () => {
   test('handles email actions', async () => {
     emailService.archive.mockResolvedValue({ success: true })
     emailService.remove.mockResolvedValue({ success: true })
-    emailService.export.mockResolvedValue({ success: true })
 
     renderDashboard()
 
@@ -186,13 +184,6 @@ describe('Dashboard Inbox Rendering', () => {
       expect(emailService.remove).toHaveBeenCalledWith('email1')
     })
 
-    // Test export action
-    const exportButton = screen.getByTitle('Export')
-    fireEvent.click(exportButton)
-
-    await waitFor(() => {
-      expect(emailService.export).toHaveBeenCalledWith('email1')
-    })
   })
 
   test('shows loading states', async () => {

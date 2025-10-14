@@ -76,6 +76,19 @@ const emailSchema = new mongoose.Schema({
   isDeleted: {
     type: Boolean,
     default: false
+  },
+  // Thumbnail/Lazy Loading fields
+  isFullContentLoaded: {
+    type: Boolean,
+    default: false
+  },
+  fullContentLoadedAt: {
+    type: Date,
+    default: null
+  },
+  lastAccessedAt: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true
@@ -107,6 +120,12 @@ emailSchema.methods.archive = function() {
 // Method to delete
 emailSchema.methods.softDelete = function() {
   this.isDeleted = true
+  return this.save()
+}
+
+// Method to mark as accessed (for cleanup scheduling)
+emailSchema.methods.markAsAccessed = function() {
+  this.lastAccessedAt = new Date()
   return this.save()
 }
 

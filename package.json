@@ -3,18 +3,22 @@
   "version": "2.0.0",
   "description": "AI-Powered Email Organization Platform with 3D Glass Design",
   "scripts": {
+    "init": "bash init.sh",
     "client:dev": "cd client && npm run dev",
     "server:dev": "cd server && npm run dev",
-    "model:dev": "cd model_service && python -m uvicorn app:app --host 0.0.0.0 --port 8000 --reload",
-    "model:enhanced": "cd model_service && python -m uvicorn enhanced_app:app --host 0.0.0.0 --port 8000 --reload",
-    "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\" \"npm run model:enhanced\"",
-    "install:all": "npm install && cd client && npm install && cd ../server && npm install && cd ../model_service && pip install -r requirements.txt",
+    "model:dev": "bash start-model-service.sh",
+    "model:enhanced": "bash start-model-service.sh",
+    "dev": "concurrently -n \"SERVER,CLIENT,MODEL\" -c \"bgBlue.bold,bgMagenta.bold,bgGreen.bold\" \"npm run server:dev\" \"npm run client:dev\" \"npm run model:enhanced\"",
+    "setup:venv": "bash setup-venv.sh",
+    "setup:venv:windows": "setup-venv.bat",
+    "install:all": "npm install && cd client && npm install && cd ../server && npm install",
+    "install:deps": "npm install && cd client && npm install && cd ../server && npm install && cd .. && npm run setup:venv",
     "build": "cd client && npm run build",
     "start": "cd server && npm start",
     "test": "npm run test:client && npm run test:server && npm run test:model",
     "test:client": "cd client && npm test",
     "test:server": "cd server && npm test",
-    "test:model": "cd model_service && pytest"
+    "test:model": "cd model_service && source venv/bin/activate && pytest"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

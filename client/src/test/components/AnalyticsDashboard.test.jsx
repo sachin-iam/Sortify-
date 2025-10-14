@@ -8,7 +8,6 @@ vi.mock('../../services/analyticsService', () => ({
   getCategoryCounts: vi.fn(),
   getClassificationAccuracy: vi.fn(),
   getMisclassifications: vi.fn(),
-  exportAnalyticsData: vi.fn()
 }))
 
 const mockAnalytics = {

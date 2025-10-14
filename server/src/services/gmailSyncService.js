@@ -487,3 +487,207 @@ export const syncLabels = async (user, labelIds = ['INBOX', 'SENT', 'DRAFT']) =>
     }
   }
 }
+
+/**
+ * Sync email thumbnails (metadata only) for faster initial loading
+ * @param {Object} user - User object
+ * @param {Object} options - Sync options
+ * @returns {Promise<Object>} Sync results
+ */
+export const syncEmailThumbnails = async (user, options = {}) => {
+  try {
+    console.log(`🚀 Starting thumbnail sync for user: ${user.email}`)
+
+    if (!user.gmailConnected || !user.gmailAccessToken) {
+      throw new Error('Gmail account not connected')
+    }
+
+    const { maxResults = 1000, batchSize = 200 } = options
+
+    // Initialize Gmail client
+    const oauth2Client = getOAuthForUser(user)
+    const gmail = google.gmail({ version: 'v1', auth: oauth2Client })
+
+    // Get all message IDs (metadata only - much faster)
+    const messageIds = await listAllMessageIds(oauth2Client, 'in:inbox')
+    
+    console.log(`📧 Found ${messageIds.length} emails for thumbnail sync`)
+
+    if (messageIds.length === 0) {
+      return {
+        success: true,
+        total: 0,
+        synced: 0,
+        classified: 0,
+        skipped: 0,
+        message: 'No emails found in inbox'
+      }
+    }
+
+    // Limit to maxResults for initial sync
+    const limitedMessageIds = messageIds.slice(0, maxResults)
+    console.log(`📧 Processing ${limitedMessageIds.length} emails for thumbnail sync`)
+
+    let syncedCount = 0
+    let classifiedCount = 0
+    let skippedCount = 0
+
+    // Process emails in batches
+    for (let i = 0; i < limitedMessageIds.length; i += batchSize) {
+      const batch = limitedMessageIds.slice(i, i + batchSize)
+      console.log(`📧 Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(limitedMessageIds.length / batchSize)}`)
+
+      const batchPromises = batch.map(messageId => limit(async () => {
+        try {
+          // Check if email already exists
+          const existingEmail = await Email.findOne({ 
+            gmailId: messageId,
+            userId: user._id 
+          })
+
+          if (existingEmail) {
+            // Update thumbnail data if needed
+            if (!existingEmail.isFullContentLoaded) {
+              // Get basic message metadata (faster than full message)
+              const message = await gmail.users.messages.get({
+                userId: 'me',
+                id: messageId,
+                format: 'metadata',
+                metadataHeaders: ['From', 'To', 'Subject', 'Date']
+              })
+
+              const headers = message.data.payload?.headers || []
+              const getHeader = (name) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value
+
+              // Update basic fields
+              existingEmail.subject = getHeader('Subject') || 'No Subject'
+              existingEmail.from = getHeader('From') || 'Unknown Sender'
+              existingEmail.to = getHeader('To') || user.email
+              existingEmail.date = new Date(parseInt(message.data.internalDate))
+              existingEmail.snippet = message.data.snippet || ''
+              existingEmail.isRead = !message.data.labelIds?.includes('UNREAD')
+              existingEmail.labels = message.data.labelIds || []
+
+              await existingEmail.save()
+            }
+            skippedCount++
+            return { success: true, skipped: true, emailId: messageId }
+          }
+
+          // Get basic message metadata (much faster than full message)
+          const message = await gmail.users.messages.get({
+            userId: 'me',
+            id: messageId,
+            format: 'metadata',
+            metadataHeaders: ['From', 'To', 'Subject', 'Date']
+          })
+
+          const headers = message.data.payload?.headers || []
+          const getHeader = (name) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value
+
+          // Extract basic email data
+          const subject = getHeader('Subject') || 'No Subject'
+          const snippet = message.data.snippet || ''
+          
+          // Classify the email automatically
+          const classification = await classifyEmail(subject, snippet, '')
+
+          const emailData = {
+            userId: user._id,
+            gmailId: messageId,
+            messageId: messageId,
+            threadId: message.data.threadId || null,
+            subject,
+            from: getHeader('From') || 'Unknown Sender',
+            to: getHeader('To') || user.email,
+            date: new Date(parseInt(message.data.internalDate)),
+            snippet,
+            isRead: !message.data.labelIds?.includes('UNREAD'),
+            labels: message.data.labelIds || [],
+            category: classification.label,
+            classification: {
+              label: classification.label,
+              confidence: classification.confidence
+            },
+            isFullContentLoaded: false,
+            fullContentLoadedAt: null,
+            lastAccessedAt: null
+          }
+
+          // Save thumbnail email
+          await Email.findOneAndUpdate(
+            { messageId: messageId, userId: user._id },
+            emailData,
+            { upsert: true, new: true }
+          )
+
+          syncedCount++
+          classifiedCount++
+          console.log(`✅ Thumbnail sync: ${subject} -> ${classification.label}`)
+
+          return { 
+            success: true, 
+            emailId: messageId, 
+            subject: subject,
+            category: classification.label 
+          }
+
+        } catch (error) {
+          console.error(`❌ Error syncing thumbnail ${messageId}:`, error.message)
+          return { 
+            success: false, 
+            emailId: messageId, 
+            error: error.message 
+          }
+        }
+      }))
+
+      const batchResults = await Promise.all(batchPromises)
+      const batchSuccessful = batchResults.filter(r => r.success && !r.skipped).length
+      const batchSkipped = batchResults.filter(r => r.skipped).length
+
+      console.log(`📊 Batch completed: ${batchSuccessful} synced, ${batchSkipped} skipped`)
+    }
+
+    // Get category breakdown
+    const categoryBreakdown = {}
+    const recentEmails = await Email.find({ userId: user._id })
+      .sort({ date: -1 })
+      .limit(100)
+      .select('category')
+
+    recentEmails.forEach(email => {
+      const category = email.category || 'Other'
+      categoryBreakdown[category] = (categoryBreakdown[category] || 0) + 1
+    })
+
+    console.log(`✅ Thumbnail sync completed:`)
+    console.log(`   Total: ${limitedMessageIds.length}`)
+    console.log(`   Synced: ${syncedCount}`)
+    console.log(`   Skipped: ${skippedCount}`)
+    console.log(`   Classified: ${classifiedCount}`)
+    console.log(`   Categories:`, categoryBreakdown)
+
+    return {
+      success: true,
+      total: limitedMessageIds.length,
+      synced: syncedCount,
+      classified: classifiedCount,
+      skipped: skippedCount,
+      categoryBreakdown,
+      message: `Successfully synced ${syncedCount} email thumbnails`,
+      remaining: messageIds.length - limitedMessageIds.length
+    }
+
+  } catch (error) {
+    console.error('❌ Thumbnail sync error:', error)
+    return {
+      success: false,
+      error: error.message,
+      total: 0,
+      synced: 0,
+      classified: 0,
+      skipped: 0
+    }
+  }
+}

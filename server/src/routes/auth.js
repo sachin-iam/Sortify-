@@ -7,6 +7,7 @@ import { google } from 'googleapis'
 import User from '../models/User.js'
 import { protect } from '../middleware/auth.js'
 import { asyncHandler } from '../middleware/errorHandler.js'
+import { cleanupOnLogout } from '../services/emailCleanupService.js'
 
 const router = express.Router()
 
@@ -408,7 +409,16 @@ router.put('/profile', protect, [
 // @desc    Logout user
 // @route   POST /api/auth/logout
 // @access  Private
-router.post('/logout', protect, (req, res) => {
+router.post('/logout', protect, asyncHandler(async (req, res) => {
+  try {
+    // Cleanup full content on logout (keep thumbnails)
+    const cleanupResult = await cleanupOnLogout(req.user._id)
+    console.log(`✅ Logout cleanup for user ${req.user._id}:`, cleanupResult.cleanedCount, 'emails cleaned')
+  } catch (error) {
+    console.error('❌ Logout cleanup error:', error)
+    // Continue with logout even if cleanup fails
+  }
+
   res.cookie('token', 'none', {
     expires: new Date(Date.now() + 10 * 1000), // 10 seconds
     httpOnly: true
@@ -418,7 +428,7 @@ router.post('/logout', protect, (req, res) => {
     success: true,
     message: 'User logged out successfully'
   })
-})
+}))
 
 // @desc    Change password
 // @route   PUT /api/auth/change-password

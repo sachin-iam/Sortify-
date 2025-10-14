@@ -286,51 +286,6 @@ router.get('/misclassifications', protect, asyncHandler(async (req, res) => {
   }
 }))
 
-// @desc    Export analytics data as CSV
-// @route   GET /api/analytics/export
-// @access  Private
-router.get('/export', protect, asyncHandler(async (req, res) => {
-  try {
-    const emails = await Email.find({ userId: req.user._id })
-      .select('subject from date category snippet isRead')
-      .sort({ date: -1 })
-
-    if (emails.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'No emails found to export'
-      })
-    }
-
-    // Create CSV content
-    const csvHeader = 'Subject,From,Date,Category,Snippet,Is Read\n'
-    const csvRows = emails.map(email => {
-      const subject = `"${(email.subject || '').replace(/"/g, '""')}"`
-      const from = `"${(email.from || '').replace(/"/g, '""')}"`
-      const date = email.date ? email.date.toISOString() : ''
-      const category = email.category || ''
-      const snippet = `"${(email.snippet || '').replace(/"/g, '""')}"`
-      const isRead = email.isRead ? 'Yes' : 'No'
-
-      return `${subject},${from},${date},${category},${snippet},${isRead}`
-    }).join('\n')
-
-    const csvContent = csvHeader + csvRows
-    const buffer = Buffer.from(csvContent, 'utf8')
-
-    res.setHeader('Content-Type', 'text/csv')
-    res.setHeader('Content-Disposition', `attachment; filename="sortify-analytics-${new Date().toISOString().split('T')[0]}.csv"`)
-    res.setHeader('Content-Length', buffer.length)
-    res.send(buffer)
-
-  } catch (error) {
-    console.error('Export error:', error)
-    res.status(500).json({
-      success: false,
-      message: 'Failed to export data'
-    })
-  }
-}))
 
 // @desc    Get performance metrics
 // @route   GET /api/analytics/performance

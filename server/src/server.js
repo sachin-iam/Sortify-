@@ -26,26 +26,14 @@ import realtimeRoutes from './routes/realtime.js'
 import categoriesRoutes from './routes/categories.js'
 import advancedAnalyticsRoutes from './routes/advancedAnalytics.js'
 import bulkOperationsRoutes from './routes/bulkOperations.js'
-import emailTemplatesRoutes from './routes/emailTemplates.js'
 import notificationsRoutes from './routes/notifications.js'
-import exportRoutes from './routes/export.js'
 import performanceRoutes from './routes/performance.js'
-import securityRoutes from './routes/security.js'
 import connectionsRoutes from './routes/connections.js'
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js'
 import { notFound } from './middleware/notFound.js'
 import { requestTiming, memoryMonitor, dbQueryMonitor, rateLimiter } from './middleware/performanceMonitor.js'
-import { 
-  securityValidation, 
-  ipFiltering, 
-  bruteForceProtection, 
-  securityHeaders, 
-  requestId, 
-  suspiciousActivityDetection,
-  dataSanitization 
-} from './middleware/security.js'
 
 // Import database connection
 import connectDB from './config/database.js'
@@ -53,9 +41,9 @@ import connectDB from './config/database.js'
 // Import WebSocket service
 import { initializeWebSocket } from './services/websocketService.js'
 
-// Import security service and make it globally accessible
-import securityService from './services/securityService.js'
-global.securityService = securityService
+// Import cleanup service
+import { scheduleCleanup } from './services/emailCleanupService.js'
+
 
 const app = express()
 const PORT = process.env.PORT || 5000
@@ -121,15 +109,6 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('combined'))
 }
 
-// Security middleware
-app.use(requestId)
-app.use(securityHeaders)
-app.use(ipFiltering)
-app.use(bruteForceProtection)
-app.use(suspiciousActivityDetection)
-app.use(dataSanitization)
-app.use(securityValidation)
-
 // Performance monitoring middleware
 app.use(requestTiming)
 app.use(memoryMonitor)
@@ -156,12 +135,9 @@ app.use('/api/realtime', realtimeRoutes)
 app.use('/api/realtime', categoriesRoutes)
 app.use('/api/analytics', advancedAnalyticsRoutes)
 app.use('/api/bulk', bulkOperationsRoutes)
-app.use('/api/templates', emailTemplatesRoutes)
 app.use('/api/notifications', notificationsRoutes)
-app.use('/api/export', exportRoutes)
 app.use('/api/performance', performanceRoutes)
 app.use('/api/connections', connectionsRoutes)
-app.use('/api/security', securityRoutes)
 
 // OAuth callback routes are now handled under /api/auth
 
@@ -196,6 +172,10 @@ const startServer = async () => {
     
     // Initialize WebSocket server
     initializeWebSocket(server)
+    
+    // Start email cleanup scheduler (daily cleanup of full content older than 7 days)
+    scheduleCleanup(7, 24)
+    console.log(`🧹 Email cleanup scheduler started (daily cleanup of content older than 7 days)`)
     
     // Start listening
     server.listen(PORT, () => {
