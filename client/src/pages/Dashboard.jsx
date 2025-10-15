@@ -6,12 +6,12 @@ import toast from 'react-hot-toast'
 import EmailList from '../components/EmailList'
 import EmailReader from '../components/EmailReader'
 import CategoryTabs from '../components/CategoryTabs'
-import AnalyticsDashboard from '../components/AnalyticsDashboard'
-import AdvancedAnalytics from '../components/AdvancedAnalytics'
+import SuperAnalyticsDashboard from '../components/SuperAnalyticsDashboard'
 import CategoryManagement from '../components/CategoryManagement'
 import BulkOperations from '../components/BulkOperations'
 import NotificationCenter from '../components/NotificationCenter'
 import PerformanceDashboard from '../components/PerformanceDashboard'
+import CategoriesCard from '../components/CategoriesCard'
 import { api } from '../services/api'
 import emailService from '../services/emailService'
 import ModernIcon from '../components/ModernIcon'
@@ -1024,7 +1024,7 @@ const Dashboard = () => {
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4"
         >
           {/* Total Emails Card */}
-          <div className="group relative bg-blue-300/30 backdrop-blur-xl border border-blue-200/30 rounded-2xl p-4 shadow-lg hover:shadow-xl transition-all duration-500 cursor-pointer">
+          <div className="group relative bg-blue-300/30 backdrop-blur-xl border border-blue-200/30 rounded-2xl p-4 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-500 cursor-pointer">
             <div className="absolute top-2 right-2">
               <span className="px-1.5 py-0.5 bg-blue-200/60 text-blue-700 text-[9px] font-medium rounded-full">
                 +12%
@@ -1039,48 +1039,32 @@ const Dashboard = () => {
           </div>
 
           {/* Categories Card */}
-          <div className="group relative bg-gradient-to-br from-green-50/30 to-white/60 backdrop-blur-xl border border-green-200/20 rounded-2xl p-4 hover:shadow-2xl hover:scale-105 transition-all duration-500 cursor-pointer">
-            <div className="absolute top-2 right-2">
-              <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-[9px] font-medium rounded-full">
-                Auto
-              </span>
-              <p className="text-[7px] text-slate-500 text-right mt-0.5">Classified</p>
-            </div>
-            <div className="p-1.5 bg-green-100/30 rounded-lg inline-block mb-2">
-              <ModernIcon type="folder" size={16} color="#10b981" />
-            </div>
-            <h3 className="text-2xl font-bold text-slate-800 mb-1">7</h3>
-            <p className="text-xs text-slate-600 font-medium">Categories</p>
-            {/* Mini bars visualization */}
-            <div className="mt-2 flex gap-1">
-              {[30, 20, 15, 15, 10, 5, 5].map((width, i) => (
-                <div key={i} className="flex-1 h-1 bg-green-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-green-400 to-green-600" style={{width: `${width}%`}}></div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <CategoriesCard categories={stats?.categories || 7} />
 
           {/* Processed Today Card */}
-          <div className="group relative bg-gradient-to-br from-orange-50/30 to-white/60 backdrop-blur-xl border border-orange-200/20 rounded-2xl p-4 hover:shadow-2xl hover:scale-105 transition-all duration-500 cursor-pointer">
-            <div className="absolute top-2 right-2">
-              <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 text-[9px] font-medium rounded-full">
-                Live
-              </span>
-              <p className="text-[7px] text-slate-500 text-right mt-0.5">Real-time</p>
-            </div>
-            <div className="p-1.5 bg-orange-100/30 rounded-lg inline-block mb-2">
-              <ModernIcon type="sync" size={16} color="#f59e0b" />
-            </div>
-            <h3 className="text-2xl font-bold text-slate-800 mb-1">0</h3>
-            <p className="text-xs text-slate-600 font-medium">Processed Today</p>
-            {/* Progress bar with pulse */}
-            <div className="mt-2 flex items-center gap-2">
-              <div className="flex-1 h-1 bg-orange-100 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-orange-400 to-orange-600 w-0"></div>
+          <div className="relative bg-[#F8EBE4] rounded-xl p-4 shadow-sm hover:shadow-lg hover:scale-105 transition-all duration-300 cursor-pointer">
+            {/* Icon - Top Left */}
+            <div className="absolute top-3 left-3">
+              <div className="w-6 h-6 bg-[#F0C8B4] rounded-lg flex items-center justify-center">
+                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
               </div>
-              <div className="w-2 h-2 bg-orange-200 rounded-full"></div>
             </div>
+            
+            {/* Live/Real-time - Top Right */}
+            <div className="absolute top-3 right-3 text-right">
+              <div className="text-[#E87C3E] font-bold text-sm">Live</div>
+              <div className="text-[#707070] text-xs">Real-time</div>
+            </div>
+            
+            {/* Large Number - Middle Left */}
+            <div className="pt-8 pb-2">
+              <div className="text-[#333333] font-bold text-3xl">6175</div>
+            </div>
+            
+            {/* Processed Today - Bottom Left */}
+            <div className="text-[#555555] text-sm font-medium">Processed Today</div>
           </div>
 
           {/* Gmail Status Card */}
@@ -1151,19 +1135,6 @@ const Dashboard = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
               Analytics
-            </button>
-            <button 
-              className={`px-2.5 py-1.5 rounded-md text-sm font-medium transition-all duration-300 flex items-center gap-1 ${
-                activeView === 'advanced-analytics' 
-                  ? 'bg-blue-500 text-white' 
-                  : 'text-slate-600 hover:bg-blue-50 hover:text-blue-600'
-              }`}
-              onClick={() => setActiveView('advanced-analytics')}
-            >
-              <svg className={`w-2 h-2 ${activeView === 'advanced-analytics' ? 'text-white' : 'text-slate-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-              </svg>
-              Advanced
             </button>
             <button 
               className="px-2.5 py-1.5 rounded-md text-sm font-medium transition-all duration-300 text-slate-600 hover:bg-blue-50 hover:text-blue-600 relative flex items-center gap-1"
@@ -1404,10 +1375,8 @@ const Dashboard = () => {
               </div>
             </div>
           ) : activeView === 'analytics' ? (
-            <AnalyticsDashboard />
-          ) : (
-            <AdvancedAnalytics />
-          )}
+            <SuperAnalyticsDashboard />
+          ) : null}
         </motion.div>
       </div>
 
