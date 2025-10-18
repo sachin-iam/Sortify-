@@ -28,6 +28,7 @@ const SuperAnalyticsDashboard = () => {
   })
   
   const [loading, setLoading] = useState(true)
+  const [refreshLoading, setRefreshLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
   const [timeRange, setTimeRange] = useState('all')
   const [selectedCategory, setSelectedCategory] = useState('All')
@@ -35,12 +36,45 @@ const SuperAnalyticsDashboard = () => {
   // Simple flag to prevent unnecessary reloading
   const lastLoadParamsRef = useRef('')
 
+  // Handle manual refresh
+  const handleRefresh = async () => {
+    try {
+      setRefreshLoading(true)
+      
+      // Get current values for the refresh call
+      const currentTimeRange = timeRange
+      const currentSelectedCategory = selectedCategory
+      
+      // Load data from both services with current filter values
+      const [categories, accuracy, misclassificationsData, advancedAnalytics] = await Promise.all([
+        analyticsService.getCategoryCounts(),
+        analyticsService.getClassificationAccuracy(),
+        analyticsService.getMisclassifications(10000), // Remove the 50 limit to get all emails
+        api.get(`/analytics/advanced?range=${currentTimeRange}&category=${currentSelectedCategory}`)
+      ])
+
+      // Safely handle API responses
+      setCategoryData(Array.isArray(categories?.data) ? categories.data : [])
+      setAccuracyData(typeof accuracy?.data === 'object' && accuracy.data ? accuracy.data : {})
+      setMisclassifications(Array.isArray(misclassificationsData?.data) ? misclassificationsData.data : [])
+      setAnalytics(typeof advancedAnalytics?.data === 'object' && advancedAnalytics.data ? advancedAnalytics.data : {})
+
+      toast.success('Analytics data refreshed successfully!')
+    } catch (error) {
+      toast.error('Failed to refresh analytics data')
+      console.error('Error refreshing analytics:', error)
+    } finally {
+      setRefreshLoading(false)
+    }
+  }
+
   useEffect(() => {
     const currentParams = `${timeRange}-${selectedCategory}`
     
     // Only load if parameters have actually changed
     if (currentParams !== lastLoadParamsRef.current) {
-      const loadAllAnalyticsData = async () => {
+      // Inline the loadAllAnalyticsData call to avoid dependency issues
+      const loadData = async () => {
         try {
           setLoading(true)
           
@@ -65,7 +99,7 @@ const SuperAnalyticsDashboard = () => {
         }
       }
 
-      loadAllAnalyticsData()
+      loadData()
       lastLoadParamsRef.current = currentParams
     }
   }, [timeRange, selectedCategory])
@@ -109,6 +143,18 @@ const SuperAnalyticsDashboard = () => {
             Super Analytics Dashboard
           </h2>
           <div className="flex gap-3">
+            <button
+              onClick={handleRefresh}
+              disabled={refreshLoading}
+              className="px-4 py-2 bg-blue-500/80 hover:bg-blue-500 border border-blue-400/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-white font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {refreshLoading ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <ModernIcon type="sync" size={16} color="white" />
+              )}
+              {refreshLoading ? 'Refreshing...' : 'Refresh Data'}
+            </button>
             <select
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value)}

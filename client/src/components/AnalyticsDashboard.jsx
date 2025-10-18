@@ -12,32 +12,51 @@ const AnalyticsDashboard = () => {
   const [accuracyData, setAccuracyData] = useState({})
   const [misclassifications, setMisclassifications] = useState([])
   const [loading, setLoading] = useState(true)
+  const [refreshLoading, setRefreshLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
 
-  useEffect(() => {
-    // Load data once when component mounts
-    const loadAnalyticsData = async () => {
-      try {
+  // Extract data loading logic into a reusable function
+  const loadAnalyticsData = async (isRefresh = false) => {
+    try {
+      if (isRefresh) {
+        setRefreshLoading(true)
+      } else {
         setLoading(true)
-        
-        const [categories, accuracy, misclassificationsData] = await Promise.all([
-          analyticsService.getCategoryCounts(),
-          analyticsService.getClassificationAccuracy(),
-          analyticsService.getMisclassifications(10000) // Remove the 50 limit to analyze all emails
-        ])
+      }
+      
+      const [categories, accuracy, misclassificationsData] = await Promise.all([
+        analyticsService.getCategoryCounts(),
+        analyticsService.getClassificationAccuracy(),
+        analyticsService.getMisclassifications(10000) // Remove the 50 limit to analyze all emails
+      ])
 
-        // Safely handle API responses
-        setCategoryData(Array.isArray(categories?.data) ? categories.data : [])
-        setAccuracyData(typeof accuracy?.data === 'object' && accuracy.data ? accuracy.data : {})
-        setMisclassifications(Array.isArray(misclassificationsData?.data) ? misclassificationsData.data : [])
-      } catch (error) {
-        toast.error('Failed to load analytics data')
-        console.error('Error loading analytics:', error)
-      } finally {
+      // Safely handle API responses
+      setCategoryData(Array.isArray(categories?.data) ? categories.data : [])
+      setAccuracyData(typeof accuracy?.data === 'object' && accuracy.data ? accuracy.data : {})
+      setMisclassifications(Array.isArray(misclassificationsData?.data) ? misclassificationsData.data : [])
+      
+      if (isRefresh) {
+        toast.success('Analytics data refreshed successfully!')
+      }
+    } catch (error) {
+      toast.error('Failed to load analytics data')
+      console.error('Error loading analytics:', error)
+    } finally {
+      if (isRefresh) {
+        setRefreshLoading(false)
+      } else {
         setLoading(false)
       }
     }
-    
+  }
+
+  // Handle manual refresh
+  const handleRefresh = () => {
+    loadAnalyticsData(true)
+  }
+
+  useEffect(() => {
+    // Load data once when component mounts
     loadAnalyticsData()
   }, []) // Empty dependency array to run only once on mount
 
@@ -65,6 +84,18 @@ const AnalyticsDashboard = () => {
             <ModernIcon type="analytics" size={28} color="#3b82f6" />
             Analytics Dashboard
           </h2>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshLoading}
+            className="px-4 py-2 bg-blue-500/80 hover:bg-blue-500 border border-blue-400/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-white font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {refreshLoading ? (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            ) : (
+              <ModernIcon type="sync" size={16} color="white" />
+            )}
+            {refreshLoading ? 'Refreshing...' : 'Refresh Data'}
+          </button>
         </div>
       </div>
 
