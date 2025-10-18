@@ -296,7 +296,7 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.99 }}
         >
-          <div className="flex items-start gap-3 mb-2">
+          <div className="flex items-start gap-3 w-full min-w-0">
             {/* Bulk Selection Checkbox */}
             {onBulkSelect && (
               <div className="flex-shrink-0 pt-1">
@@ -315,16 +315,17 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
             
             {/* Email Content */}
             <div 
-              className="flex-1 cursor-pointer"
+              className="flex-1 min-w-0 cursor-pointer overflow-hidden"
               onClick={() => onSelect(email._id)}
             >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium text-slate-800 truncate">
+              <div className="flex items-start gap-3 w-full min-w-0">
+                <div className="flex-1 min-w-0 overflow-hidden">
+                  <div className="flex items-center gap-2 mb-1 min-w-0">
+                    <span className="font-medium text-slate-800 truncate flex-1 min-w-0">
                       {email.from}
                     </span>
                     <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${getCategoryColor(
+                      className={`px-2 py-1 rounded-full text-xs font-medium flex-shrink-0 ${getCategoryColor(
                         email.category
                       )}`}
                     >
@@ -334,12 +335,12 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
                   <h3 className="font-semibold text-slate-900 text-sm mb-1 truncate">
                     {email.subject}
                   </h3>
-                  <p className="text-slate-600 text-sm line-clamp-2">
+                  <p className="text-slate-600 text-sm line-clamp-2 break-words overflow-hidden">
                     {email.snippet}
                   </p>
                 </div>
-                <div className="flex flex-col items-end gap-1 ml-3">
-                  <span className="text-xs text-slate-500">
+                <div className="flex flex-col items-end gap-1 flex-shrink-0 ml-2">
+                  <span className="text-xs text-slate-500 whitespace-nowrap">
                     {formatDate(email.date)}
                   </span>
                   {!email.isRead && (
@@ -348,6 +349,7 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
                 </div>
               </div>
             </div>
+          </div>
             </motion.div>
       ))}
 
