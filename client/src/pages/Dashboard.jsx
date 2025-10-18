@@ -60,6 +60,7 @@ const Dashboard = () => {
   const [showNotifications, setShowNotifications] = useState(false)
   const [showPerformanceDashboard, setShowPerformanceDashboard] = useState(false)
   const [categoryTabsRefresh, setCategoryTabsRefresh] = useState(0)
+  const [currentCategoryCount, setCurrentCategoryCount] = useState(0)
   
   // Rate limiting for API calls
   const [lastApiCall, setLastApiCall] = useState(0)
@@ -67,7 +68,7 @@ const Dashboard = () => {
   const API_CALL_THROTTLE = 5000 // 5 seconds throttle - much more reasonable
 
   // Email fetching function
-  const fetchEmails = useCallback(async (skipThrottle = false) => {
+  const fetchEmails = useCallback(async (skipThrottle = false, categoryOverride = null) => {
     const now = Date.now()
     if (!skipThrottle && now - lastApiCall < API_CALL_THROTTLE) {
       console.log('⏳ Throttling API call...')
@@ -77,14 +78,18 @@ const Dashboard = () => {
     try {
       setEmailsLoading(true)
       setLastApiCall(now)
-      console.log('📧 Fetching emails...', { currentPage, currentCategory, searchQuery })
+      
+      // Use the category override if provided, otherwise use current category
+      const categoryToUse = categoryOverride !== null ? categoryOverride : currentCategory
+      
+      console.log('📧 Fetching emails...', { currentPage, currentCategory, categoryToUse, searchQuery })
       console.log('📧 User token:', token ? 'Present' : 'Missing')
       console.log('📧 Gmail connected:', gmailConnected)
-      console.log('📧 API call parameters:', { page: currentPage, category: currentCategory, q: searchQuery })
+      console.log('📧 API call parameters:', { page: currentPage, category: categoryToUse, q: searchQuery })
       
       const response = await emailService.getEmails({
         page: currentPage,
-        category: currentCategory,
+        category: categoryToUse,
         q: searchQuery,
         limit: searchQuery.trim() ? 25 : 100 // Load more emails when not searching for better client-side search
       })
@@ -95,26 +100,45 @@ const Dashboard = () => {
       
       if (response.success) {
         const emailItems = response.items || []
-        setEmails(emailItems)
+        
+        // Filter out emails with hidden/test categories like WebSocketTestCategory
+        const validCategories = ['Academic', 'Promotions', 'Placement', 'Spam', 'Newsletter', 'Other']
+        const filteredEmailItems = emailItems.filter(email => {
+          if (!email.category) return true // Keep emails without category
+          // If showing "All", filter out hidden categories, otherwise show only selected category
+          if (categoryToUse === 'All') {
+            return validCategories.includes(email.category)
+          } else {
+            return email.category === categoryToUse
+          }
+        })
+        
+        setEmails(filteredEmailItems)
+        
+        // Set the category-specific count - use filtered count for "All" category, server total for specific categories
+        const countToShow = categoryToUse === 'All' ? filteredEmailItems.length : (response.total || 0)
+        setCurrentCategoryCount(countToShow)
         
         // Store all emails for client-side search (only when not searching)
         if (!searchQuery.trim()) {
-          setAllEmails(emailItems)
+          setAllEmails(filteredEmailItems)
         }
         
         setTotalPages(Math.ceil(response.total / 25))
-        console.log('✅ Emails loaded:', emailItems.length, 'out of', response.total || 0)
-        console.log('✅ First email:', emailItems[0])
-        console.log('✅ Email categories:', emailItems.map(email => ({ subject: email.subject, category: email.category })))
+        console.log('✅ Emails loaded:', filteredEmailItems.length, 'out of', response.total || 0)
+        console.log('✅ First email:', filteredEmailItems[0])
+        console.log('✅ Email categories:', filteredEmailItems.map(email => ({ subject: email.subject, category: email.category })))
         console.log('✅ Search query:', searchQuery || 'none')
       } else {
         console.error('❌ Email API failed:', response.message)
         setEmails([])
+        setCurrentCategoryCount(0)
         setTotalPages(1)
       }
     } catch (error) {
       console.error('❌ Error fetching emails:', error)
       setEmails([])
+      setCurrentCategoryCount(0)
       setTotalPages(1)
     } finally {
       setEmailsLoading(false)
@@ -781,11 +805,12 @@ const Dashboard = () => {
     console.log('🔄 Category changed to:', category)
     setCurrentCategory(category)
     setCurrentPage(1) // Reset to first page
+    setCurrentCategoryCount(0) // Reset category count immediately for better UX
     // Clear selected email when changing categories
     setSelectedEmailId(null)
     setSelectedEmail(null)
-    // Fetch emails for the new category
-    fetchEmails(true) // Force fetch without throttling
+    // Fetch emails for the new category immediately with the new category value
+    fetchEmails(true, category) // Force fetch without throttling and pass the new category
   }
 
   const handleSearchChange = (query) => {
@@ -1357,9 +1382,14 @@ const Dashboard = () => {
                     <h3 className="text-lg font-bold text-slate-800 flex items-center gap-1.5">
                       <ModernIcon type="email" size={16} color="#3b82f6" />
                       Emails
+                      {currentCategory !== 'All' && (
+                        <span className="text-sm font-medium text-slate-500 ml-1">
+                          - {currentCategory}
+                        </span>
+                      )}
                     </h3>
                     <span className="text-xs font-semibold text-slate-600 bg-gradient-to-r from-emerald-100 to-blue-100 px-2 py-0.5 rounded-full">
-                      {stats?.totalEmails || 0} emails
+                      {currentCategoryCount || 0} emails
                     </span>
                   </div>
                   <div className="flex-1 overflow-y-auto min-h-[calc(100vh-280px)] max-h-[calc(100vh-80px)]">

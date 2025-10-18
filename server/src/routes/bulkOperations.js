@@ -31,7 +31,7 @@ router.post('/categorize', protect, asyncHandler(async (req, res) => {
     }
 
     // Validate category
-    const validCategories = ['Academic', 'Promotions', 'Placement', 'Spam', 'Other']
+    const validCategories = ['Academic', 'Promotions', 'Placement', 'Spam', 'Newsletter', 'Other']
     if (!validCategories.includes(category)) {
       return res.status(400).json({
         success: false,

@@ -28,7 +28,6 @@ const BulkActions = ({
     { value: 'Placement', label: 'Placement', color: 'bg-purple-500' },
     { value: 'Spam', label: 'Spam', color: 'bg-red-500' },
     { value: 'Newsletter', label: 'Newsletter', color: 'bg-yellow-500' },
-    { value: 'WebSocketTestCategory', label: 'Test Category', color: 'bg-indigo-500' },
     { value: 'Other', label: 'Other', color: 'bg-gray-500' }
   ]
 

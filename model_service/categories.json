@@ -72,16 +72,6 @@
       ],
       "color": "#8B5CF6",
       "created_at": "2025-09-13T23:33:57.255672"
-    },
-    "WebSocketTestCategory": {
-      "id": 6,
-      "description": "WebSocket test category",
-      "keywords": [
-        "websocket",
-        "test"
-      ],
-      "color": "#FF0000",
-      "created_at": "2025-09-13T23:49:56.743923"
     }
   },
   "embeddings": {},
