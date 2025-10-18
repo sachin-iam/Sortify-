@@ -20,7 +20,7 @@ const emailService = {
       t: Date.now() // Cache-busting parameter
     })
 
-    const response = await api.get(`/api/emails?${queryParams}`)
+    const response = await api.get(`/emails?${queryParams}`)
     return response.data
   },
 
@@ -31,38 +31,38 @@ const emailService = {
 
   // Get email statistics
   getStats: async () => {
-    const response = await api.get(`/api/analytics/stats?t=${Date.now()}`)
+    const response = await api.get(`/analytics/stats?t=${Date.now()}`)
     return response.data
   },
 
   // Get single email details
   detail: async (id) => {
-    const response = await api.get(`/api/emails/${id}`)
+    const response = await api.get(`/emails/${id}`)
     return response.data
   },
 
   // Get full email content (lazy loading)
   getFullEmailContent: async (id) => {
-    const response = await api.get(`/api/emails/${id}/full-content`)
+    const response = await api.get(`/emails/${id}/full-content`)
     return response.data
   },
 
   // Archive email
   archive: async (id) => {
-    const response = await api.put(`/api/emails/${id}/archive`)
+    const response = await api.put(`/emails/${id}/archive`)
     return response.data
   },
 
   // Delete email
   remove: async (id) => {
-    const response = await api.delete(`/api/emails/${id}`)
+    const response = await api.delete(`/emails/${id}`)
     return response.data
   },
 
   // Download attachment
   downloadAttachment: async (emailId, attachmentId) => {
     const response = await api.get(
-      `/api/emails/${emailId}/attachments/${attachmentId}/download`,
+      `/emails/${emailId}/attachments/${attachmentId}/download`,
       {
         responseType: 'blob'
       }
@@ -72,7 +72,7 @@ const emailService = {
 
   // Export email (single)
   export: async (id) => {
-    const response = await api.post(`/api/emails/export`, {
+    const response = await api.post(`/emails/export`, {
       emailIds: [id],
       format: 'pdf'
     })
@@ -81,7 +81,7 @@ const emailService = {
 
   // Bulk operations
   bulkArchive: async (ids) => {
-    const response = await api.post('/api/emails/bulk', {
+    const response = await api.post('/emails/bulk', {
       action: 'archive',
       emailIds: ids
     })
@@ -89,7 +89,7 @@ const emailService = {
   },
 
   bulkDelete: async (ids) => {
-    const response = await api.post('/api/emails/bulk', {
+    const response = await api.post('/emails/bulk', {
       action: 'delete',
       emailIds: ids
     })
@@ -97,7 +97,7 @@ const emailService = {
   },
 
   bulkExport: async (ids) => {
-    const response = await api.post('/api/emails/export', {
+    const response = await api.post('/emails/export', {
       emailIds: ids,
       format: 'csv'
     })
@@ -106,19 +106,19 @@ const emailService = {
 
   // Gmail sync
   syncGmail: async () => {
-    const response = await api.post('/api/emails/gmail/sync-all')
+    const response = await api.post('/emails/gmail/sync-all')
     return response.data
   },
 
   // Gmail sync all
   syncGmailAll: async () => {
-    const response = await api.post('/api/emails/gmail/sync-all')
+    const response = await api.post('/emails/gmail/sync-all')
     return response.data
   },
 
   // Outlook sync (coming soon)
   syncOutlook: async () => {
-    const response = await api.post('/api/emails/outlook/sync-all')
+    const response = await api.post('/emails/outlook/sync-all')
     return response.data
   },
 

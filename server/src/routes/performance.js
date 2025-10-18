@@ -32,7 +32,9 @@ router.post('/optimize/database', protect, optimizeDatabase)
 // @access  Private
 router.get('/health', protect, asyncHandler(async (req, res) => {
   try {
+    console.log('Getting system health...')
     const health = await performanceService.healthCheck()
+    console.log('Health check result:', health)
     
     res.json({
       success: true,
@@ -40,10 +42,14 @@ router.get('/health', protect, asyncHandler(async (req, res) => {
       timestamp: new Date().toISOString()
     })
   } catch (error) {
+    console.error('Error getting system health:', error)
+    // Track this error in the performance service
+    performanceService.trackError('system_health', error.message)
     res.status(500).json({
       success: false,
       message: 'Failed to get system health',
-      error: error.message
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     })
   }
 }))
@@ -182,7 +188,7 @@ router.post('/reset-metrics', protect, asyncHandler(async (req, res) => {
 // @access  Private
 router.get('/cache', protect, asyncHandler(async (req, res) => {
   try {
-    const metrics = performanceService.getMetrics()
+    const metrics = await performanceService.getMetrics()
     
     res.json({
       success: true,
@@ -207,7 +213,7 @@ router.get('/cache', protect, asyncHandler(async (req, res) => {
 // @access  Private
 router.post('/cache/clear', protect, asyncHandler(async (req, res) => {
   try {
-    performanceService.cleanupCache()
+    performanceService.clearCache()
     
     res.json({
       success: true,

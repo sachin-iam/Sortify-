@@ -112,8 +112,12 @@ export const rateLimiter = (windowMs = 15 * 60 * 1000, maxRequests = 100) => {
 // Performance metrics endpoint
 export const performanceMetrics = async (req, res) => {
   try {
-    const metrics = performanceService.getMetrics()
+    console.log('Getting performance metrics...')
+    const metrics = await performanceService.getMetrics()
+    console.log('Metrics obtained:', metrics)
+    
     const health = await performanceService.healthCheck()
+    console.log('Health check completed:', health)
     
     res.json({
       success: true,
@@ -122,10 +126,14 @@ export const performanceMetrics = async (req, res) => {
       timestamp: new Date().toISOString()
     })
   } catch (error) {
+    console.error('Error in performanceMetrics:', error)
+    // Track this error in the performance service
+    performanceService.trackError('performance_metrics', error.message)
     res.status(500).json({
       success: false,
       message: 'Failed to get performance metrics',
-      error: error.message
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     })
   }
 }

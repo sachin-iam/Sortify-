@@ -4,6 +4,8 @@ import ModernIcon from './ModernIcon'
 import QuickReply from './QuickReply'
 import emailService from '../services/emailService'
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+
 const EmailReader = ({ email, onArchive, onDelete, onExport, onClose, loading = false }) => {
   const [showQuickReply, setShowQuickReply] = useState(false)
   const [fullEmail, setFullEmail] = useState(null)
@@ -321,7 +323,7 @@ const EmailReader = ({ email, onArchive, onDelete, onExport, onClose, loading = 
                     <button
                       onClick={() => {
                         // Handle attachment download
-                        window.open(`/api/emails/${email._id}/attachments/${attachment.attachmentId}/download`)
+                        window.open(`${API_BASE_URL}/emails/${email._id}/attachments/${attachment.attachmentId}/download`)
                       }}
                       className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all duration-200 text-sm font-medium shadow-sm hover:shadow-md hover:scale-105"
                     >

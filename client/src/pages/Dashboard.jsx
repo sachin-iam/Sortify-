@@ -307,9 +307,9 @@ const Dashboard = () => {
       try {
         const statsResponse = await emailService.getStats()
         console.log('📊 Stats API response:', statsResponse)
-        if (statsResponse && statsResponse.success && statsResponse.data) {
-          setStats(statsResponse.data)
-          console.log('✅ Stats loaded:', statsResponse.data)
+        if (statsResponse && statsResponse.success && statsResponse.stats) {
+          setStats(statsResponse.stats)
+          console.log('✅ Stats loaded:', statsResponse.stats)
         } else {
           console.warn('⚠️ Stats API failed, using fallback')
           setStats({

@@ -27,7 +27,7 @@ const getOAuth2Client = () => {
   return new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/oauth/callback'
+    process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/auth/gmail/callback'
   )
 }
 
@@ -262,7 +262,25 @@ router.post('/google', asyncHandler(async (req, res) => {
 // @access  Public
 router.get('/google/login', asyncHandler(async (req, res) => {
   try {
+    console.log('🔧 Generating Google OAuth URL for login...')
+    
+    // Check if environment variables are available
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      console.error('❌ Missing Google OAuth credentials')
+      return res.status(500).json({
+        success: false,
+        message: 'Google OAuth is not configured properly. Missing client credentials.'
+      })
+    }
+    
     const oauth2Client = getOAuth2Client()
+    const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/auth/gmail/callback'
+    
+    console.log('🔧 OAuth config:', {
+      clientId: process.env.GOOGLE_CLIENT_ID ? 'SET' : 'MISSING',
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET ? 'SET' : 'MISSING',
+      redirectUri: redirectUri
+    })
     
     // Generate Google OAuth URL for complete login with Gmail connection
     const authUrl = oauth2Client.generateAuthUrl({
@@ -277,18 +295,22 @@ router.get('/google/login', asyncHandler(async (req, res) => {
         'https://www.googleapis.com/auth/gmail.labels',
         'https://www.googleapis.com/auth/gmail.settings.basic'
       ],
-      state: 'complete_login' // Complete login with email connection
+      state: 'complete_login', // Complete login with email connection
+      redirect_uri: redirectUri
     })
+
+    console.log('✅ Generated OAuth URL:', authUrl.substring(0, 100) + '...')
 
     res.json({
       success: true,
       authUrl
     })
   } catch (error) {
-    console.error('Google OAuth URL generation error:', error)
+    console.error('❌ Google OAuth URL generation error:', error)
     res.status(500).json({
       success: false,
-      message: 'Failed to generate Google OAuth URL'
+      message: 'Failed to generate Google OAuth URL',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     })
   }
 }))
@@ -311,7 +333,7 @@ router.get('/google/connect', protect, asyncHandler(async (req, res) => {
         'https://www.googleapis.com/auth/gmail.settings.basic'
       ],
       state: 'gmail_connect', // Gmail connection only
-      redirect_uri: 'http://localhost:5000/api/auth/gmail/callback'
+      redirect_uri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/auth/gmail/callback'
     })
 
     res.json({

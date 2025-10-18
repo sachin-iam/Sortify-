@@ -181,7 +181,7 @@ export const AuthProvider = ({ children }) => {
     console.log('🚪 AuthContext: Logging out...')
     try {
       // Call backend logout to trigger cleanup
-      await api.post('/api/auth/logout')
+      await api.post('/auth/logout')
       console.log('✅ Backend logout successful')
     } catch (error) {
       console.error('❌ Backend logout error:', error)

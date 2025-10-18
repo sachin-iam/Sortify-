@@ -17,7 +17,7 @@ const CategoryFilter = () => {
 
   const fetchLabels = async () => {
     try {
-      const response = await api.get('/api/emails/labels')
+      const response = await api.get('/emails/labels')
       setLabels(response.data.labels || [])
     } catch (error) {
       console.error('Error fetching labels:', error)

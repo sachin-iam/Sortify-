@@ -1,8 +1,18 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
 import { api } from '../services/api'
-import ModernIcon from './ModernIcon'
+import { 
+  HomeIcon, 
+  Cog6ToothIcon, 
+  ServerIcon,
+  ClockIcon,
+  ArrowPathIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  ChartBarIcon,
+  FolderIcon
+} from '@heroicons/react/24/outline'
 
 const PerformanceDashboard = ({ isOpen, onClose }) => {
   const [metrics, setMetrics] = useState(null)
@@ -10,6 +20,89 @@ const PerformanceDashboard = ({ isOpen, onClose }) => {
   const [loading, setLoading] = useState(false)
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [refreshInterval, setRefreshInterval] = useState(null)
+  const [error, setError] = useState(null)
+
+  const fetchPerformanceData = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      const token = localStorage.getItem('token')
+      if (!token) {
+        setError('Authentication required')
+        return
+      }
+
+      const [metricsRes, healthRes] = await Promise.allSettled([
+        api.get('/performance/metrics'),
+        api.get('/performance/health')
+      ])
+
+      // Handle successful responses with fallback data
+      if (metricsRes.status === 'fulfilled' && metricsRes.value.data.success) {
+        setMetrics(metricsRes.value.data.metrics || {
+          totalProcessed: 0,
+          averageProcessingTime: 0,
+          cacheHits: 0,
+          cacheMisses: 0,
+          errors: 0,
+          cacheSize: 0,
+          cacheHitRate: 0
+        })
+      } else {
+        // Use fallback metrics if API fails
+        setMetrics({
+          totalProcessed: 0,
+          averageProcessingTime: 0,
+          cacheHits: 0,
+          cacheMisses: 0,
+          errors: 0,
+          cacheSize: 0,
+          cacheHitRate: 0
+        })
+      }
+
+      if (healthRes.status === 'fulfilled' && healthRes.value.data.success) {
+        setHealth(healthRes.value.data.health || {
+          status: 'healthy',
+          uptime: 0,
+          memoryUsage: { rss: '0 MB', heapUsed: '0 MB', heapTotal: '0 MB' },
+          cacheSize: 0
+        })
+      } else {
+        // Use fallback health data if API fails
+        setHealth({
+          status: 'healthy',
+          uptime: 0,
+          memoryUsage: { rss: '0 MB', heapUsed: '0 MB', heapTotal: '0 MB' },
+          cacheSize: 0
+        })
+      }
+
+    } catch (error) {
+      console.error('Error fetching performance data:', error)
+      setError('Failed to load performance data')
+      
+      // Set fallback data on error
+      setMetrics({
+        totalProcessed: 0,
+        averageProcessingTime: 0,
+        cacheHits: 0,
+        cacheMisses: 0,
+        errors: 0,
+        cacheSize: 0,
+        cacheHitRate: 0
+      })
+      setHealth({
+        status: 'unhealthy',
+        uptime: 0,
+        memoryUsage: { rss: '0 MB', heapUsed: '0 MB', heapTotal: '0 MB' },
+        cacheSize: 0
+      })
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
     if (isOpen) {
@@ -20,43 +113,31 @@ const PerformanceDashboard = ({ isOpen, onClose }) => {
         clearInterval(refreshInterval)
       }
     }
-  }, [isOpen])
+  }, [isOpen, fetchPerformanceData])
 
   useEffect(() => {
     if (autoRefresh && isOpen) {
-      const interval = setInterval(fetchPerformanceData, 5000) // Refresh every 5 seconds
+      const interval = setInterval(fetchPerformanceData, 10000) // Refresh every 10 seconds
       setRefreshInterval(interval)
       return () => clearInterval(interval)
     } else if (refreshInterval) {
       clearInterval(refreshInterval)
       setRefreshInterval(null)
     }
-  }, [autoRefresh, isOpen])
-
-  const fetchPerformanceData = async () => {
-    try {
-      setLoading(true)
-      const [metricsRes, healthRes] = await Promise.all([
-        api.get('/api/performance/metrics'),
-        api.get('/api/performance/health')
-      ])
-
-      setMetrics(metricsRes.data.metrics)
-      setHealth(healthRes.data.health)
-    } catch (error) {
-      console.error('Error fetching performance data:', error)
-      toast.error('Failed to load performance data')
-    } finally {
-      setLoading(false)
-    }
-  }
+  }, [autoRefresh, isOpen, fetchPerformanceData])
 
   const handleOptimizeMemory = async () => {
     try {
       setLoading(true)
-      await api.post('/api/performance/optimize/memory')
+      const token = localStorage.getItem('token')
+      if (!token) {
+        toast.error('Authentication required')
+        return
+      }
+      
+      await api.post('/performance/optimize/memory')
       toast.success('Memory optimization completed')
-      fetchPerformanceData()
+      await fetchPerformanceData()
     } catch (error) {
       console.error('Error optimizing memory:', error)
       toast.error('Failed to optimize memory')
@@ -68,9 +149,15 @@ const PerformanceDashboard = ({ isOpen, onClose }) => {
   const handleOptimizeDatabase = async () => {
     try {
       setLoading(true)
-      await api.post('/api/performance/optimize/database')
+      const token = localStorage.getItem('token')
+      if (!token) {
+        toast.error('Authentication required')
+        return
+      }
+      
+      await api.post('/performance/optimize/database')
       toast.success('Database optimization completed')
-      fetchPerformanceData()
+      await fetchPerformanceData()
     } catch (error) {
       console.error('Error optimizing database:', error)
       toast.error('Failed to optimize database')
@@ -82,9 +169,15 @@ const PerformanceDashboard = ({ isOpen, onClose }) => {
   const handleClearCache = async () => {
     try {
       setLoading(true)
-      await api.post('/api/performance/cache/clear')
+      const token = localStorage.getItem('token')
+      if (!token) {
+        toast.error('Authentication required')
+        return
+      }
+      
+      await api.post('/performance/cache/clear')
       toast.success('Cache cleared successfully')
-      fetchPerformanceData()
+      await fetchPerformanceData()
     } catch (error) {
       console.error('Error clearing cache:', error)
       toast.error('Failed to clear cache')
@@ -94,39 +187,60 @@ const PerformanceDashboard = ({ isOpen, onClose }) => {
   }
 
   const formatBytes = (bytes) => {
-    if (bytes === 0) return '0 Bytes'
+    if (bytes === 0 || !bytes) return '0 Bytes'
     const k = 1024
     const sizes = ['Bytes', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+    const i = Math.floor(Math.log(Number(bytes)) / Math.log(k))
+    return parseFloat((Number(bytes) / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
   const formatUptime = (seconds) => {
+    if (!seconds) return '0s'
     const days = Math.floor(seconds / 86400)
     const hours = Math.floor((seconds % 86400) / 3600)
     const minutes = Math.floor((seconds % 3600) / 60)
-    return `${days}d ${hours}h ${minutes}m`
+    if (days > 0) return `${days}d ${hours}h ${minutes}m`
+    if (hours > 0) return `${hours}h ${minutes}m`
+    return `${minutes}m`
   }
 
-  const getHealthColor = (status) => {
-    switch (status) {
-      case 'healthy': return 'text-green-600'
-      case 'warning': return 'text-yellow-600'
-      case 'unhealthy': return 'text-red-600'
-      default: return 'text-gray-600'
-    }
-  }
-
-  const getHealthIcon = (status) => {
-    switch (status) {
-      case 'healthy': return '✅'
-      case 'warning': return '⚠️'
-      case 'unhealthy': return '❌'
-      default: return '❓'
+  const getHealthConfig = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'healthy':
+        return {
+          color: 'text-green-600',
+          bgColor: 'bg-green-50',
+          borderColor: 'border-green-200',
+          icon: CheckCircleIcon
+        }
+      case 'warning':
+        return {
+          color: 'text-yellow-600',
+          bgColor: 'bg-yellow-50',
+          borderColor: 'border-yellow-200',
+          icon: ExclamationTriangleIcon
+        }
+      case 'unhealthy':
+        return {
+          color: 'text-red-600',
+          bgColor: 'bg-red-50',
+          borderColor: 'border-red-200',
+          icon: ExclamationTriangleIcon
+        }
+      default:
+        return {
+          color: 'text-gray-600',
+          bgColor: 'bg-gray-50',
+          borderColor: 'border-gray-200',
+          icon: ClockIcon
+        }
     }
   }
 
   if (!isOpen) return null
+
+  const healthConfig = getHealthConfig(health?.status)
+  const HealthIcon = healthConfig.icon
 
   return (
     <AnimatePresence>
@@ -138,38 +252,40 @@ const PerformanceDashboard = ({ isOpen, onClose }) => {
         onClick={(e) => e.target === e.currentTarget && onClose()}
       >
         <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
+          initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.9, opacity: 0 }}
-          className="bg-white/90 backdrop-blur-xl border border-white/30 rounded-3xl shadow-2xl shadow-blue-100/20 max-w-6xl w-full max-h-[90vh] overflow-hidden"
+          exit={{ scale: 0.95, opacity: 0 }}
+          className="bg-white border border-gray-200 rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-hidden"
         >
           {/* Header */}
-          <div className="p-6 border-b border-white/30 bg-gradient-to-r from-white/60 to-white/40">
+          <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
             <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-                  <ModernIcon type="performance" size={24} color="#3b82f6" />
-                  Performance Dashboard
-                </h2>
-                <p className="text-slate-600 mt-1">
-                  System performance monitoring and optimization
-                </p>
+              <div className="flex items-center gap-3">
+                <HomeIcon className="w-6 h-6 text-gray-700" />
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    Performance Dashboard
+                  </h2>
+                  <p className="text-sm text-gray-600">
+                    System monitoring and optimization
+                  </p>
+                </div>
               </div>
               <div className="flex items-center gap-3">
-                <label className="flex items-center gap-2">
+                <label className="flex items-center gap-2 text-sm text-gray-700">
                   <input
                     type="checkbox"
                     checked={autoRefresh}
                     onChange={(e) => setAutoRefresh(e.target.checked)}
                     className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                   />
-                  <span className="text-sm text-slate-600">Auto Refresh</span>
+                  Auto Refresh
                 </label>
                 <button
                   onClick={onClose}
-                  className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
+                  className="p-2 hover:bg-gray-200 rounded-md transition-colors"
                 >
-                  <svg className="w-6 h-6 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -177,62 +293,106 @@ const PerformanceDashboard = ({ isOpen, onClose }) => {
             </div>
           </div>
 
+          {/* Error State */}
+          {error && (
+            <div className="px-6 py-3 bg-red-50 border-b border-red-200">
+              <div className="flex items-center gap-2 text-red-700">
+                <ExclamationTriangleIcon className="w-5 h-5" />
+                <span className="text-sm font-medium">{error}</span>
+              </div>
+            </div>
+          )}
+
           {/* Content */}
-          <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+          <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-180px)]">
+            
             {/* System Health */}
-            {health && (
-              <div>
-                <h3 className="text-lg font-semibold text-slate-800 mb-3 flex items-center gap-2">
-                  <span className={getHealthColor(health.status)}>
-                    {getHealthIcon(health.status)}
-                  </span>
-                  System Health
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl">
-                    <div className="text-2xl font-bold text-blue-600">
-                      {health.status?.toUpperCase()}
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <HealthIcon className="w-5 h-5 text-gray-700" />
+                <h3 className="text-lg font-medium text-gray-900">System Health</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className={`p-4 rounded-lg border ${healthConfig.bgColor} ${healthConfig.borderColor}`}>
+                  <div className="flex items-center gap-3">
+                    <HealthIcon className={`w-6 h-6 ${healthConfig.color}`} />
+                    <div>
+                      <div className={`text-xl font-semibold ${healthConfig.color}`}>
+                        {health?.status || 'Unknown'}
+                      </div>
+                      <div className="text-sm text-gray-600">Status</div>
                     </div>
-                    <div className="text-sm text-blue-800">Status</div>
                   </div>
-                  <div className="p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-xl">
-                    <div className="text-2xl font-bold text-green-600">
-                      {formatUptime(health.uptime || 0)}
+                </div>
+                
+                <div className="p-4 rounded-lg border border-gray-200 bg-gray-50">
+                  <div className="flex items-center gap-3">
+                    <ClockIcon className="w-6 h-6 text-blue-600" />
+                    <div>
+                      <div className="text-xl font-semibold text-blue-600">
+                        {formatUptime(health?.uptime || 0)}
+                      </div>
+                      <div className="text-sm text-gray-600">Uptime</div>
                     </div>
-                    <div className="text-sm text-green-800">Uptime</div>
                   </div>
-                  <div className="p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl">
-                    <div className="text-2xl font-bold text-purple-600">
-                      {health.cacheSize || 0}
+                </div>
+                
+                <div className="p-4 rounded-lg border border-gray-200 bg-gray-50">
+                  <div className="flex items-center gap-3">
+                    <ServerIcon className="w-6 h-6 text-purple-600" />
+                    <div>
+                      <div className="text-xl font-semibold text-purple-600">
+                        {health?.cacheSize || metrics?.cacheSize || 0}
+                      </div>
+                      <div className="text-sm text-gray-600">Cache Entries</div>
                     </div>
-                    <div className="text-sm text-purple-800">Cache Size</div>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
 
             {/* Memory Usage */}
             {health?.memoryUsage && (
               <div>
-                <h3 className="text-lg font-semibold text-slate-800 mb-3">Memory Usage</h3>
+                <div className="flex items-center gap-2 mb-4">
+                  <FolderIcon className="w-5 h-5 text-gray-700" />
+                  <h3 className="text-lg font-medium text-gray-900">Memory Usage</h3>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="p-4 bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl">
-                    <div className="text-2xl font-bold text-orange-600">
-                      {health.memoryUsage.rss}
+                  <div className="p-4 rounded-lg border border-gray-200 bg-gray-50">
+                    <div className="flex items-center gap-3">
+                      <Cog6ToothIcon className="w-6 h-6 text-orange-600" />
+                      <div>
+                        <div className="text-xl font-semibold text-orange-600">
+                          {health.memoryUsage.rss || '0 MB'}
+                        </div>
+                        <div className="text-sm text-gray-600">RSS Memory</div>
+                      </div>
                     </div>
-                    <div className="text-sm text-orange-800">RSS Memory</div>
                   </div>
-                  <div className="p-4 bg-gradient-to-br from-red-50 to-red-100 rounded-xl">
-                    <div className="text-2xl font-bold text-red-600">
-                      {health.memoryUsage.heapUsed}
+                  
+                  <div className="p-4 rounded-lg border border-gray-200 bg-gray-50">
+                    <div className="flex items-center gap-3">
+                      <FolderIcon className="w-6 h-6 text-red-600" />
+                      <div>
+                        <div className="text-xl font-semibold text-red-600">
+                          {health.memoryUsage.heapUsed || '0 MB'}
+                        </div>
+                        <div className="text-sm text-gray-600">Heap Used</div>
+                      </div>
                     </div>
-                    <div className="text-sm text-red-800">Heap Used</div>
                   </div>
-                  <div className="p-4 bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl">
-                    <div className="text-2xl font-bold text-indigo-600">
-                      {health.memoryUsage.heapTotal}
+                  
+                  <div className="p-4 rounded-lg border border-gray-200 bg-gray-50">
+                    <div className="flex items-center gap-3">
+                      <ServerIcon className="w-6 h-6 text-indigo-600" />
+                      <div>
+                        <div className="text-xl font-semibold text-indigo-600">
+                          {health.memoryUsage.heapTotal || '0 MB'}
+                        </div>
+                        <div className="text-sm text-gray-600">Heap Total</div>
+                      </div>
                     </div>
-                    <div className="text-sm text-indigo-800">Heap Total</div>
                   </div>
                 </div>
               </div>
@@ -241,31 +401,39 @@ const PerformanceDashboard = ({ isOpen, onClose }) => {
             {/* Performance Metrics */}
             {metrics && (
               <div>
-                <h3 className="text-lg font-semibold text-slate-800 mb-3">Performance Metrics</h3>
+                <div className="flex items-center gap-2 mb-4">
+                  <ChartBarIcon className="w-5 h-5 text-gray-700" />
+                  <h3 className="text-lg font-medium text-gray-900">Performance Metrics</h3>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-xl">
-                    <div className="text-2xl font-bold text-green-600">
-                      {metrics.totalProcessed || 0}
+                  <div className="p-4 rounded-lg border border-gray-200 bg-gray-50">
+                    <div className="text-xl font-semibold text-green-600">
+                      {metrics.totalProcessed?.toLocaleString() || '0'}
                     </div>
-                    <div className="text-sm text-green-800">Total Processed</div>
+                    <div className="text-sm text-gray-600">Total Processed</div>
                   </div>
-                  <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl">
-                    <div className="text-2xl font-bold text-blue-600">
-                      {metrics.averageProcessingTime?.toFixed(2) || 0}ms
+                  
+                  <div className="p-4 rounded-lg border border-gray-200 bg-gray-50">
+                    <div className="text-xl font-semibold text-blue-600">
+                      {metrics.averageProcessingTime ? 
+                        `${Number(metrics.averageProcessingTime).toFixed(1)}ms` : '0ms'}
                     </div>
-                    <div className="text-sm text-blue-800">Avg Processing Time</div>
+                    <div className="text-sm text-gray-600">Avg Processing Time</div>
                   </div>
-                  <div className="p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl">
-                    <div className="text-2xl font-bold text-purple-600">
-                      {metrics.cacheHitRate?.toFixed(1) || 0}%
+                  
+                  <div className="p-4 rounded-lg border border-gray-200 bg-gray-50">
+                    <div className="text-xl font-semibold text-purple-600">
+                      {metrics.cacheHitRate ? 
+                        `${Number(metrics.cacheHitRate).toFixed(1)}%` : '0%'}
                     </div>
-                    <div className="text-sm text-purple-800">Cache Hit Rate</div>
+                    <div className="text-sm text-gray-600">Cache Hit Rate</div>
                   </div>
-                  <div className="p-4 bg-gradient-to-br from-red-50 to-red-100 rounded-xl">
-                    <div className="text-2xl font-bold text-red-600">
+                  
+                  <div className="p-4 rounded-lg border border-gray-200 bg-gray-50">
+                    <div className="text-xl font-semibold text-red-600">
                       {metrics.errors || 0}
                     </div>
-                    <div className="text-sm text-red-800">Errors</div>
+                    <div className="text-sm text-gray-600">Errors</div>
                   </div>
                 </div>
               </div>
@@ -274,25 +442,30 @@ const PerformanceDashboard = ({ isOpen, onClose }) => {
             {/* Cache Statistics */}
             {metrics && (
               <div>
-                <h3 className="text-lg font-semibold text-slate-800 mb-3">Cache Statistics</h3>
+                <div className="flex items-center gap-2 mb-4">
+                  <ServerIcon className="w-5 h-5 text-gray-700" />
+                  <h3 className="text-lg font-medium text-gray-900">Cache Statistics</h3>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="p-4 bg-gradient-to-br from-cyan-50 to-cyan-100 rounded-xl">
-                    <div className="text-2xl font-bold text-cyan-600">
-                      {metrics.cacheHits || 0}
+                  <div className="p-4 rounded-lg border border-gray-200 bg-gray-50">
+                    <div className="text-xl font-semibold text-cyan-600">
+                      {metrics.cacheHits?.toLocaleString() || '0'}
                     </div>
-                    <div className="text-sm text-cyan-800">Cache Hits</div>
+                    <div className="text-sm text-gray-600">Cache Hits</div>
                   </div>
-                  <div className="p-4 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl">
-                    <div className="text-2xl font-bold text-yellow-600">
-                      {metrics.cacheMisses || 0}
+                  
+                  <div className="p-4 rounded-lg border border-gray-200 bg-gray-50">
+                    <div className="text-xl font-semibold text-yellow-600">
+                      {metrics.cacheMisses?.toLocaleString() || '0'}
                     </div>
-                    <div className="text-sm text-yellow-800">Cache Misses</div>
+                    <div className="text-sm text-gray-600">Cache Misses</div>
                   </div>
-                  <div className="p-4 bg-gradient-to-br from-pink-50 to-pink-100 rounded-xl">
-                    <div className="text-2xl font-bold text-pink-600">
+                  
+                  <div className="p-4 rounded-lg border border-gray-200 bg-gray-50">
+                    <div className="text-xl font-semibold text-purple-600">
                       {metrics.cacheSize || 0}
                     </div>
-                    <div className="text-sm text-pink-800">Cache Size</div>
+                    <div className="text-sm text-gray-600">Current Cache Size</div>
                   </div>
                 </div>
               </div>
@@ -300,75 +473,78 @@ const PerformanceDashboard = ({ isOpen, onClose }) => {
 
             {/* Optimization Actions */}
             <div>
-              <h3 className="text-lg font-semibold text-slate-800 mb-3">Optimization Actions</h3>
+              <div className="flex items-center gap-2 mb-4">
+                <Cog6ToothIcon className="w-5 h-5 text-gray-700" />
+                <h3 className="text-lg font-medium text-gray-900">Optimization Actions</h3>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                <button
                   onClick={handleOptimizeMemory}
                   disabled={loading}
-                  className="p-4 bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <div className="flex items-center gap-2">
-                    <ModernIcon type="memory" size={20} color="#ffffff" />
-                    Optimize Memory
+                  <FolderIcon className="w-5 h-5 text-green-600" />
+                  <div className="text-left">
+                    <div className="font-medium text-gray-900">Optimize Memory</div>
+                    <div className="text-sm text-gray-600">Clear memory cache</div>
                   </div>
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                </button>
+                
+                <button
                   onClick={handleOptimizeDatabase}
                   disabled={loading}
-                  className="p-4 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <div className="flex items-center gap-2">
-                    <ModernIcon type="database" size={20} color="#ffffff" />
-                    Optimize Database
+                  <ServerIcon className="w-5 h-5 text-blue-600" />
+                  <div className="text-left">
+                    <div className="font-medium text-gray-900">Optimize Database</div>
+                    <div className="text-sm text-gray-600">Rebuild indexes</div>
                   </div>
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                </button>
+                
+                <button
                   onClick={handleClearCache}
                   disabled={loading}
-                  className="p-4 bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <div className="flex items-center gap-2">
-                    <ModernIcon type="cache" size={20} color="#ffffff" />
-                    Clear Cache
+                  <ArrowPathIcon className="w-5 h-5 text-purple-600" />
+                  <div className="text-left">
+                    <div className="font-medium text-gray-900">Clear Cache</div>
+                    <div className="text-sm text-gray-600">Reset all caches</div>
                   </div>
-                </motion.button>
+                </button>
               </div>
             </div>
           </div>
 
           {/* Footer */}
-          <div className="p-6 border-t border-white/30 bg-gradient-to-r from-white/60 to-white/40">
+          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
             <div className="flex items-center justify-between">
-              <div className="text-sm text-slate-600">
+              <div className="text-sm text-gray-600">
                 Last updated: {new Date().toLocaleTimeString()}
+                {loading && <span className="ml-2 text-blue-600">Updating...</span>}
               </div>
               <div className="flex items-center gap-3">
                 <button
                   onClick={fetchPerformanceData}
                   disabled={loading}
-                  className="px-4 py-2 bg-slate-200/60 text-slate-700 rounded-xl font-semibold hover:bg-slate-300/60 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? (
                     <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-700"></div>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-700"></div>
                       Loading...
                     </>
                   ) : (
                     <>
-                      <ModernIcon type="refresh" size={16} color="#475569" />
+                      <ArrowPathIcon className="w-4 h-4" />
                       Refresh
                     </>
                   )}
                 </button>
                 <button
                   onClick={onClose}
-                  className="px-6 py-2 bg-slate-200/60 text-slate-700 rounded-xl font-semibold hover:bg-slate-300/60 transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
                 >
                   Close
                 </button>

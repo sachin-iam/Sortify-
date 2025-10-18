@@ -45,7 +45,7 @@ const SuperAnalyticsDashboard = () => {
         analyticsService.getCategoryCounts(),
         analyticsService.getClassificationAccuracy(),
         analyticsService.getMisclassifications(50),
-        api.get(`/api/analytics/advanced?range=${timeRange}&category=${selectedCategory}`)
+        api.get(`/analytics/advanced?range=${timeRange}&category=${selectedCategory}`)
       ])
 
       setCategoryData(categories.data || [])

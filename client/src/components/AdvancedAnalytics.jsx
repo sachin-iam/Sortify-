@@ -26,7 +26,7 @@ const AdvancedAnalytics = () => {
   const fetchAnalytics = async () => {
     try {
       setLoading(true)
-      const response = await api.get(`/api/analytics/advanced?range=${timeRange}&category=${selectedCategory}`)
+      const response = await api.get(`/analytics/advanced?range=${timeRange}&category=${selectedCategory}`)
       setAnalytics(response.data)
     } catch (error) {
       console.error('Error fetching analytics:', error)
