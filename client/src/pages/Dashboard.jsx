@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useWebSocketContext } from '../contexts/WebSocketContext'
 import { motion } from 'framer-motion'
@@ -19,6 +20,7 @@ import ModernIcon from '../components/ModernIcon'
 const Dashboard = () => {
   const { user, token, connectGmailAccount, updateTokenFromOAuth } = useAuth()
   const { isConnected, connectionStatus, subscribeToEvents } = useWebSocketContext()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [activeView, setActiveView] = useState('emails')
   const [syncLoading, setSyncLoading] = useState(false)
   const [gmailConnected, setGmailConnected] = useState(false)
@@ -357,6 +359,16 @@ const Dashboard = () => {
       currentPage
     })
   }, [emails, currentCategory, searchQuery, currentPage])
+
+  // Check URL parameters for tab navigation
+  useEffect(() => {
+    const tab = searchParams.get('tab')
+    if (tab === 'notifications') {
+      setShowNotifications(true)
+      // Clear the parameter after opening
+      setSearchParams({})
+    }
+  }, [searchParams, setSearchParams])
 
   // WebSocket event handlers
   const handleEmailSync = (emailData) => {
@@ -1394,6 +1406,7 @@ const Dashboard = () => {
       <NotificationCenter
         isOpen={showNotifications}
         onClose={() => setShowNotifications(false)}
+        onNotificationUpdate={() => window.dispatchEvent(new CustomEvent('notificationUpdated'))}
       />
 
 

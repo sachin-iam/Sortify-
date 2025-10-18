@@ -5,9 +5,11 @@ import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { google } from 'googleapis'
 import User from '../models/User.js'
+import Notification from '../models/Notification.js'
 import { protect } from '../middleware/auth.js'
 import { asyncHandler } from '../middleware/errorHandler.js'
 import { cleanupOnLogout } from '../services/emailCleanupService.js'
+import notificationService from '../services/notificationService.js'
 
 const router = express.Router()
 
@@ -175,6 +177,19 @@ router.post('/login', [
     // Update last login
     await user.updateLastLogin()
 
+    // Send login notification
+    try {
+      await notificationService.sendLoginNotification(user._id.toString(), {
+        message: `User ${user.name || user.email} logged in successfully`,
+        loginTime: new Date().toISOString(),
+        ipAddress: req.ip || req.connection?.remoteAddress,
+        userAgent: req.get('User-Agent')
+      })
+    } catch (error) {
+      console.error('Error sending login notification:', error)
+      // Continue with login even if notification fails
+    }
+
     sendTokenResponse(user, 200, res)
   } catch (error) {
     console.error('Database operation failed:', error)
@@ -245,6 +260,19 @@ router.post('/google', asyncHandler(async (req, res) => {
         console.error('❌ Failed to auto-connect Gmail:', error)
         // Continue with login even if Gmail connection fails
       }
+    }
+
+    // Send login notification for Google OAuth login
+    try {
+      await notificationService.sendLoginNotification(user._id.toString(), {
+        message: `User ${user.name || user.email} logged in via Google OAuth`,
+        loginTime: new Date().toISOString(),
+        ipAddress: req.ip || req.connection?.remoteAddress,
+        userAgent: req.get('User-Agent')
+      })
+    } catch (error) {
+      console.error('Error sending Google login notification:', error)
+      // Continue with login even if notification fails
     }
 
     sendTokenResponse(user, 200, res)
@@ -407,11 +435,35 @@ router.put('/profile', protect, [
   if (name) updateFields.name = name
   if (emailPreferences) updateFields.emailPreferences = emailPreferences
 
+  // Only proceed if there are actually fields to update
+  if (Object.keys(updateFields).length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'No valid fields to update'
+    })
+  }
+
   const user = await User.findByIdAndUpdate(
     req.user._id,
     updateFields,
     { new: true, runValidators: true }
   )
+
+  // Send notification about profile update
+  const updatedFieldNames = Object.keys(updateFields)
+  const updateMessage = updatedFieldNames.length > 0 
+    ? `Profile updated: ${updatedFieldNames.join(', ')}`
+    : 'Profile updated'
+
+  console.log('📢 Sending profile update notification for user:', req.user._id.toString(), 'Fields:', updatedFieldNames)
+  
+  // Send notification asynchronously
+  notificationService.sendProfileUpdateNotification(req.user._id.toString(), {
+    message: updateMessage,
+    updatedFields: updatedFieldNames
+  }).catch(error => {
+    console.error('Error sending profile update notification:', error)
+  })
 
   res.json({
     success: true,
@@ -439,6 +491,26 @@ router.post('/logout', protect, asyncHandler(async (req, res) => {
   } catch (error) {
     console.error('❌ Logout cleanup error:', error)
     // Continue with logout even if cleanup fails
+  }
+
+  // Clear all notifications for this user on logout
+  try {
+    const userId = req.user._id.toString()
+    
+    // Get count before deletion for logging
+    const userNotificationCount = await Notification.countDocuments({
+      userId: { $in: [userId, req.user._id] }
+    })
+    
+    // Remove all notifications for this user from database
+    await Notification.deleteMany({
+      userId: { $in: [userId, req.user._id] }
+    })
+    
+    console.log(`✅ Cleared ${userNotificationCount} notifications for user ${userId} on logout`)
+  } catch (error) {
+    console.error('❌ Notification cleanup error on logout:', error)
+    // Continue with logout even if notification cleanup fails
   }
 
   res.cookie('token', 'none', {
@@ -704,6 +776,15 @@ router.get('/gmail/callback', asyncHandler(async (req, res) => {
         user.gmailName = userInfo.name || userInfo.email
         await user.save()
         console.log('✅ Updated existing user with complete Gmail setup:', userInfo.email)
+        
+        // Send notification about Gmail connection
+        notificationService.sendConnectionNotification(user._id.toString(), {
+          status: 'connected',
+          provider: 'gmail',
+          message: `Gmail account connected successfully: ${userInfo.email}`
+        }).catch(error => {
+          console.error('Error sending connection notification:', error)
+        })
       }
     } else if (flowType === 'gmail_connect') {
       // Gmail connection only flow - user must be authenticated
@@ -729,6 +810,15 @@ router.get('/gmail/callback', asyncHandler(async (req, res) => {
       user.gmailName = userInfo.name || userInfo.email
       await user.save()
       console.log('✅ Connected Gmail to existing user:', userInfo.email)
+      
+      // Send notification about Gmail connection
+      notificationService.sendConnectionNotification(user._id.toString(), {
+        status: 'connected',
+        provider: 'gmail',
+        message: `Gmail account connected successfully: ${userInfo.email}`
+      }).catch(error => {
+        console.error('Error sending connection notification:', error)
+      })
     }
 
     // Generate JWT token for the user
@@ -810,6 +900,15 @@ router.post('/gmail/disconnect', protect, asyncHandler(async (req, res) => {
     })
 
     console.log(`🗑️ Purged ${deleteResult.deletedCount} Gmail emails for user ${user.email}`)
+
+    // Send notification about Gmail disconnection
+    notificationService.sendConnectionNotification(req.user._id.toString(), {
+      status: 'disconnected',
+      provider: 'gmail',
+      message: `Gmail account disconnected and ${deleteResult.deletedCount} emails purged`
+    }).catch(error => {
+      console.error('Error sending disconnection notification:', error)
+    })
 
     res.json({
       success: true,

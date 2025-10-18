@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, AreaChart, Area } from 'recharts'
 import { motion } from 'framer-motion'
 import { analyticsService } from '../services/analyticsService'
@@ -29,36 +29,46 @@ const SuperAnalyticsDashboard = () => {
   
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('overview')
-  const [timeRange, setTimeRange] = useState('7d')
+  const [timeRange, setTimeRange] = useState('all')
   const [selectedCategory, setSelectedCategory] = useState('All')
+  
+  // Simple flag to prevent unnecessary reloading
+  const lastLoadParamsRef = useRef('')
 
   useEffect(() => {
-    loadAllAnalyticsData()
-  }, [timeRange, selectedCategory])
+    const currentParams = `${timeRange}-${selectedCategory}`
+    
+    // Only load if parameters have actually changed
+    if (currentParams !== lastLoadParamsRef.current) {
+      const loadAllAnalyticsData = async () => {
+        try {
+          setLoading(true)
+          
+          // Load data from both services - analyze all emails by default
+          const [categories, accuracy, misclassificationsData, advancedAnalytics] = await Promise.all([
+            analyticsService.getCategoryCounts(),
+            analyticsService.getClassificationAccuracy(),
+            analyticsService.getMisclassifications(10000), // Remove the 50 limit to get all emails
+            api.get(`/analytics/advanced?range=${timeRange}&category=${selectedCategory}`)
+          ])
 
-  const loadAllAnalyticsData = async () => {
-    try {
-      setLoading(true)
-      
-      // Load data from both services
-      const [categories, accuracy, misclassificationsData, advancedAnalytics] = await Promise.all([
-        analyticsService.getCategoryCounts(),
-        analyticsService.getClassificationAccuracy(),
-        analyticsService.getMisclassifications(50),
-        api.get(`/analytics/advanced?range=${timeRange}&category=${selectedCategory}`)
-      ])
+          // Safely handle API responses
+          setCategoryData(Array.isArray(categories?.data) ? categories.data : [])
+          setAccuracyData(typeof accuracy?.data === 'object' && accuracy.data ? accuracy.data : {})
+          setMisclassifications(Array.isArray(misclassificationsData?.data) ? misclassificationsData.data : [])
+          setAnalytics(typeof advancedAnalytics?.data === 'object' && advancedAnalytics.data ? advancedAnalytics.data : {})
+        } catch (error) {
+          toast.error('Failed to load analytics data')
+          console.error('Error loading analytics:', error)
+        } finally {
+          setLoading(false)
+        }
+      }
 
-      setCategoryData(categories.data || [])
-      setAccuracyData(accuracy.data || {})
-      setMisclassifications(misclassificationsData.data || [])
-      setAnalytics(advancedAnalytics.data || {})
-    } catch (error) {
-      toast.error('Failed to load analytics data')
-      console.error('Error loading analytics:', error)
-    } finally {
-      setLoading(false)
+      loadAllAnalyticsData()
+      lastLoadParamsRef.current = currentParams
     }
-  }
+  }, [timeRange, selectedCategory])
 
   const formatNumber = (num) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
@@ -104,6 +114,7 @@ const SuperAnalyticsDashboard = () => {
               onChange={(e) => setTimeRange(e.target.value)}
               className="px-4 py-2 bg-white/60 border border-white/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 font-medium"
             >
+              <option value="all">All Time</option>
               <option value="1d">Last 24 Hours</option>
               <option value="7d">Last 7 Days</option>
               <option value="30d">Last 30 Days</option>

@@ -92,11 +92,12 @@ router.get('/stats', protect, asyncHandler(async (req, res) => {
 // @access  Private
 router.get('/categories', protect, asyncHandler(async (req, res) => {
   try {
+    // Get category counts for ALL emails (including uncategorized)
     const categoryData = await Email.aggregate([
-      { $match: { userId: req.user._id, category: { $ne: null } } },
+      { $match: { userId: req.user._id } },
       {
         $group: {
-          _id: '$category',
+          _id: { $ifNull: ['$category', 'Uncategorized'] },
           count: { $sum: 1 }
         }
       },
@@ -143,7 +144,6 @@ router.get('/accuracy', protect, asyncHandler(async (req, res) => {
       {
         $match: {
           userId: req.user._id,
-          category: { $ne: null },
           'classification.confidence': { $exists: true }
         }
       },
@@ -263,11 +263,13 @@ router.get('/accuracy', protect, asyncHandler(async (req, res) => {
 // @access  Private
 router.get('/misclassifications', protect, asyncHandler(async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 50
+    // Remove the hard limit and allow querying all emails
+    // Use a large limit (10000) to ensure we get all misclassifications
+    const limit = parseInt(req.query.limit) || 10000
 
+    // Query ALL emails to find misclassifications, not just categorized ones
     const misclassifications = await Email.find({
-      userId: req.user._id,
-      category: { $ne: null }
+      userId: req.user._id
     })
     .select('subject from date category classification labels')
     .sort({ date: -1 })

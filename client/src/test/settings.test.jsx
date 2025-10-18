@@ -98,7 +98,8 @@ describe('Settings Page', () => {
     fireEvent.click(saveButton)
 
     await waitFor(() => {
-      expect(api.put).toHaveBeenCalledWith('/api/auth/profile', {
+      expect(api.put).toHaveBeenCalledWith('/auth/profile', {
+        
         name: 'Updated Name',
         emailPreferences: mockUser.emailPreferences
       })
@@ -120,7 +121,7 @@ describe('Settings Page', () => {
     fireEvent.click(changeButton)
 
     await waitFor(() => {
-      expect(api.put).toHaveBeenCalledWith('/api/auth/change-password', {
+      expect(api.put).toHaveBeenCalledWith('/auth/change-password', {
         currentPassword: 'current123',
         newPassword: 'newpassword123'
       })
@@ -143,7 +144,7 @@ describe('Settings Page', () => {
 
     // Should not call API when passwords don't match
     await waitFor(() => {
-      expect(api.put).not.toHaveBeenCalledWith('/api/auth/change-password', expect.anything())
+      expect(api.put).not.toHaveBeenCalledWith('/auth/change-password', expect.anything())
     })
   })
 
@@ -154,7 +155,7 @@ describe('Settings Page', () => {
     fireEvent.click(notificationsToggle)
 
     await waitFor(() => {
-      expect(api.put).toHaveBeenCalledWith('/api/auth/email-preferences', {
+      expect(api.put).toHaveBeenCalledWith('/auth/email-preferences', {
         notifications: false
       })
     })
@@ -174,7 +175,7 @@ describe('Settings Page', () => {
     fireEvent.click(connectButton)
 
     await waitFor(() => {
-      expect(api.get).toHaveBeenCalledWith('/api/auth/gmail/connect')
+      expect(api.get).toHaveBeenCalledWith('/auth/gmail/connect')
     })
   })
 
@@ -205,7 +206,7 @@ describe('Settings Page', () => {
       expect(window.confirm).toHaveBeenCalledWith(
         'Are you sure you want to disconnect your Gmail account? This will remove all synced emails.'
       )
-      expect(api.post).toHaveBeenCalledWith('/api/auth/gmail/disconnect')
+      expect(api.post).toHaveBeenCalledWith('/auth/gmail/disconnect')
     })
   })
 
@@ -217,7 +218,7 @@ describe('Settings Page', () => {
 
     // Should show coming soon message
     await waitFor(() => {
-      expect(api.get).not.toHaveBeenCalledWith('/api/auth/outlook/connect')
+      expect(api.get).not.toHaveBeenCalledWith('/auth/outlook/connect')
     })
   })
 
@@ -234,7 +235,7 @@ describe('Settings Page', () => {
       expect(window.prompt).toHaveBeenCalledWith(
         expect.stringContaining('Type "DELETE" to confirm:')
       )
-      expect(api.delete).toHaveBeenCalledWith('/api/auth/account')
+      expect(api.delete).toHaveBeenCalledWith('/auth/account')
     })
   })
 

@@ -6,7 +6,7 @@ import { api } from '../services/api'
 import ModernIcon from '../components/ModernIcon'
 
 const Settings = () => {
-  const { user, logout } = useAuth()
+  const { user, logout, updateUser } = useAuth()
   const [loading, setLoading] = useState(false)
   const [passwordLoading, setPasswordLoading] = useState(false)
   const [preferencesLoading, setPreferencesLoading] = useState(false)
@@ -49,7 +49,7 @@ const Settings = () => {
       
       // Load connections status
       try {
-        const response = await api.get('/api/auth/connections')
+        const response = await api.get('/auth/connections')
         if (response.data.success) {
           setConnections(response.data.connections)
           setUserData(prev => ({
@@ -97,13 +97,34 @@ const Settings = () => {
     e.preventDefault()
     setLoading(true)
 
+    // Validate name before sending
+    if (!userData.name || userData.name.trim().length < 2) {
+      toast.error('Name must be at least 2 characters long')
+      setLoading(false)
+      return
+    }
+
+    if (userData.name.trim().length > 50) {
+      toast.error('Name must be less than 50 characters')
+      setLoading(false)
+      return
+    }
+
     try {
-      const response = await api.put('/api/auth/profile', {
-        name: userData.name,
+      const response = await api.put('/auth/profile', {
+        name: userData.name.trim(),
         emailPreferences: userData.emailPreferences
       })
       
       if (response.data.success) {
+        // Update the user data in AuthContext so it reflects everywhere
+        if (response.data.user) {
+          updateUser({
+            name: response.data.user.name,
+            emailPreferences: response.data.user.emailPreferences
+          })
+        }
+        
         toast.success('Profile updated successfully!', {
           duration: 3000,
           style: {
@@ -126,7 +147,23 @@ const Settings = () => {
       }
     } catch (error) {
       console.error('Profile update error:', error)
-      toast.error(error.response?.data?.message || 'Failed to update profile')
+      
+      // Handle different types of errors
+      let errorMessage = 'Failed to update profile'
+      
+      if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+        errorMessage = 'Unable to connect to server. Please check if the server is running.'
+      } else if (error.response?.status === 401) {
+        errorMessage = 'Authentication failed. Please log in again.'
+      } else if (error.response?.status === 400) {
+        errorMessage = error.response?.data?.message || 'Validation failed. Please check your input.'
+      } else if (error.response?.status >= 500) {
+        errorMessage = 'Server error. Please try again later.'
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message
+      }
+      
+      toast.error(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -148,7 +185,7 @@ const Settings = () => {
     setPasswordLoading(true)
 
     try {
-      const response = await api.put('/api/auth/change-password', {
+      const response = await api.put('/auth/change-password', {
         currentPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword
       })
@@ -187,7 +224,7 @@ const Settings = () => {
     setPreferencesLoading(true)
 
     try {
-      const response = await api.put('/api/auth/email-preferences', {
+      const response = await api.put('/auth/email-preferences', {
         [preference]: value
       })
       
@@ -196,6 +233,11 @@ const Settings = () => {
           ...prev,
           emailPreferences: response.data.emailPreferences
         }))
+        
+        // Update the user data in AuthContext so it reflects everywhere
+        updateUser({
+          emailPreferences: response.data.emailPreferences
+        })
         toast.success('Email preferences updated!', {
           duration: 2000,
           style: {
@@ -228,7 +270,7 @@ const Settings = () => {
     setConnectionsLoading(true)
     
     try {
-      const response = await api.get('/api/auth/gmail/connect')
+      const response = await api.get('/auth/gmail/connect')
       if (response.data.success) {
         window.location.href = response.data.authUrl
       } else {
@@ -250,7 +292,7 @@ const Settings = () => {
     setConnectionsLoading(true)
 
     try {
-      const response = await api.post('/api/auth/gmail/disconnect')
+      const response = await api.post('/auth/gmail/disconnect')
       if (response.data.success) {
         setConnections(prev => ({
           ...prev,
@@ -317,7 +359,7 @@ const Settings = () => {
     setDeleteLoading(true)
 
     try {
-      const response = await api.delete('/api/auth/account')
+      const response = await api.delete('/auth/account')
       if (response.data.success) {
         toast.success('Account deleted successfully', {
           duration: 2000,

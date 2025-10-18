@@ -15,30 +15,31 @@ const AnalyticsDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview')
 
   useEffect(() => {
-    loadAnalyticsData()
-  }, [])
+    // Load data once when component mounts
+    const loadAnalyticsData = async () => {
+      try {
+        setLoading(true)
+        
+        const [categories, accuracy, misclassificationsData] = await Promise.all([
+          analyticsService.getCategoryCounts(),
+          analyticsService.getClassificationAccuracy(),
+          analyticsService.getMisclassifications(10000) // Remove the 50 limit to analyze all emails
+        ])
 
-  const loadAnalyticsData = async () => {
-    try {
-      setLoading(true)
-      
-      const [categories, accuracy, misclassificationsData] = await Promise.all([
-        analyticsService.getCategoryCounts(),
-        analyticsService.getClassificationAccuracy(),
-        analyticsService.getMisclassifications(50)
-      ])
-
-      setCategoryData(categories.data || [])
-      setAccuracyData(accuracy.data || {})
-      setMisclassifications(misclassificationsData.data || [])
-    } catch (error) {
-      toast.error('Failed to load analytics data')
-      console.error('Error loading analytics:', error)
-    } finally {
-      setLoading(false)
+        // Safely handle API responses
+        setCategoryData(Array.isArray(categories?.data) ? categories.data : [])
+        setAccuracyData(typeof accuracy?.data === 'object' && accuracy.data ? accuracy.data : {})
+        setMisclassifications(Array.isArray(misclassificationsData?.data) ? misclassificationsData.data : [])
+      } catch (error) {
+        toast.error('Failed to load analytics data')
+        console.error('Error loading analytics:', error)
+      } finally {
+        setLoading(false)
+      }
     }
-  }
-
+    
+    loadAnalyticsData()
+  }, []) // Empty dependency array to run only once on mount
 
   if (loading) {
     return (

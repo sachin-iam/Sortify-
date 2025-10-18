@@ -358,6 +358,15 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
+  const updateUser = useCallback((updatedUserData) => {
+    console.log('🔄 AuthContext: Updating user data globally', updatedUserData)
+    setUser(prevUser => {
+      const newUserData = { ...prevUser, ...updatedUserData }
+      console.log('✅ AuthContext: User data updated in context', newUserData)
+      return newUserData
+    })
+  }, [])
+
   const value = {
     user,
     token,
@@ -375,6 +384,7 @@ export const AuthProvider = ({ children }) => {
     resetPassword,
     sendEmailVerification,
     verifyEmail,
+    updateUser,
     isAuthenticated
   }
 

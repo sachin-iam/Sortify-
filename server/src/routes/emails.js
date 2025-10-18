@@ -7,6 +7,7 @@ import Email from '../models/Email.js'
 import { classifyEmail } from '../services/classificationService.js'
 import { startRealtimeSync, stopRealtimeSync, isSyncActive } from '../services/realtimeSync.js'
 import { fullSync, syncLabels } from '../services/gmailSyncService.js'
+import notificationService from '../services/notificationService.js'
 
 const router = express.Router()
 
@@ -51,6 +52,7 @@ router.post('/gmail/sync', protect, asyncHandler(async (req, res) => {
 
     const messages = response.data.messages || []
     let syncedCount = 0
+    let newEmailCount = 0
 
     for (const message of messages) {
       try {
@@ -109,11 +111,27 @@ router.post('/gmail/sync', protect, asyncHandler(async (req, res) => {
         }
 
         // Use upsert to avoid duplicate key errors
-        await Email.findOneAndUpdate(
+        const result = await Email.findOneAndUpdate(
           { messageId: message.id, userId: user._id },
           emailData,
           { upsert: true, new: true }
         )
+        
+        // Check if this was a new email (not existing before)
+        if (!existingEmail) {
+          newEmailCount++
+          // Send individual new email notification
+          notificationService.sendNewEmailNotification(user._id.toString(), {
+            _id: result._id,
+            from: emailData.from,
+            subject: emailData.subject,
+            category: emailData.category,
+            isRead: emailData.isRead || false
+          }).catch(error => {
+            console.error('Error sending new email notification:', error)
+          })
+        }
+        
         syncedCount++
 
       } catch (error) {
@@ -124,6 +142,21 @@ router.post('/gmail/sync', protect, asyncHandler(async (req, res) => {
     }
 
     // Analytics will be updated automatically via frontend polling
+
+    // Send notification about sync completion
+    const syncMessage = newEmailCount > 0 
+      ? `Synced ${syncedCount} emails from Gmail. Found ${newEmailCount} new emails!`
+      : `Successfully synced ${syncedCount} emails from Gmail`
+    
+    notificationService.sendSyncStatusNotification(req.user._id.toString(), {
+      status: 'completed',
+      message: syncMessage,
+      timestamp: new Date().toISOString(),
+      count: syncedCount,
+      newEmailCount: newEmailCount
+    }).catch(error => {
+      console.error('Error sending sync completion notification:', error)
+    })
 
     res.json({
       success: true,
@@ -151,6 +184,15 @@ router.post('/gmail/sync-all', protect, asyncHandler(async (req, res) => {
     const result = await fullSync(req.user)
     
     console.log('SYNC_ALL_SUCCESS:', result)
+    
+    // Send notification about full sync completion
+    notificationService.sendSyncStatusNotification(req.user._id.toString(), {
+      status: 'completed',
+      message: `Full sync completed: ${result.syncedCount || 0} emails processed`,
+      timestamp: new Date().toISOString(),
+      count: result.syncedCount || 0
+    })
+    
     return res.json({ 
       success: true, 
       provider: 'gmail', 
@@ -158,6 +200,14 @@ router.post('/gmail/sync-all', protect, asyncHandler(async (req, res) => {
     })
   } catch (err) {
     console.error('SYNC_ALL_ERROR:', err?.message)
+    
+    // Send notification about sync failure
+    notificationService.sendSyncStatusNotification(req.user._id.toString(), {
+      status: 'failed',
+      message: `Full sync failed: ${err?.message || 'Unknown error'}`,
+      timestamp: new Date().toISOString()
+    })
+    
     return res.status(400).json({ 
       success: false, 
       message: err?.message || 'Sync failed' 
@@ -495,6 +545,14 @@ router.delete('/:id', protect, asyncHandler(async (req, res) => {
 
     // Remove from local database
     await Email.findByIdAndDelete(req.params.id)
+
+    // Send notification about email deletion
+    notificationService.sendEmailOperationNotification(req.user._id.toString(), {
+      operation: 'deleted',
+      message: `Email "${email.subject || 'Untitled'}" has been deleted`,
+      emailId: req.params.id,
+      emailSubject: email.subject
+    })
 
     res.json({
       success: true,
@@ -907,6 +965,15 @@ router.post('/bulk', protect, asyncHandler(async (req, res) => {
           _id: { $in: emailIds },
           userId: req.user._id
         })
+        
+        // Send notification for bulk delete
+        notificationService.sendBulkOperationNotification(req.user._id.toString(), {
+          operation: 'delete',
+          count: emailIds.length,
+          success: true,
+          message: `${emailIds.length} emails deleted successfully`
+        })
+        
         return res.json({
           success: true,
           message: 'Emails deleted successfully',
@@ -948,6 +1015,14 @@ router.post('/bulk', protect, asyncHandler(async (req, res) => {
       updateData
     )
 
+    // Send notification for bulk operation
+    notificationService.sendBulkOperationNotification(req.user._id.toString(), {
+      operation: operation,
+      count: result.modifiedCount || emailIds.length,
+      success: true,
+      message: message
+    })
+
     res.json({
       success: true,
       message,
@@ -980,11 +1055,25 @@ router.post('/realtime/start', protect, asyncHandler(async (req, res) => {
     const started = await startRealtimeSync(user)
     
     if (started) {
+      // Send notification about sync start
+      notificationService.sendConnectionNotification(req.user._id.toString(), {
+        status: 'sync_started',
+        provider: 'gmail',
+        message: 'Real-time email sync has been started'
+      })
+      
       res.json({
         success: true,
         message: 'Real-time sync started successfully'
       })
     } else {
+      // Send notification about sync start failure
+      notificationService.sendConnectionNotification(req.user._id.toString(), {
+        status: 'sync_failed',
+        provider: 'gmail',
+        message: 'Failed to start real-time email sync'
+      })
+      
       res.status(500).json({
         success: false,
         message: 'Failed to start real-time sync'

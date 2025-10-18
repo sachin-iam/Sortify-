@@ -14,6 +14,7 @@ import {
   sendSyncStatusUpdate,
   getConnectionStats 
 } from '../services/websocketService.js'
+import notificationService from '../services/notificationService.js'
 
 const router = express.Router()
 
@@ -50,12 +51,26 @@ router.post('/start', protect, asyncHandler(async (req, res) => {
         message: 'Real-time sync started successfully'
       })
 
+      // Send notification about sync start
+      notificationService.sendSyncStatusNotification(user._id.toString(), {
+        status: 'started',
+        message: 'Real-time email sync has been started',
+        timestamp: new Date().toISOString()
+      })
+
       res.json({
         success: true,
         message: 'Real-time sync started successfully',
         syncStatus: getSyncStatus(user._id.toString())
       })
     } else {
+      // Send notification about sync start failure
+      notificationService.sendSyncStatusNotification(user._id.toString(), {
+        status: 'failed',
+        message: 'Failed to start real-time email sync',
+        timestamp: new Date().toISOString()
+      })
+
       res.status(500).json({
         success: false,
         message: 'Failed to start real-time sync'
@@ -83,6 +98,13 @@ router.post('/stop', protect, asyncHandler(async (req, res) => {
     sendSyncStatusUpdate(req.user._id.toString(), {
       status: 'stopped',
       message: 'Real-time sync stopped'
+    })
+
+    // Send notification about sync stop
+    notificationService.sendSyncStatusNotification(req.user._id.toString(), {
+      status: 'stopped',
+      message: 'Real-time email sync has been stopped',
+      timestamp: new Date().toISOString()
     })
 
     res.json({
