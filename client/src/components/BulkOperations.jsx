@@ -23,7 +23,7 @@ const BulkOperations = ({ selectedEmails, onOperationComplete, onClose }) => {
 
   const fetchOperations = async () => {
     try {
-      const response = await api.get('/api/bulk/operations')
+      const response = await api.get('/bulk/operations')
       setOperations(response.data.operations)
     } catch (error) {
       console.error('Error fetching operations:', error)

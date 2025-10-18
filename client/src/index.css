@@ -159,17 +159,6 @@ html, body {
   @apply animate-spin rounded-full border-4 border-white/20 border-t-white;
 }
 
-/* Particle background */
-.particles {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: -1;
-}
-
 /* Gradient card backgrounds - PUNCHY VERSIONS */
 .gradient-card-sage {
   background: linear-gradient(135deg, rgba(34,197,94,0.15) 0%, rgba(21,128,61,0.1) 100%);

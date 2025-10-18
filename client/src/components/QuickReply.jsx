@@ -23,7 +23,7 @@ const QuickReply = ({ email, onReply, onClose }) => {
 
   const fetchTemplates = async () => {
     try {
-      const response = await api.get('/api/templates?type=reply&limit=10')
+      const response = await api.get('/templates?type=reply&limit=10')
       setTemplates(response.data.templates)
     } catch (error) {
       console.error('Error fetching templates:', error)

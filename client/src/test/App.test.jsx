@@ -3,10 +3,6 @@ import { BrowserRouter } from 'react-router-dom'
 import { describe, it, expect } from 'vitest'
 import App from '../App'
 
-// Mock the ParticleBackground component
-vi.mock('../components/ParticleBackground', () => ({
-  default: () => <div data-testid="particle-background">Particle Background</div>
-}))
 
 // Mock the AuthProvider
 vi.mock('../contexts/AuthContext', () => ({
@@ -61,7 +57,6 @@ describe('App', () => {
     
     expect(screen.getByTestId('error-boundary')).toBeInTheDocument()
     expect(screen.getByTestId('auth-provider')).toBeInTheDocument()
-    expect(screen.getByTestId('particle-background')).toBeInTheDocument()
   })
 
   it('renders login page for /login route', () => {

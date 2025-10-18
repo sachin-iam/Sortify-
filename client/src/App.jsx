@@ -5,7 +5,6 @@ import { WebSocketProvider } from './contexts/WebSocketContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import ErrorBoundary from './components/ErrorBoundary'
 import Navbar from './components/Navbar'
-import ParticleBackground from './components/ParticleBackground'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Settings from './pages/Settings'
@@ -21,7 +20,6 @@ function App() {
       <AuthProvider>
         <WebSocketProvider>
           <div className="App min-h-screen relative">
-            <ParticleBackground />
             <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />

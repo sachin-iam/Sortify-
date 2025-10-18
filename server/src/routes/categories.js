@@ -3,23 +3,27 @@ import express from 'express'
 import { protect } from '../middleware/auth.js'
 import { asyncHandler } from '../middleware/errorHandler.js'
 import { sendCategoryUpdate } from '../services/websocketService.js'
+import { 
+  getCategories, 
+  getCategoryCount, 
+  addCategory as serviceAddCategory, 
+  updateCategory as serviceUpdateCategory, 
+  deleteCategory as serviceDeleteCategory,
+  findCategoryById,
+  findCategoryByName
+} from '../services/categoryService.js'
+import Email from '../models/Email.js'
+import { classifyEmail } from '../services/classificationService.js'
+import notificationService from '../services/notificationService.js'
 
 const router = express.Router()
-
-// Mock categories data (in production, this would come from ML service)
-let categories = [
-  { id: '1', name: 'Academic', count: 0, description: 'Educational and academic emails' },
-  { id: '2', name: 'Promotions', count: 0, description: 'Marketing and promotional emails' },
-  { id: '3', name: 'Placement', count: 0, description: 'Job and career related emails' },
-  { id: '4', name: 'Spam', count: 0, description: 'Spam and unwanted emails' },
-  { id: '5', name: 'Other', count: 0, description: 'Miscellaneous emails' }
-]
 
 // @desc    Get all categories
 // @route   GET /api/realtime/categories
 // @access  Private
 router.get('/categories', protect, asyncHandler(async (req, res) => {
   try {
+    const categories = getCategories()
     res.json({
       success: true,
       categories
@@ -49,33 +53,99 @@ router.post('/categories', protect, asyncHandler(async (req, res) => {
     }
 
     // Check if category already exists
-    const existingCategory = categories.find(cat => 
-      cat.name.toLowerCase() === name.toLowerCase().trim()
-    )
+    const categoryName = name.trim()
+    
+    // Validate category name (no special characters, reasonable length)
+    if (categoryName.length < 2 || categoryName.length > 50) {
+      return res.status(400).json({
+        success: false,
+        message: 'Category name must be between 2 and 50 characters'
+      })
+    }
+    
+    // Check for invalid characters
+    if (!/^[a-zA-Z0-9\s-_]+$/.test(categoryName)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Category name can only contain letters, numbers, spaces, hyphens, and underscores'
+      })
+    }
+    
+    const existingCategory = findCategoryByName(categoryName)
 
     if (existingCategory) {
+      console.log(`❌ Category "${categoryName}" already exists:`, existingCategory)
       return res.status(400).json({
         success: false,
         message: 'Category already exists'
       })
     }
 
-    // Create new category
-    const newCategory = {
-      id: Date.now().toString(),
-      name: name.trim(),
-      description: description || `Custom category: ${name.trim()}`,
-      count: 0,
-      createdAt: new Date().toISOString()
-    }
+    // Create new category using service
+    const newCategory = serviceAddCategory({ name: name.trim(), description })
 
-    categories.push(newCategory)
+    // Reclassify all emails when a new category is added
+    try {
+      console.log(`🔄 Reclassifying emails for new category: ${newCategory.name}`)
+      
+      // Get all emails for this user that need reclassification
+      const emails = await Email.find({ userId: req.user._id })
+        .select('_id subject snippet body text category')
+        .limit(1000) // Limit to prevent overwhelming the system
+      
+      let reclassifiedCount = 0
+      
+      for (const email of emails) {
+        try {
+          const classification = await classifyEmail(
+            email.subject || '',
+            email.snippet || '',
+            email.body || email.text || ''
+          )
+          
+          // Only update if classification is different
+          if (classification.label !== email.category) {
+            await Email.findByIdAndUpdate(email._id, {
+              category: classification.label,
+              classification: {
+                label: classification.label,
+                confidence: classification.confidence,
+                modelVersion: '2.1.0',
+                classifiedAt: new Date(),
+                reason: 'Reclassified due to new category added'
+              },
+              updatedAt: new Date()
+            })
+            reclassifiedCount++
+          }
+        } catch (error) {
+          console.error(`❌ Error reclassifying email ${email._id}:`, error.message)
+        }
+      }
+      
+      console.log(`✅ Reclassified ${reclassifiedCount} emails due to new category`)
+    } catch (error) {
+      console.error('❌ Error during email reclassification:', error)
+      // Don't fail the category creation if reclassification fails
+    }
 
     // Send WebSocket update
     sendCategoryUpdate(req.user._id.toString(), {
       type: 'category_added',
       category: newCategory
     })
+
+    // Send notification
+    try {
+      await notificationService.sendCategoryNotification(req.user._id.toString(), {
+        operation: 'added',
+        message: `New category "${newCategory.name}" has been added. All emails have been reclassified.`,
+        categoryName: newCategory.name,
+        categoryId: newCategory.id
+      })
+    } catch (error) {
+      console.error('Error sending category notification:', error)
+    }
 
     res.status(201).json({
       success: true,
@@ -108,9 +178,9 @@ router.put('/categories/:id', protect, asyncHandler(async (req, res) => {
       })
     }
 
-    const categoryIndex = categories.findIndex(cat => cat.id === id)
+    const existingCategoryById = findCategoryById(id)
     
-    if (categoryIndex === -1) {
+    if (!existingCategoryById) {
       return res.status(404).json({
         success: false,
         message: 'Category not found'
@@ -118,32 +188,44 @@ router.put('/categories/:id', protect, asyncHandler(async (req, res) => {
     }
 
     // Check if new name conflicts with existing category
-    const existingCategory = categories.find(cat => 
-      cat.id !== id && cat.name.toLowerCase() === name.toLowerCase().trim()
-    )
-
-    if (existingCategory) {
+    const existingCategoryByName = findCategoryByName(name.trim())
+    if (existingCategoryByName && existingCategoryByName.id !== id) {
       return res.status(400).json({
         success: false,
         message: 'Category name already exists'
       })
     }
 
-    // Update category
-    const updatedCategory = {
-      ...categories[categoryIndex],
+    // Update category using service
+    const updatedCategory = serviceUpdateCategory(id, {
       name: name.trim(),
-      description: description || categories[categoryIndex].description,
-      updatedAt: new Date().toISOString()
-    }
+      description: description || existingCategoryById.description
+    })
 
-    categories[categoryIndex] = updatedCategory
+    if (!updatedCategory) {
+      return res.status(404).json({
+        success: false,
+        message: 'Category not found'
+      })
+    }
 
     // Send WebSocket update
     sendCategoryUpdate(req.user._id.toString(), {
       type: 'category_updated',
       category: updatedCategory
     })
+
+    // Send notification
+    try {
+      await notificationService.sendCategoryNotification(req.user._id.toString(), {
+        operation: 'updated',
+        message: `Category "${existingCategoryById.name}" has been updated to "${updatedCategory.name}".`,
+        categoryName: updatedCategory.name,
+        categoryId: updatedCategory.id
+      })
+    } catch (error) {
+      console.error('Error sending category notification:', error)
+    }
 
     res.json({
       success: true,
@@ -168,32 +250,72 @@ router.delete('/categories/:id', protect, asyncHandler(async (req, res) => {
   try {
     const { id } = req.params
 
-    const categoryIndex = categories.findIndex(cat => cat.id === id)
+    const existingCategory = findCategoryById(id)
     
-    if (categoryIndex === -1) {
+    if (!existingCategory) {
       return res.status(404).json({
         success: false,
         message: 'Category not found'
       })
     }
 
-    // Check if it's a default category (prevent deletion)
-    const defaultCategories = ['Academic', 'Promotions', 'Placement', 'Spam', 'Other']
-    if (defaultCategories.includes(categories[categoryIndex].name)) {
+    // Only prevent deletion of "Other" category
+    if (existingCategory.name === 'Other') {
       return res.status(400).json({
         success: false,
-        message: 'Cannot delete default categories'
+        message: 'Cannot delete the "Other" category'
       })
     }
 
-    const deletedCategory = categories[categoryIndex]
-    categories.splice(categoryIndex, 1)
+    // Move all emails from this category to "Other" before deleting
+    try {
+      console.log(`🔄 Moving emails from "${existingCategory.name}" to "Other" category`)
+      
+      const result = await Email.updateMany(
+        { 
+          userId: req.user._id,
+          category: existingCategory.name
+        },
+        { 
+          $set: { 
+            category: 'Other',
+            classification: {
+              label: 'Other',
+              confidence: 1.0,
+              modelVersion: 'manual',
+              classifiedAt: new Date(),
+              reason: `Moved to Other due to category "${existingCategory.name}" deletion`
+            },
+            updatedAt: new Date()
+          }
+        }
+      )
+      
+      console.log(`✅ Moved ${result.modifiedCount} emails to "Other" category`)
+    } catch (error) {
+      console.error('❌ Error moving emails to Other category:', error)
+      // Continue with deletion even if email update fails
+    }
+
+    const deletedCategory = serviceDeleteCategory(id)
 
     // Send WebSocket update
     sendCategoryUpdate(req.user._id.toString(), {
       type: 'category_deleted',
       category: deletedCategory
     })
+
+    // Send notification
+    try {
+      await notificationService.sendCategoryNotification(req.user._id.toString(), {
+        operation: 'deleted',
+        message: `Category "${deletedCategory.name}" has been deleted. All emails in this category have been moved to "Other".`,
+        categoryName: deletedCategory.name,
+        categoryId: deletedCategory.id
+      })
+    } catch (error) {
+      console.error('Error sending category notification:', error)
+    }
 
     res.json({
       success: true,
@@ -217,6 +339,7 @@ router.delete('/categories/:id', protect, asyncHandler(async (req, res) => {
 router.get('/categories/stats', protect, asyncHandler(async (req, res) => {
   try {
     // In production, this would query the database for actual counts
+    const categories = getCategories()
     const stats = categories.map(category => ({
       ...category,
       count: Math.floor(Math.random() * 100) // Mock count

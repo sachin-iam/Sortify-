@@ -3,6 +3,7 @@ import Email from '../models/Email.js'
 import { protect } from '../middleware/auth.js'
 import { sseAuth } from '../middleware/sseAuth.js'
 import { asyncHandler } from '../middleware/errorHandler.js'
+import { getCategoryCount } from '../services/categoryService.js'
 
 const router = express.Router()
 
@@ -65,14 +66,14 @@ router.get('/stats', protect, asyncHandler(async (req, res) => {
         .map(item => item.category)
     ).size
 
-    // Return total available categories (7) instead of just categories with emails
-    const totalAvailableCategories = 7
+    // Get dynamic category count from shared service
+    const totalAvailableCategories = getCategoryCount()
 
     res.json({
       success: true,
       stats: {
         totalEmails: result.totalEmails,
-        categories: totalAvailableCategories, // Always return 7 for DistilBERT categories
+        categories: totalAvailableCategories, // Dynamic category count
         processedToday: result.processedToday,
         unreadCount: result.unreadCount,
         activeCategories: categoryCount // Add this for reference

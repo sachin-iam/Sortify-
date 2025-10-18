@@ -19,7 +19,7 @@ import ModernIcon from '../components/ModernIcon'
 
 const Dashboard = () => {
   const { user, token, connectGmailAccount, updateTokenFromOAuth } = useAuth()
-  const { isConnected, connectionStatus, subscribeToEvents } = useWebSocketContext()
+  const { isConnected, connectionStatus, subscribeToEvents, lastMessage } = useWebSocketContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const [activeView, setActiveView] = useState('emails')
   const [syncLoading, setSyncLoading] = useState(false)
@@ -59,6 +59,7 @@ const Dashboard = () => {
   const [showBulkOperations, setShowBulkOperations] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   const [showPerformanceDashboard, setShowPerformanceDashboard] = useState(false)
+  const [categoryTabsRefresh, setCategoryTabsRefresh] = useState(0)
   
   // Rate limiting for API calls
   const [lastApiCall, setLastApiCall] = useState(0)
@@ -381,8 +382,11 @@ const Dashboard = () => {
 
   const handleCategoryUpdate = (categoryData) => {
     console.log('🏷️ Real-time category update:', categoryData)
-    // Refresh categories if needed
-    // This will be handled by the CategoryManagement component
+    // Refresh categories, emails, and stats when categories change
+    fetchEmails(true)
+    fetchStats(true)
+    // Trigger CategoryTabs refresh
+    setCategoryTabsRefresh(prev => prev + 1)
   }
 
   const handleSyncStatus = (statusData) => {
@@ -464,6 +468,14 @@ const Dashboard = () => {
       console.log('🔌 WebSocket not connected, will subscribe when connected')
     }
   }, [isConnected, subscribeToEvents])
+
+  // Handle WebSocket category updates
+  useEffect(() => {
+    if (lastMessage?.type === 'category_updated') {
+      console.log('🏷️ Dashboard received category update:', lastMessage.data)
+      handleCategoryUpdate(lastMessage.data)
+    }
+  }, [lastMessage])
 
   // Listen for messages from popup windows (Gmail OAuth)
   useEffect(() => {
@@ -1271,7 +1283,12 @@ const Dashboard = () => {
                   </div>
 
                   {/* Category Management */}
-                  <CategoryManagement onCategoryUpdate={fetchEmails} />
+                  <CategoryManagement onCategoryUpdate={() => {
+                    fetchEmails(true)
+                    fetchStats(true)
+                    // Trigger CategoryTabs refresh
+                    setCategoryTabsRefresh(prev => prev + 1)
+                  }} />
                 </div>
               </div>
 
@@ -1311,7 +1328,8 @@ const Dashboard = () => {
               {/* Category Tabs */}
               <CategoryTabs 
                 value={currentCategory} 
-                onChange={handleCategoryChange} 
+                onChange={handleCategoryChange}
+                refreshTrigger={categoryTabsRefresh}
               />
 
               {/* Main Layout */}
