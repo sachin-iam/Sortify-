@@ -179,11 +179,11 @@ async def performance_monitor():
                 "data": performance_stats
             })
             
-            await asyncio.sleep(30)  # Update every 30 seconds
+            await asyncio.sleep(5 * 60)  # Update every 5 minutes
             
         except Exception as e:
             logger.error(f"Error in performance monitor: {e}")
-            await asyncio.sleep(30)
+            await asyncio.sleep(5 * 60)
 
 # Health check endpoints
 @app.get("/health")

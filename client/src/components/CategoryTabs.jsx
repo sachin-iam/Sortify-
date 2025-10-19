@@ -36,10 +36,19 @@ const CategoryTabs = ({ value, onChange, refreshTrigger }) => {
         
         // Always include "All" at the beginning and "Other" at the end
         const allCategory = { id: 'All', label: 'All', color: '#64748b' }
-        const otherCategory = { id: 'Other', label: 'Other', color: '#64748b' }
         
-        // Filter out "Other" from server categories if it exists, we'll add it at the end
-        const filteredServerCategories = serverCategories.filter(cat => cat.id !== 'Other')
+        // Find "Other" category and ensure it's always at the end
+        const otherIndex = serverCategories.findIndex(cat => cat.id === 'Other')
+        let otherCategory
+        let filteredServerCategories = serverCategories
+        
+        if (otherIndex >= 0) {
+          otherCategory = serverCategories[otherIndex]
+          filteredServerCategories = serverCategories.filter(cat => cat.id !== 'Other')
+        } else {
+          // Create "Other" category if it doesn't exist (fallback)
+          otherCategory = { id: 'Other', label: 'Other', color: '#64748b' }
+        }
         
         setCategories([allCategory, ...filteredServerCategories, otherCategory])
         console.log('✅ Categories loaded dynamically:', [allCategory, ...filteredServerCategories, otherCategory])

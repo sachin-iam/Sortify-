@@ -8,6 +8,7 @@ import { classifyEmail } from '../services/classificationService.js'
 import { startRealtimeSync, stopRealtimeSync, isSyncActive } from '../services/realtimeSync.js'
 import { fullSync, syncLabels } from '../services/gmailSyncService.js'
 import notificationService from '../services/notificationService.js'
+import { updateUserActivity } from '../services/enhancedRealtimeSync.js'
 
 const router = express.Router()
 
@@ -220,6 +221,9 @@ router.post('/gmail/sync-all', protect, asyncHandler(async (req, res) => {
 // @access  Private
 router.get('/', protect, asyncHandler(async (req, res) => {
   try {
+    // Update user activity for smart syncing
+    updateUserActivity(req.user._id)
+    
     const { 
       page = 1, 
       limit = 25, 
@@ -347,6 +351,9 @@ router.get('/stats', protect, asyncHandler(async (req, res) => {
 // @access  Private
 router.get('/:id', protect, asyncHandler(async (req, res) => {
   try {
+    // Update user activity for smart syncing
+    updateUserActivity(req.user._id)
+    
     const email = await Email.findOne({ 
       _id: req.params.id, 
       userId: req.user._id 

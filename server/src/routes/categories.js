@@ -23,7 +23,8 @@ const router = express.Router()
 // @access  Private
 router.get('/categories', protect, asyncHandler(async (req, res) => {
   try {
-    const categories = getCategories()
+    const userId = req.user._id
+    const categories = await getCategories(userId)
     res.json({
       success: true,
       categories
@@ -71,7 +72,8 @@ router.post('/categories', protect, asyncHandler(async (req, res) => {
       })
     }
     
-    const existingCategory = findCategoryByName(categoryName)
+    const userId = req.user._id
+    const existingCategory = await findCategoryByName(userId, categoryName)
 
     if (existingCategory) {
       console.log(`❌ Category "${categoryName}" already exists:`, existingCategory)
@@ -82,7 +84,7 @@ router.post('/categories', protect, asyncHandler(async (req, res) => {
     }
 
     // Create new category using service
-    const newCategory = serviceAddCategory({ name: name.trim(), description })
+    const newCategory = await serviceAddCategory(userId, { name: name.trim(), description })
 
     // Reclassify all emails when a new category is added
     try {
@@ -178,7 +180,8 @@ router.put('/categories/:id', protect, asyncHandler(async (req, res) => {
       })
     }
 
-    const existingCategoryById = findCategoryById(id)
+    const userId = req.user._id
+    const existingCategoryById = await findCategoryById(userId, id)
     
     if (!existingCategoryById) {
       return res.status(404).json({
@@ -188,7 +191,7 @@ router.put('/categories/:id', protect, asyncHandler(async (req, res) => {
     }
 
     // Check if new name conflicts with existing category
-    const existingCategoryByName = findCategoryByName(name.trim())
+    const existingCategoryByName = await findCategoryByName(userId, name.trim())
     if (existingCategoryByName && existingCategoryByName.id !== id) {
       return res.status(400).json({
         success: false,
@@ -197,7 +200,7 @@ router.put('/categories/:id', protect, asyncHandler(async (req, res) => {
     }
 
     // Update category using service
-    const updatedCategory = serviceUpdateCategory(id, {
+    const updatedCategory = await serviceUpdateCategory(userId, id, {
       name: name.trim(),
       description: description || existingCategoryById.description
     })
@@ -250,7 +253,8 @@ router.delete('/categories/:id', protect, asyncHandler(async (req, res) => {
   try {
     const { id } = req.params
 
-    const existingCategory = findCategoryById(id)
+    const userId = req.user._id
+    const existingCategory = await findCategoryById(userId, id)
     
     if (!existingCategory) {
       return res.status(404).json({
@@ -259,45 +263,8 @@ router.delete('/categories/:id', protect, asyncHandler(async (req, res) => {
       })
     }
 
-    // Only prevent deletion of "Other" category
-    if (existingCategory.name === 'Other') {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot delete the "Other" category'
-      })
-    }
-
-    // Move all emails from this category to "Other" before deleting
-    try {
-      console.log(`🔄 Moving emails from "${existingCategory.name}" to "Other" category`)
-      
-      const result = await Email.updateMany(
-        { 
-          userId: req.user._id,
-          category: existingCategory.name
-        },
-        { 
-          $set: { 
-            category: 'Other',
-            classification: {
-              label: 'Other',
-              confidence: 1.0,
-              modelVersion: 'manual',
-              classifiedAt: new Date(),
-              reason: `Moved to Other due to category "${existingCategory.name}" deletion`
-            },
-            updatedAt: new Date()
-          }
-        }
-      )
-      
-      console.log(`✅ Moved ${result.modifiedCount} emails to "Other" category`)
-    } catch (error) {
-      console.error('❌ Error moving emails to Other category:', error)
-      // Continue with deletion even if email update fails
-    }
-
-    const deletedCategory = serviceDeleteCategory(id)
+    // The service will handle the deletion logic including moving emails to "Other"
+    const deletedCategory = await serviceDeleteCategory(userId, id)
 
     // Send WebSocket update
     sendCategoryUpdate(req.user._id.toString(), {
@@ -338,16 +305,12 @@ router.delete('/categories/:id', protect, asyncHandler(async (req, res) => {
 // @access  Private
 router.get('/categories/stats', protect, asyncHandler(async (req, res) => {
   try {
-    // In production, this would query the database for actual counts
-    const categories = getCategories()
-    const stats = categories.map(category => ({
-      ...category,
-      count: Math.floor(Math.random() * 100) // Mock count
-    }))
+    const userId = req.user._id
+    const categories = await getCategories(userId)
 
     res.json({
       success: true,
-      stats
+      stats: categories
     })
 
   } catch (error) {

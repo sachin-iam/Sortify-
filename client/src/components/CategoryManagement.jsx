@@ -29,12 +29,18 @@ const CategoryManagement = ({ onCategoryUpdate }) => {
       
       switch (type) {
         case 'category_added':
-          setCategories(prev => [...prev, category])
+          // Don't add "All" category to management panel
+          if (category.name !== 'All') {
+            setCategories(prev => [...prev, category])
+          }
           break
         case 'category_updated':
-          setCategories(prev => 
-            prev.map(cat => cat.id === category.id ? category : cat)
-          )
+          // Don't update "All" category in management panel
+          if (category.name !== 'All') {
+            setCategories(prev => 
+              prev.map(cat => cat.id === category.id ? category : cat)
+            )
+          }
           break
         case 'category_deleted':
           setCategories(prev => prev.filter(cat => cat.id !== category.id))
@@ -67,27 +73,21 @@ const CategoryManagement = ({ onCategoryUpdate }) => {
       console.log('🏷️ Fetching categories...')
       const response = await api.get('/realtime/categories')
       if (response.data && response.data.categories) {
-        setCategories(response.data.categories)
-        console.log('✅ Categories loaded:', response.data.categories.length)
+        // Filter out "All" category as it's virtual and shouldn't appear in management
+        const realCategories = response.data.categories.filter(cat => cat.name !== 'All')
+        setCategories(realCategories)
+        console.log('✅ Categories loaded:', realCategories.length)
       } else {
         console.warn('⚠️ No categories data received, using fallback')
         setCategories([
-          { id: '1', name: 'Academic', count: 0, description: 'Educational and academic emails' },
-          { id: '2', name: 'Promotions', count: 0, description: 'Marketing and promotional emails' },
-          { id: '3', name: 'Placement', count: 0, description: 'Job and career related emails' },
-          { id: '4', name: 'Spam', count: 0, description: 'Spam and unwanted emails' },
-          { id: '5', name: 'Other', count: 0, description: 'Miscellaneous emails' }
+          { id: '1', name: 'Other', count: 0, description: 'Miscellaneous emails', isDefault: true }
         ])
       }
     } catch (error) {
       console.error('❌ Error fetching categories:', error)
       // Use fallback categories instead of showing error
       setCategories([
-        { id: '1', name: 'Academic', count: 0, description: 'Educational and academic emails' },
-        { id: '2', name: 'Promotions', count: 0, description: 'Marketing and promotional emails' },
-        { id: '3', name: 'Placement', count: 0, description: 'Job and career related emails' },
-        { id: '4', name: 'Spam', count: 0, description: 'Spam and unwanted emails' },
-        { id: '5', name: 'Other', count: 0, description: 'Miscellaneous emails' }
+        { id: '1', name: 'Other', count: 0, description: 'Miscellaneous emails', isDefault: true }
       ])
     } finally {
       setLoading(false)

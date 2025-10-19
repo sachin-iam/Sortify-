@@ -5,6 +5,27 @@ import { sseAuth } from '../middleware/sseAuth.js'
 import { asyncHandler } from '../middleware/errorHandler.js'
 import { getCategoryCount } from '../services/categoryService.js'
 
+// Analytics cache to reduce database load
+const analyticsCache = new Map()
+const CACHE_TTL = 2 * 60 * 1000 // 2 minutes
+
+function getCachedData(key, ttl = CACHE_TTL) {
+  const cached = analyticsCache.get(key)
+  if (cached && Date.now() - cached.timestamp < ttl) {
+    return cached.data
+  }
+  return null
+}
+
+function setCachedData(key, data) {
+  analyticsCache.set(key, { data, timestamp: Date.now() })
+  // Cleanup old entries
+  if (analyticsCache.size > 1000) {
+    const oldestKeys = Array.from(analyticsCache.keys()).slice(0, 100)
+    oldestKeys.forEach(k => analyticsCache.delete(k))
+  }
+}
+
 const router = express.Router()
 
 // @desc    Get email statistics
@@ -12,6 +33,13 @@ const router = express.Router()
 // @access  Private
 router.get('/stats', protect, asyncHandler(async (req, res) => {
   try {
+    // Check cache first
+    const cacheKey = `stats_${req.user._id}`
+    const cached = getCachedData(cacheKey)
+    if (cached) {
+      return res.json({ success: true, stats: cached })
+    }
+
     const stats = await Email.aggregate([
       { $match: { userId: req.user._id } },
       {
@@ -32,6 +60,12 @@ router.get('/stats', protect, asyncHandler(async (req, res) => {
           },
           unreadCount: {
             $sum: { $cond: [{ $eq: ['$isRead', false] }, 1, 0] }
+          },
+          starredCount: {
+            $sum: { $cond: [{ $in: ['STARRED', { $ifNull: ['$labels', []] }] }, 1, 0] }
+          },
+          draftCount: {
+            $sum: { $cond: [{ $in: ['DRAFT', { $ifNull: ['$labels', []] }] }, 1, 0] }
           },
           processedToday: {
             $sum: {
@@ -56,6 +90,8 @@ router.get('/stats', protect, asyncHandler(async (req, res) => {
       totalByProvider: [],
       totalByCategory: [],
       unreadCount: 0,
+      starredCount: 0,
+      draftCount: 0,
       processedToday: 0
     }
 
@@ -67,17 +103,24 @@ router.get('/stats', protect, asyncHandler(async (req, res) => {
     ).size
 
     // Get dynamic category count from shared service
-    const totalAvailableCategories = getCategoryCount()
+    const totalAvailableCategories = await getCategoryCount(req.user._id)
+
+    const statsResponse = {
+      totalEmails: result.totalEmails,
+      categories: totalAvailableCategories, // Dynamic category count
+      processedToday: result.processedToday,
+      unreadCount: result.unreadCount,
+      starredCount: result.starredCount || 0,
+      draftCount: result.draftCount || 0,
+      activeCategories: categoryCount // Add this for reference
+    }
+
+    // Cache the result before sending
+    setCachedData(cacheKey, statsResponse)
 
     res.json({
       success: true,
-      stats: {
-        totalEmails: result.totalEmails,
-        categories: totalAvailableCategories, // Dynamic category count
-        processedToday: result.processedToday,
-        unreadCount: result.unreadCount,
-        activeCategories: categoryCount // Add this for reference
-      }
+      stats: statsResponse
     })
   } catch (error) {
     console.error('Error fetching stats:', error)
@@ -93,6 +136,13 @@ router.get('/stats', protect, asyncHandler(async (req, res) => {
 // @access  Private
 router.get('/categories', protect, asyncHandler(async (req, res) => {
   try {
+    // Check cache first
+    const cacheKey = `categories_${req.user._id}`
+    const cached = getCachedData(cacheKey)
+    if (cached) {
+      return res.json({ success: true, data: cached })
+    }
+
     // Get category counts for ALL emails (including uncategorized)
     const categoryData = await Email.aggregate([
       { $match: { userId: req.user._id } },
@@ -111,6 +161,9 @@ router.get('/categories', protect, asyncHandler(async (req, res) => {
       },
       { $sort: { count: -1 } }
     ])
+
+    // Cache the result before sending
+    setCachedData(cacheKey, categoryData)
 
     res.json({
       success: true,
@@ -345,7 +398,7 @@ router.get('/realtime', sseAuth, asyncHandler(async (req, res) => {
   // Keep connection alive
   const interval = setInterval(() => {
     res.write(`data: ${JSON.stringify({ ping: Date.now() })}\n\n`)
-  }, 30000)
+  }, 2 * 60 * 1000)
 
   res.on('close', () => {
     clearInterval(interval)

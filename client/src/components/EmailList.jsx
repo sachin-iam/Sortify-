@@ -363,9 +363,9 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
             <button
               onClick={() => onPageChange(currentPage - 1)}
               disabled={currentPage === 1}
-              className="w-5 h-5 rounded-full bg-white/10 border border-white/30 text-slate-600 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center"
+              className="w-7 h-7 rounded-full bg-gray-200 border-2 border-gray-300 text-gray-800 hover:bg-gray-300 hover:border-gray-400 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center shadow-md"
             >
-              <ModernIcon type="chevron-left" size={6} color="#6b7280" />
+              <ModernIcon type="chevron-left" size={10} color="#000000" />
             </button>
             
             <div className="flex gap-2 flex-wrap justify-center pagination-container">
@@ -409,9 +409,9 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
             <button
               onClick={() => onPageChange(currentPage + 1)}
               disabled={currentPage === totalPages}
-              className="w-5 h-5 rounded-full bg-white/10 border border-white/30 text-slate-600 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center"
+              className="w-7 h-7 rounded-full bg-gray-200 border-2 border-gray-300 text-gray-800 hover:bg-gray-300 hover:border-gray-400 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center shadow-md"
             >
-              <ModernIcon type="chevron-right" size={6} color="#6b7280" />
+              <ModernIcon type="chevron-right" size={10} color="#000000" />
             </button>
           </div>
         </div>

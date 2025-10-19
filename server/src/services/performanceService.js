@@ -24,7 +24,7 @@ class PerformanceService extends EventEmitter {
     }
     
     // Start cleanup interval
-    setInterval(() => this.cleanupCache(), this.cacheTimeout)
+    this.cleanupInterval = setInterval(() => this.cleanupCache(), this.cacheTimeout)
   }
 
   // Optimized email processing with batching and concurrency control
@@ -562,6 +562,14 @@ class PerformanceService extends EventEmitter {
         status: 'unhealthy',
         error: error.message
       }
+    }
+  }
+
+  // Cleanup method to properly clear intervals
+  cleanup() {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval)
+      this.cleanupInterval = null
     }
   }
 }

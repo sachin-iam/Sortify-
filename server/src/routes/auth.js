@@ -723,7 +723,8 @@ router.get('/gmail/callback', asyncHandler(async (req, res) => {
 
     if (!code) {
       console.log('❌ Missing code, redirecting to login')
-      return res.redirect(`http://localhost:3000/login?error=oauth_error`)
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000'
+      return res.redirect(`${frontendUrl}/login?error=oauth_error`)
     }
 
     // Determine flow type based on state
@@ -790,7 +791,8 @@ router.get('/gmail/callback', asyncHandler(async (req, res) => {
       // Gmail connection only flow - user must be authenticated
       const authHeader = req.headers.authorization
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.redirect(`http://localhost:3000/login?error=auth_required`)
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000'
+        return res.redirect(`${frontendUrl}/login?error=auth_required`)
       }
       
       const token = authHeader.substring(7)
@@ -798,7 +800,8 @@ router.get('/gmail/callback', asyncHandler(async (req, res) => {
       user = await User.findById(decoded.id)
       
       if (!user) {
-        return res.redirect(`http://localhost:3000/login?error=user_not_found`)
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000'
+        return res.redirect(`${frontendUrl}/login?error=user_not_found`)
       }
 
       // Connect Gmail to existing user
@@ -833,13 +836,15 @@ router.get('/gmail/callback', asyncHandler(async (req, res) => {
     })
 
     // Redirect to frontend OAuth callback with token
-    res.redirect(`http://localhost:3000/oauth/callback?token=${jwtToken}`)
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000'
+    res.redirect(`${frontendUrl}/oauth/callback?token=${jwtToken}`)
   } catch (error) {
     console.error('❌ OAuth callback error:', error)
     
     // Redirect back to appropriate page with error
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000'
     const errorType = error.message.includes('jwt') ? 'auth_error' : 'oauth_error'
-    res.redirect(`http://localhost:3000/dashboard?error=${errorType}`)
+    res.redirect(`${frontendUrl}/login?error=${errorType}`)
   }
 }))
 

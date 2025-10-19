@@ -98,7 +98,7 @@ export const getRealtimeAnalytics = (req, res) => {
   // Keep connection alive
   const interval = setInterval(() => {
     res.write(`data: ${JSON.stringify({ ping: Date.now() })}\n\n`)
-  }, 30000)
+  }, 2 * 60 * 1000)
 
   res.on('close', () => {
     clearInterval(interval)

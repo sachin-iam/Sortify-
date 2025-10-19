@@ -156,6 +156,15 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('❌ AuthContext: Login error:', error)
       setLoading(false)
+      
+      // Provide more specific error messages based on the error type
+      if (error.code === 'ECONNREFUSED' || error.message.includes('Could not connect')) {
+        return { success: false, error: 'Cannot connect to server. Please check if the backend server is running on port 5000.' }
+      }
+      if (!error.response) {
+        return { success: false, error: 'Network error. Please check your connection and try again.' }
+      }
+      
       return { success: false, error: error.response?.data?.message || 'Login failed' }
     }
   }
@@ -287,7 +296,14 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: response.data.message || 'Failed to login with Google' }
     } catch (error) {
       console.error('Google login error:', error)
-      return { success: false, error: 'Failed to login with Google' }
+      // Provide more specific error messages based on the error type
+      if (error.code === 'ECONNREFUSED' || error.message.includes('Could not connect')) {
+        return { success: false, error: 'Cannot connect to server. Please check if the backend server is running.' }
+      }
+      if (error.response?.status === 500) {
+        return { success: false, error: 'Google OAuth configuration error. Please contact support.' }
+      }
+      return { success: false, error: error.response?.data?.message || 'Failed to login with Google' }
     }
   }
 

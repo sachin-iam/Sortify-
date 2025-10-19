@@ -127,28 +127,6 @@ const Navbar = () => {
     }
   })
 
-  // For dropdown display, we want 6 notifications: 3 normal + 3 security
-  const getDropdownNotifications = () => {
-    // Separate notifications into normal and security
-    const securityTypes = ['connection', 'profile_update', 'system', 'login', 'auth']
-    const normalNotifications = notifications.filter(n => !securityTypes.includes(n.type))
-    const securityNotifications = notifications.filter(n => securityTypes.includes(n.type))
-    
-    // Get latest 3 from each category
-    const latestNormal = normalNotifications
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-      .slice(0, 3)
-    
-    const latestSecurity = securityNotifications
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-      .slice(0, 3)
-    
-    // Combine and return total of 6 notifications
-    return [...latestNormal, ...latestSecurity]
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-      .slice(0, 6)
-  }
-
   const unreadCount = notifications.filter(n => !n.read).length
   const newCount = filteredNotifications.length
   
@@ -221,10 +199,10 @@ const Navbar = () => {
                     initial={{ opacity: 0, scale: 0.95, y: -10 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                    className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-200 z-50 max-h-96 overflow-hidden"
+                    className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-200 z-50 max-h-96 flex flex-col"
                   >
                     {/* Header */}
-                    <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
+                    <div className="bg-gray-50 border-b border-gray-200 px-4 py-3 flex-shrink-0">
                       <div className="flex items-center justify-between">
                         <h3 className="font-semibold text-gray-900">Notifications</h3>
                         <button
@@ -266,45 +244,43 @@ const Navbar = () => {
                     </div>
 
                     {/* Notification List */}
-                    <div className="max-h-80 overflow-y-auto">
+                    <div className="flex-1 overflow-y-auto min-h-0 notification-scroll">
                       {(() => {
-                        // Use dropdown logic for showing 6 notifications total
-                        const dropdownNotifications = getDropdownNotifications()
-                        const displayNotifications = notificationFilter === 'unread' || notificationFilter === 'new' || notificationFilter === 'security' 
-                          ? filteredNotifications.slice(0, 10) // Show more when filtering
-                          : dropdownNotifications // Show mixed 3+3 when showing 'all'
+                        // Show only latest 6 notifications based on current filter
+                        const displayNotifications = filteredNotifications
+                          .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+                          .slice(0, 6)
                         
                         return displayNotifications.length > 0 ? (
                           displayNotifications.map(notification => (
-                          <div
-                            key={notification.id}
-                            className={`p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${
-                              !notification.read ? 'bg-blue-50' : 'bg-white'
-                            }`}
-                            onClick={() => {
-                              setIsNotificationDropdownOpen(false)
-                              // Navigate to dashboard and pass a query param to open notifications tab
-                              navigate('/?tab=notifications')
-                            }}
-                          >
-                            <div className="flex items-start space-x-3">
-                              <div className="flex-shrink-0 mt-0.5">
-                                <div className={`w-2 h-2 rounded-full ${!notification.read ? 'bg-blue-500' : 'bg-gray-300'}`} />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-900 truncate">
-                                  {notification.title}
-                                </p>
-                                <p className="text-xs text-gray-600 mt-1 line-clamp-2">
-                                  {notification.message}
-                                </p>
-                                <p className="text-xs text-gray-400 mt-1">
-                                  {new Date(notification.timestamp).toLocaleString()}
-                                </p>
+                            <div
+                              key={notification.id}
+                              className={`p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${
+                                !notification.read ? 'bg-blue-50' : 'bg-white'
+                              }`}
+                              onClick={() => {
+                                setIsNotificationDropdownOpen(false)
+                                setIsNotificationCenterOpen(true) // Open full notification center
+                              }}
+                            >
+                              <div className="flex items-start space-x-3">
+                                <div className="flex-shrink-0 mt-0.5">
+                                  <div className={`w-2 h-2 rounded-full ${!notification.read ? 'bg-blue-500' : 'bg-gray-300'}`} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-900 truncate">
+                                    {notification.title}
+                                  </p>
+                                  <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                                    {notification.message}
+                                  </p>
+                                  <p className="text-xs text-gray-400 mt-1">
+                                    {new Date(notification.timestamp).toLocaleString()}
+                                  </p>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))
+                          ))
                         ) : (
                           <div className="p-4 text-center text-gray-500 text-sm">
                             No {notificationFilter} notifications

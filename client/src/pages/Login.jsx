@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
@@ -9,6 +9,7 @@ import { api } from '../services/api'
 const Login = () => {
   const { login, register, googleLogin, loginWithGoogle, isAuthenticated, clearStoredTokens } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [isLogin, setIsLogin] = useState(true)
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -19,6 +20,42 @@ const Login = () => {
     password: '',
     confirmPassword: ''
   })
+
+  // Handle OAuth error messages from URL parameters
+  useEffect(() => {
+    const error = searchParams.get('error')
+    if (error) {
+      let errorMessage = 'Authentication failed'
+      switch (error) {
+        case 'oauth_error':
+          errorMessage = 'OAuth authentication failed. Please try again.'
+          break
+        case 'auth_error':
+          errorMessage = 'Authentication error occurred. Please try again.'
+          break
+        case 'no_token':
+          errorMessage = 'No authentication token received from OAuth provider.'
+          break
+        case 'auth_update_failed':
+          errorMessage = 'Failed to update authentication status. Please try logging in again.'
+          break
+        case 'callback_error':
+          errorMessage = 'OAuth callback processing failed. Please try again.'
+          break
+        case 'auth_required':
+          errorMessage = 'Authentication required for this operation.'
+          break
+        case 'user_not_found':
+          errorMessage = 'User account not found. Please try creating a new account.'
+          break
+        default:
+          errorMessage = `Authentication error: ${error}`
+      }
+      toast.error(errorMessage)
+      // Clear the error from URL
+      navigate('/login', { replace: true })
+    }
+  }, [searchParams, navigate])
 
   // Redirect if already authenticated
   useEffect(() => {

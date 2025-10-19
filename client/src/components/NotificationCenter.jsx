@@ -409,10 +409,10 @@ const NotificationCenter = ({ isOpen, onClose, onNotificationUpdate }) => {
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
-          className="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden border border-gray-200"
+          className="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col border border-gray-200"
         >
           {/* Header */}
-          <div className="bg-gray-50 border-b border-gray-200 px-6 py-4">
+          <div className="bg-gray-50 border-b border-gray-200 px-6 py-4 flex-shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <BellIcon className="w-6 h-6 text-gray-600" />
@@ -499,7 +499,7 @@ const NotificationCenter = ({ isOpen, onClose, onNotificationUpdate }) => {
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto min-h-0 notification-scroll">
             {loading ? (
               <div className="flex items-center justify-center h-64">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-600"></div>

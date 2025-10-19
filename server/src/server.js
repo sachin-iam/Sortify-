@@ -62,17 +62,31 @@ app.use(helmet({
 
 // CORS configuration
 app.use(cors({
-  origin: [
-    process.env.CORS_ORIGIN || 'http://localhost:3000',
-    'http://localhost:3001', // Current frontend port
-    'http://localhost:3002', // Alternative frontend port
-    'http://localhost:5173', // Vite default port
-    'http://localhost:5175', // Vite alternative port
-    'http://localhost:3000'  // React default port
-  ],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true)
+    
+    const allowedOrigins = [
+      process.env.CORS_ORIGIN || 'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:3002', 
+      'http://localhost:5173',
+      'http://localhost:5175',
+      'http://localhost:3000'
+    ]
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true)
+    } else {
+      console.log('CORS blocked origin:', origin)
+      callback(new Error('Not allowed by CORS'))
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  optionsSuccessStatus: 200
 }))
 
 // Rate limiting - TEMPORARILY DISABLED to fix 429 errors
@@ -164,30 +178,69 @@ app.use(errorHandler)
 // Start server
 const startServer = async () => {
   try {
+    console.log('🚀 Starting server initialization...')
+    console.log('🌐 Port:', PORT)
+    console.log('🔐 Environment variables check:', {
+      MONGO_URI: process.env.MONGO_URI ? 'SET' : 'MISSING',
+      GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ? 'SET' : 'MISSING',
+      JWT_SECRET: process.env.JWT_SECRET ? 'SET' : 'MISSING'
+    })
+    
     // Connect to database
+    console.log('📊 Connecting to database...')
     await connectDB()
+    console.log('✅ Database connected successfully')
     
     // Create HTTP server
+    console.log('🔧 Creating HTTP server...')
     const server = createServer(app)
     
     // Initialize WebSocket server
-    initializeWebSocket(server)
+    console.log('🔌 Initializing WebSocket server...')
+    try {
+      initializeWebSocket(server)
+      console.log('✅ WebSocket server initialized')
+    } catch (wsError) {
+      console.warn('⚠️ WebSocket initialization failed:', wsError.message)
+      // Continue without WebSocket
+    }
     
     // Start email cleanup scheduler (daily cleanup of full content older than 7 days)
-    scheduleCleanup(7, 24)
-    console.log(`🧹 Email cleanup scheduler started (daily cleanup of content older than 7 days)`)
+    console.log('🧹 Setting up cleanup scheduler...')
+    try {
+      scheduleCleanup(7, 24)
+      console.log('✅ Email cleanup scheduler started')
+    } catch (cleanupError) {
+      console.warn('⚠️ Cleanup scheduler failed:', cleanupError.message)
+      // Continue without cleanup scheduler
+    }
     
     // Start listening
-    server.listen(PORT, () => {
+    console.log(`🎯 Starting server on port ${PORT}...`)
+    server.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server running on port ${PORT}`)
       console.log(`📊 Health check: http://localhost:${PORT}/health`)
       console.log(`🔗 API base: http://localhost:${PORT}/api`)
       console.log(`🔌 WebSocket: ws://localhost:${PORT}/ws`)
       console.log(`🌍 Environment: ${process.env.NODE_ENV}`)
-      console.log(`✅ Database: Connected to MongoDB Atlas`)
+      console.log(`✅ All services started successfully`)
     })
+    
+    // Add error handling for server startup
+    server.on('error', (error) => {
+      if (error.code === 'EADDRINUSE') {
+        console.error(`❌ Port ${PORT} is already in use`)
+        console.log(`💡 Try killing existing processes on port ${PORT}:`)
+        console.log(`   lsof -ti:${PORT} | xargs kill -9`)
+      } else {
+        console.error('❌ Server error:', error)
+      }
+      process.exit(1)
+    })
+    
   } catch (error) {
     console.error('❌ Failed to start server:', error)
+    console.error('Stack trace:', error.stack)
     process.exit(1)
   }
 }

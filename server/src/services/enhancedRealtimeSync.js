@@ -331,3 +331,22 @@ export const refreshUserTokens = async (user) => {
     return false
   }
 }
+
+/**
+ * Update user activity for smart syncing
+ * @param {string} userId - User ID
+ */
+export const updateUserActivity = (userId) => {
+  try {
+    // Update last activity timestamp for the user
+    // This can be used for smart syncing based on user activity
+    const sync = activeSyncs.get(userId.toString())
+    if (sync) {
+      sync.lastActivity = new Date()
+    }
+    
+    console.log(`📊 Updated activity for user: ${userId}`)
+  } catch (error) {
+    console.error('Error updating user activity:', error)
+  }
+}
