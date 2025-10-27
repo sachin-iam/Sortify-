@@ -48,11 +48,10 @@ const EmailReader = ({ email, onArchive, onUnarchive, onDelete, onExport, onClos
     }
   }, [email])
 
-  const handleQuickReply = async (replyData) => {
-    // Here you would typically send the reply via your email service
-    console.log('Sending reply:', replyData)
-    // For now, we'll just close the quick reply modal
+  const handleReplySuccess = () => {
+    // Close the reply panel
     setShowQuickReply(false)
+    // Could trigger a refresh of the email list here if needed
   }
 
   if (loading || loadingFullContent) {
@@ -340,12 +339,12 @@ const EmailReader = ({ email, onArchive, onUnarchive, onDelete, onExport, onClos
         )}
       </motion.div>
 
-      {/* Quick Reply Modal */}
+      {/* Quick Reply Panel */}
       {showQuickReply && (
         <QuickReply
           email={email}
-          onReply={handleQuickReply}
           onClose={() => setShowQuickReply(false)}
+          onSuccess={handleReplySuccess}
         />
       )}
 

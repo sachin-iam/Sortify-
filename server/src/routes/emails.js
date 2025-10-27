@@ -11,6 +11,7 @@ import notificationService from '../services/notificationService.js'
 import { updateUserActivity } from '../services/enhancedRealtimeSync.js'
 import { reclassifyAllEmails, getJobStatus } from '../services/emailReclassificationService.js'
 import { estimateReclassificationTime } from '../services/categoryFeatureService.js'
+import { sendReply } from '../services/gmailSendService.js'
 
 const router = express.Router()
 
@@ -46,11 +47,29 @@ router.post('/gmail/sync', protect, asyncHandler(async (req, res) => {
 
     const gmail = getGmailClient(user.gmailAccessToken, user.gmailRefreshToken)
     
-    // Get all emails (in batches to avoid timeout)
+    // Find the most recent email we already have
+    const latestEmail = await Email.findOne({ 
+      userId: user._id,
+      provider: 'gmail'
+    })
+      .sort({ date: -1 })
+      .select('date')
+      .lean()
+
+    // Build query to fetch only new emails (after the latest one we have)
+    let query = 'in:inbox'
+    if (latestEmail && latestEmail.date) {
+      // Convert date to Unix timestamp (seconds) for Gmail API
+      const afterTimestamp = Math.floor(latestEmail.date.getTime() / 1000)
+      query = `in:inbox after:${afterTimestamp}`
+      console.log(`📅 Fetching emails newer than: ${latestEmail.date.toISOString()}`)
+    }
+    
+    // Get emails (limited to 200 for quick sync)
     const response = await gmail.users.messages.list({
       userId: 'me',
-      maxResults: 200, // Limited to 200 emails for now
-      q: 'in:inbox'
+      maxResults: 200,
+      q: query
     })
 
     const messages = response.data.messages || []
@@ -148,8 +167,10 @@ router.post('/gmail/sync', protect, asyncHandler(async (req, res) => {
 
     // Send notification about sync completion
     const syncMessage = newEmailCount > 0 
-      ? `Synced ${syncedCount} emails from Gmail. Found ${newEmailCount} new emails!`
-      : `Successfully synced ${syncedCount} emails from Gmail`
+      ? `Found ${newEmailCount} new emails! Synced ${syncedCount} total.`
+      : messages.length > 0 
+        ? `No new emails found (checked ${messages.length} recent emails)`
+        : 'No new emails in your inbox'
     
     notificationService.sendSyncStatusNotification(req.user._id.toString(), {
       status: 'completed',
@@ -163,8 +184,10 @@ router.post('/gmail/sync', protect, asyncHandler(async (req, res) => {
 
     res.json({
       success: true,
-      message: `Synced ${syncedCount} emails from Gmail`,
-      syncedCount
+      message: syncMessage,
+      syncedCount,
+      newEmailCount,
+      checkedCount: messages.length
     })
 
   } catch (error) {
@@ -806,6 +829,121 @@ router.put('/:id/unarchive', protect, asyncHandler(async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to unarchive email'
+    })
+  }
+}))
+
+// @desc    Send reply to email
+// @route   POST /api/emails/:id/reply
+// @access  Private
+router.post('/:id/reply', protect, asyncHandler(async (req, res) => {
+  try {
+    console.log(`\n${'='.repeat(60)}`)
+    console.log(`📧 REPLY REQUEST RECEIVED`)
+    console.log(`   Email ID: ${req.params.id}`)
+    console.log(`   User ID: ${req.user._id}`)
+    console.log(`${'='.repeat(60)}\n`)
+
+    const { body: replyBody } = req.body
+
+    if (!replyBody || !replyBody.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Reply body is required'
+      })
+    }
+
+    // Find the email to reply to
+    const email = await Email.findOne({ 
+      _id: req.params.id, 
+      userId: req.user._id 
+    })
+
+    if (!email) {
+      console.log('❌ Email not found in database')
+      return res.status(404).json({
+        success: false,
+        message: 'Email not found'
+      })
+    }
+
+    console.log(`📧 Email found:`)
+    console.log(`   Subject: ${email.subject}`)
+    console.log(`   From: ${email.from}`)
+    console.log(`   Gmail ID: ${email.gmailId || 'NOT SET'}`)
+    console.log(`   Thread ID: ${email.threadId || 'NOT SET'}`)
+
+    // Get user with Gmail credentials
+    const user = await User.findById(req.user._id)
+
+    if (!user.gmailConnected || !user.gmailAccessToken) {
+      console.log('❌ Gmail not connected for user')
+      return res.status(400).json({
+        success: false,
+        message: 'Gmail account not connected. Please connect your Gmail account first.'
+      })
+    }
+
+    // Extract sender email from "Name <email@domain.com>" format
+    const extractEmail = (emailStr) => {
+      const match = emailStr.match(/<(.+?)>/)
+      return match ? match[1] : emailStr
+    }
+
+    // Parse Message-ID from email headers if available
+    // Message-ID is typically stored in the email object, but may need to be fetched
+    const messageId = email.messageId || email.gmailId
+    
+    // Prepare reply data
+    const replyData = {
+      to: extractEmail(email.from),
+      subject: email.subject,
+      body: replyBody,
+      threadId: email.threadId,
+      inReplyTo: messageId ? `<${messageId}>` : undefined,
+      references: messageId ? `<${messageId}>` : undefined
+    }
+
+    console.log(`\n📤 Sending reply via Gmail API...`)
+    console.log(`   To: ${replyData.to}`)
+    console.log(`   Subject: Re: ${replyData.subject}`)
+    console.log(`   Thread ID: ${replyData.threadId || 'N/A'}`)
+
+    // Send reply via Gmail
+    const result = await sendReply(user, replyData)
+
+    if (result.success) {
+      console.log(`\n✅ REPLY SENT SUCCESSFULLY`)
+      console.log(`   Message ID: ${result.messageId}`)
+      console.log(`   Thread ID: ${result.threadId}`)
+      console.log(`${'='.repeat(60)}\n`)
+
+      // Send notification about successful reply
+      notificationService.sendEmailOperationNotification(req.user._id.toString(), {
+        operation: 'replied',
+        message: `Reply sent to "${email.from}"`,
+        emailId: req.params.id,
+        emailSubject: email.subject
+      })
+
+      res.json({
+        success: true,
+        message: 'Reply sent successfully',
+        messageId: result.messageId,
+        threadId: result.threadId
+      })
+    } else {
+      throw new Error('Failed to send reply')
+    }
+
+  } catch (error) {
+    console.error(`\n❌ REPLY OPERATION FAILED`)
+    console.error(`   Error: ${error.message}`)
+    console.error(`${'='.repeat(60)}\n`)
+
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to send reply'
     })
   }
 }))

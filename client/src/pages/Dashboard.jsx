@@ -954,11 +954,32 @@ const Dashboard = () => {
       console.log('✅ Gmail sync response:', data)
       
       if (data.success) {
-        toast.success(`Synced ${data.synced}/${data.total} • Classified ${data.classified}`)
+        // Show different messages based on whether new emails were found
+        if (data.newEmailCount > 0) {
+          toast.success(`🎉 Found ${data.newEmailCount} new email${data.newEmailCount > 1 ? 's' : ''}!`, {
+            duration: 4000
+          })
+        } else if (data.checkedCount > 0) {
+          toast(`✅ No new emails (checked ${data.checkedCount} recent emails)`, {
+            duration: 3000,
+            icon: 'ℹ️'
+          })
+        } else {
+          toast('✅ Your inbox is up to date', {
+            duration: 3000,
+            icon: 'ℹ️'
+          })
+        }
+        
+        // Refresh data
         await checkConnectionStatus()
         await fetchStats() // Use optimized fetchStats
         await fetchSyncStatus() // Update sync status
-        await fetchEmails() // Use optimized fetchEmails
+        
+        // Only refresh emails if new ones were synced
+        if (data.newEmailCount > 0) {
+          await fetchEmails(true) // Force refresh to show new emails
+        }
       } else {
         toast.error(data.message || 'Sync failed')
       }

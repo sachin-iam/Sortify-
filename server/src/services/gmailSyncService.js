@@ -485,8 +485,29 @@ export const fullSync = async (user) => {
     // Initialize Gmail client
     const oauth2Client = getOAuthForUser(user)
 
-    // Get all message IDs
-    const messageIds = await listAllMessageIds(oauth2Client, 'in:inbox')
+    // Find the most recent email we already have
+    const latestEmail = await Email.findOne({ 
+      userId: user._id,
+      provider: 'gmail'
+    })
+      .sort({ date: -1 })
+      .select('date')
+      .lean()
+
+    // Build query to fetch only new emails (after the latest one we have)
+    let query = 'in:inbox'
+    if (latestEmail && latestEmail.date) {
+      // Convert date to Unix timestamp (seconds) for Gmail API
+      const afterTimestamp = Math.floor(latestEmail.date.getTime() / 1000)
+      query = `in:inbox after:${afterTimestamp}`
+      console.log(`📅 Fetching emails newer than: ${latestEmail.date.toISOString()}`)
+      console.log(`📧 Gmail query: ${query}`)
+    } else {
+      console.log(`📧 No existing emails found, fetching all inbox emails`)
+    }
+
+    // Get message IDs using the query
+    const messageIds = await listAllMessageIds(oauth2Client, query)
     
     console.log('🔍 Debug - messageIds type:', typeof messageIds)
     console.log('🔍 Debug - messageIds is array:', Array.isArray(messageIds))
@@ -500,7 +521,7 @@ export const fullSync = async (user) => {
         synced: 0,
         classified: 0,
         skipped: 0,
-        message: 'No emails found in inbox'
+        message: 'No new emails found in inbox'
       }
     }
 
@@ -509,6 +530,22 @@ export const fullSync = async (user) => {
     // Process emails with concurrency control
     const processEmail = async (messageId) => {
       try {
+        // Check if email already exists BEFORE fetching (to avoid unnecessary API calls)
+        const existingEmail = await Email.findOne({ 
+          gmailId: messageId,
+          userId: user._id 
+        }).select('_id').lean()
+        
+        if (existingEmail) {
+          // Email already exists, skip processing
+          return {
+            success: true,
+            emailId: messageId,
+            skipped: true,
+            reason: 'already_exists'
+          }
+        }
+        
         // Fetch full message
         const message = await fetchMessage(oauth2Client, messageId)
         
@@ -525,7 +562,8 @@ export const fullSync = async (user) => {
           success: true,
           emailId: messageId,
           subject: emailData.subject,
-          category: classifiedEmail.category
+          category: classifiedEmail.category,
+          isNew: true
         }
       } catch (error) {
         console.error(`❌ Error processing email ${messageId}:`, error.message)
@@ -541,20 +579,23 @@ export const fullSync = async (user) => {
     const results = await Promise.all(messageIds.map(messageId => limit(() => processEmail(messageId))))
     
     // Calculate statistics
-    const successful = results.filter(r => r.success)
+    const successful = results.filter(r => r.success && !r.skipped)
+    const skipped = results.filter(r => r.success && r.skipped)
     const failed = results.filter(r => !r.success)
-    const classified = successful.filter(r => r.category && r.category !== 'Other')
+    const newEmails = results.filter(r => r.success && r.isNew)
+    const classified = newEmails.filter(r => r.category && r.category !== 'Other')
     
-    // Get category breakdown
+    // Get category breakdown (only for new emails)
     const categoryBreakdown = {}
-    successful.forEach(result => {
+    newEmails.forEach(result => {
       const category = result.category || 'Other'
       categoryBreakdown[category] = (categoryBreakdown[category] || 0) + 1
     })
 
     console.log(`✅ Full sync completed:`)
-    console.log(`   Total: ${messageIds.length}`)
-    console.log(`   Synced: ${successful.length}`)
+    console.log(`   Total fetched from Gmail: ${messageIds.length}`)
+    console.log(`   New emails synced: ${newEmails.length}`)
+    console.log(`   Already existed (skipped): ${skipped.length}`)
     console.log(`   Failed: ${failed.length}`)
     console.log(`   Classified: ${classified.length}`)
     console.log(`   Categories:`, categoryBreakdown)
@@ -562,11 +603,13 @@ export const fullSync = async (user) => {
     return {
       success: true,
       total: messageIds.length,
-      synced: successful.length,
+      synced: newEmails.length,
       classified: classified.length,
-      skipped: failed.length,
+      skipped: skipped.length,
       categoryBreakdown,
-      message: `Successfully synced ${successful.length} emails from Gmail inbox`
+      message: newEmails.length > 0 
+        ? `Successfully synced ${newEmails.length} new emails from Gmail inbox` 
+        : 'No new emails found'
     }
 
   } catch (error) {

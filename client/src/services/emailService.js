@@ -139,6 +139,14 @@ const emailService = {
   disconnectGmail: async () => {
     const response = await api.post('/auth/gmail/disconnect')
     return response.data
+  },
+
+  // Send reply to an email
+  sendReply: async (emailId, replyBody) => {
+    const response = await api.post(`/emails/${emailId}/reply`, {
+      body: replyBody
+    })
+    return response.data
   }
 }
 
