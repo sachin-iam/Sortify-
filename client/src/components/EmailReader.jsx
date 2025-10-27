@@ -284,7 +284,7 @@ const EmailReader = ({ email, threadContainerId, onArchive, onUnarchive, onDelet
                 </button>
                 {email.isArchived ? (
                   <button
-                    onClick={() => onUnarchive(email._id)}
+                    onClick={() => onUnarchive(threadContainerId || email._id)}
                     className="group relative p-3 rounded-xl backdrop-blur-sm bg-gradient-to-br from-blue-400/20 to-blue-600/20 border border-blue-300/30 hover:from-blue-400/30 hover:to-blue-600/30 hover:border-blue-400/50 transition-all duration-300 shadow-md hover:shadow-blue-200/50 hover:scale-105 flex items-center justify-center"
                     title="Unarchive"
                   >
@@ -294,7 +294,7 @@ const EmailReader = ({ email, threadContainerId, onArchive, onUnarchive, onDelet
                   </button>
                 ) : (
                   <button
-                    onClick={() => onArchive(email._id)}
+                    onClick={() => onArchive(threadContainerId || email._id)}
                     className="group relative p-3 rounded-xl backdrop-blur-sm bg-gradient-to-br from-orange-400/20 to-orange-600/20 border border-orange-300/30 hover:from-orange-400/30 hover:to-orange-600/30 hover:border-orange-400/50 transition-all duration-300 shadow-md hover:shadow-orange-200/50 hover:scale-105 flex items-center justify-center"
                     title="Archive"
                   >
@@ -307,7 +307,7 @@ const EmailReader = ({ email, threadContainerId, onArchive, onUnarchive, onDelet
                   </button>
                 )}
                 <button
-                  onClick={() => onDelete(email._id)}
+                  onClick={() => onDelete(threadContainerId || email._id)}
                   className="group relative p-3 rounded-xl backdrop-blur-sm bg-gradient-to-br from-red-400/20 to-red-600/20 border border-red-300/30 hover:from-red-400/30 hover:to-red-600/30 hover:border-red-400/50 transition-all duration-300 shadow-md hover:shadow-red-200/50 hover:scale-105 flex items-center justify-center"
                   title="Delete"
                 >

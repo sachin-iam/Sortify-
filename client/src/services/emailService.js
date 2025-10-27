@@ -96,7 +96,7 @@ const emailService = {
   // Bulk operations
   bulkArchive: async (ids) => {
     const response = await api.post('/emails/bulk', {
-      action: 'archive',
+      operation: 'archive',
       emailIds: ids
     })
     return response.data
@@ -104,7 +104,7 @@ const emailService = {
 
   bulkDelete: async (ids) => {
     const response = await api.post('/emails/bulk', {
-      action: 'delete',
+      operation: 'delete',
       emailIds: ids
     })
     return response.data

@@ -1611,12 +1611,94 @@ router.post('/bulk', protect, asyncHandler(async (req, res) => {
 
     switch (operation) {
       case 'archive':
+        // Sync with Gmail for each email
+        const User = (await import('../models/User.js')).default
+        const user = await User.findById(req.user._id)
+        let gmailSyncCount = 0
+        
+        if (user.gmailConnected && user.gmailAccessToken) {
+          const { getOAuthForUser } = await import('../services/gmailSyncService.js')
+          const oauth2 = getOAuthForUser(user)
+          const gmail = google.gmail({ version: 'v1', auth: oauth2 })
+          
+          // Get all emails to archive
+          const emailsToArchive = await Email.find({
+            _id: { $in: emailIds },
+            userId: req.user._id,
+            provider: 'gmail',
+            gmailId: { $exists: true, $ne: null }
+          })
+          
+          console.log(`\n📦 Bulk archiving ${emailsToArchive.length} emails in Gmail...`)
+          
+          // Archive each email in Gmail
+          for (const email of emailsToArchive) {
+            try {
+              await gmail.users.messages.modify({
+                userId: 'me',
+                id: email.gmailId,
+                requestBody: {
+                  removeLabelIds: ['INBOX']
+                }
+              })
+              gmailSyncCount++
+              console.log(`   ✅ Archived in Gmail: ${email.subject}`)
+            } catch (gmailError) {
+              console.error(`   ❌ Failed to archive in Gmail: ${email.subject}`, gmailError.message)
+              // Continue with others even if one fails
+            }
+          }
+          
+          console.log(`✅ Gmail sync complete: ${gmailSyncCount}/${emailsToArchive.length} synced`)
+        }
+        
         updateData = { isArchived: true, archivedAt: new Date() }
-        message = 'Emails archived successfully'
+        message = `Emails archived successfully${gmailSyncCount > 0 ? ` (${gmailSyncCount} synced with Gmail)` : ''}`
         break
       case 'unarchive':
+        // Sync with Gmail for each email
+        const User2 = (await import('../models/User.js')).default
+        const user2 = await User2.findById(req.user._id)
+        let gmailSyncCount2 = 0
+        
+        if (user2.gmailConnected && user2.gmailAccessToken) {
+          const { getOAuthForUser } = await import('../services/gmailSyncService.js')
+          const oauth2 = getOAuthForUser(user2)
+          const gmail = google.gmail({ version: 'v1', auth: oauth2 })
+          
+          // Get all emails to unarchive
+          const emailsToUnarchive = await Email.find({
+            _id: { $in: emailIds },
+            userId: req.user._id,
+            provider: 'gmail',
+            gmailId: { $exists: true, $ne: null }
+          })
+          
+          console.log(`\n📥 Bulk unarchiving ${emailsToUnarchive.length} emails in Gmail...`)
+          
+          // Unarchive each email in Gmail
+          for (const email of emailsToUnarchive) {
+            try {
+              await gmail.users.messages.modify({
+                userId: 'me',
+                id: email.gmailId,
+                requestBody: {
+                  addLabelIds: ['INBOX']
+                }
+              })
+              gmailSyncCount2++
+              console.log(`   ✅ Unarchived in Gmail: ${email.subject}`)
+            } catch (gmailError) {
+              console.error(`   ❌ Failed to unarchive in Gmail: ${email.subject}`, gmailError.message)
+              // Continue with others even if one fails
+            }
+          }
+          
+          console.log(`✅ Gmail sync complete: ${gmailSyncCount2}/${emailsToUnarchive.length} synced`)
+        }
+        
         updateData = { isArchived: false, archivedAt: null }
-        message = 'Emails unarchived successfully'
+        message = `Emails unarchived successfully${gmailSyncCount2 > 0 ? ` (${gmailSyncCount2} synced with Gmail)` : ''}`
         break
       case 'delete':
         await Email.deleteMany({

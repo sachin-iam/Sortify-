@@ -1153,12 +1153,13 @@ const Dashboard = () => {
       if (isThreadContainer) {
         // Unarchive all emails in thread - we need to call unarchive for each
         // Since there's no bulk unarchive, we'll do them sequentially
-        toast.info(`Unarchiving ${emailItem.messageCount} messages...`)
+        const loadingToast = toast.loading(`Unarchiving ${emailItem.messageCount} messages...`)
         
         for (const msgId of emailItem.messageIds) {
           await emailService.unarchive(msgId)
         }
         
+        toast.dismiss(loadingToast)
         toast.success(
           `📥 Thread unarchived (${emailItem.messageCount} messages)`,
           { duration: 3000 }
