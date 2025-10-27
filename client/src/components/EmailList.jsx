@@ -272,7 +272,10 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
       )}
       
       <div className="space-y-2 p-4">
-        {items.map((email) => (
+        {items.map((email) => {
+          const isThread = email.isThread && email.messageCount > 1
+          
+          return (
             <motion.div
               key={email._id}
           className={`
@@ -317,6 +320,15 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
                       {email.from}
                     </span>
                     <div className="flex items-center gap-1 flex-shrink-0">
+                      {/* Thread indicator */}
+                      {isThread && (
+                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-blue-100/80 text-blue-700 flex items-center gap-1">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                          {email.messageCount}
+                        </span>
+                      )}
                       {email.isArchived && (
                         <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-200/80 text-gray-700 flex items-center gap-1">
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -353,7 +365,8 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
             </div>
           </div>
             </motion.div>
-      ))}
+        )}
+      )}
 
       {/* Pagination */}
       {totalPages > 1 && (

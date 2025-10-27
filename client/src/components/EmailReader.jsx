@@ -7,54 +7,132 @@ import { getCategoryLightColors } from '../utils/categoryColors'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
-const EmailReader = ({ email, onArchive, onUnarchive, onDelete, onExport, onClose, loading = false }) => {
+const EmailReader = ({ email, threadContainerId, onArchive, onUnarchive, onDelete, onExport, onClose, onReplySuccess, loading = false }) => {
   const [showQuickReply, setShowQuickReply] = useState(false)
-  const [fullEmail, setFullEmail] = useState(null)
-  const [loadingFullContent, setLoadingFullContent] = useState(false)
+  const [threadMessages, setThreadMessages] = useState([])
+  const [loadingThread, setLoadingThread] = useState(false)
   const [loadError, setLoadError] = useState(null)
+  const [isThread, setIsThread] = useState(false)
 
-  // Load full content when email changes
+  // Load thread messages when email changes
   useEffect(() => {
     if (email) {
       // Reset states
-      setFullEmail(null)
+      setThreadMessages([])
       setLoadError(null)
+      setIsThread(false)
       
-      // Check if email has full content loaded
-      if (email.isFullContentLoaded && (email.html || email.body)) {
-        setFullEmail(email)
-        return
+      // Check if this is a thread container (any thread, even with 1 message)
+      const isThreadContainer = email.isThread || email.threadId
+      
+      if (isThreadContainer) {
+        // Load thread messages (works for both multi-message and single-message threads)
+        setLoadingThread(true)
+        setIsThread(email.messageCount > 1)
+        
+        console.log('📧 Loading thread messages for container:', email._id)
+        console.log('📧 Email object:', email)
+        console.log('📧 Is multi-message thread:', email.messageCount > 1)
+        
+        emailService.getThreadMessages(email._id)
+          .then(response => {
+            console.log('📧 Thread response:', response)
+            if (response.success) {
+              setThreadMessages(response.messages || [])
+              console.log('✅ Thread messages loaded:', response.messages.length)
+            } else {
+              const errorMsg = response.message || 'Failed to load thread messages'
+              console.error('❌ Thread load failed:', errorMsg)
+              setLoadError(errorMsg)
+            }
+          })
+          .catch(error => {
+            console.error('❌ Error loading thread messages:', error)
+            console.error('Error response:', error.response?.data)
+            const errorMsg = error.response?.data?.message || error.message || 'Failed to load thread messages'
+            setLoadError(errorMsg)
+          })
+          .finally(() => {
+            setLoadingThread(false)
+          })
+      } else {
+        // Single email with no thread - load full content
+        setLoadingThread(true)
+        
+        console.log('📧 Loading single email full content:', email._id)
+        
+        emailService.getFullEmailContent(email._id)
+          .then(response => {
+            if (response.success) {
+              setThreadMessages([response.email])
+              console.log('✅ Full email content loaded:', email.subject)
+            } else {
+              const errorMsg = response.message || 'Failed to load email content'
+              console.error('❌ Email load failed:', errorMsg)
+              setLoadError(errorMsg)
+            }
+          })
+          .catch(error => {
+            console.error('❌ Error loading full email content:', error)
+            console.error('Error response:', error.response?.data)
+            const errorMsg = error.response?.data?.message || error.message || 'Failed to load email content'
+            setLoadError(errorMsg)
+          })
+          .finally(() => {
+            setLoadingThread(false)
+          })
       }
-      
-      // Load full content if not already loaded
-      setLoadingFullContent(true)
-      
-      emailService.getFullEmailContent(email._id)
-        .then(response => {
-          if (response.success) {
-            setFullEmail(response.email)
-            console.log('✅ Full email content loaded:', email.subject)
-          } else {
-            setLoadError('Failed to load email content')
-          }
-        })
-        .catch(error => {
-          console.error('Error loading full email content:', error)
-          setLoadError('Failed to load email content')
-        })
-        .finally(() => {
-          setLoadingFullContent(false)
-        })
     }
   }, [email])
 
-  const handleReplySuccess = () => {
+  const handleReplySuccess = async (sentEmailData) => {
     // Close the reply panel
     setShowQuickReply(false)
-    // Could trigger a refresh of the email list here if needed
+    
+    // If we have the sent email data, add it to the thread immediately
+    if (sentEmailData) {
+      setThreadMessages(prev => [...prev, sentEmailData])
+      console.log('✅ Sent reply added to thread messages')
+      
+      // Also update the email list container if handler provided
+      if (onReplySuccess && threadContainerId) {
+        console.log('📧 Calling parent reply success handler')
+        onReplySuccess(sentEmailData, threadContainerId)
+      }
+      
+      return
+    }
+    
+    // Otherwise, refresh the thread to show the new reply
+    if (email) {
+      const isThreadContainer = email.isThread && email.messageCount > 1
+      
+      if (isThreadContainer) {
+        // Reload thread messages
+        try {
+          const response = await emailService.getThreadMessages(email._id)
+          if (response.success) {
+            setThreadMessages(response.messages || [])
+            console.log('✅ Thread refreshed after reply')
+          }
+        } catch (error) {
+          console.error('Error refreshing thread after reply:', error)
+        }
+      } else {
+        // For single emails, reload the email content
+        try {
+          const response = await emailService.getFullEmailContent(email._id)
+          if (response.success) {
+            setThreadMessages([response.email])
+          }
+        } catch (error) {
+          console.error('Error refreshing email after reply:', error)
+        }
+      }
+    }
   }
 
-  if (loading || loadingFullContent) {
+  if (loading || loadingThread) {
     return (
       <div className="backdrop-blur-xl bg-white/30 border border-white/20 rounded-2xl p-6">
         <div className="animate-pulse space-y-4">
@@ -62,9 +140,9 @@ const EmailReader = ({ email, onArchive, onUnarchive, onDelete, onExport, onClos
           <div className="h-4 bg-white/20 rounded mb-2"></div>
           <div className="h-4 bg-white/20 rounded mb-2 w-3/4"></div>
           <div className="h-32 bg-white/20 rounded"></div>
-          {loadingFullContent && (
+          {loadingThread && (
             <div className="text-center text-sm text-slate-600 mt-4">
-              Loading full email content...
+              {isThread ? 'Loading conversation...' : 'Loading email content...'}
             </div>
           )}
         </div>
@@ -91,61 +169,69 @@ const EmailReader = ({ email, onArchive, onUnarchive, onDelete, onExport, onClos
     return new Date(dateString).toLocaleString()
   }
 
-  const renderEmailBody = () => {
-    // Use fullEmail if available, otherwise fall back to email
-    const currentEmail = fullEmail || email
-    
-    if (loadError) {
-      return (
-        <div className="text-center py-8">
-          <div className="text-red-600 mb-2">Failed to load email content</div>
-          <button 
-            onClick={() => {
-              setLoadError(null)
-              setLoadingFullContent(true)
-              emailService.getFullEmailContent(email._id)
-                .then(response => {
-                  if (response.success) {
-                    setFullEmail(response.email)
-                  } else {
-                    setLoadError('Failed to load email content')
-                  }
-                })
-                .catch(error => {
-                  setLoadError('Failed to load email content')
-                })
-                .finally(() => {
-                  setLoadingFullContent(false)
-                })
-            }}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            Retry
-          </button>
-        </div>
-      )
-    }
-    
-    if (currentEmail.html) {
+  const renderMessageBody = (message) => {
+    if (message.html) {
       return (
         <div
           className="prose prose-sm max-w-none"
-          dangerouslySetInnerHTML={{ __html: currentEmail.html }}
+          dangerouslySetInnerHTML={{ __html: message.html }}
         />
       )
-    } else if (currentEmail.body) {
+    } else if (message.body || message.text) {
       return (
         <div className="whitespace-pre-wrap text-slate-700">
-          {currentEmail.body}
+          {message.body || message.text}
         </div>
       )
     } else {
       return (
         <div className="text-slate-600 italic">
-          {currentEmail.snippet}
+          {message.snippet}
         </div>
       )
     }
+  }
+
+  const renderError = () => {
+    return (
+      <div className="text-center py-8">
+        <div className="text-red-600 mb-2">Failed to load email content</div>
+        <button 
+          onClick={() => {
+            setLoadError(null)
+            // Retry loading
+            if (email.isThread && email.messageCount > 1) {
+              setLoadingThread(true)
+              emailService.getThreadMessages(email._id)
+                .then(response => {
+                  if (response.success) {
+                    setThreadMessages(response.messages || [])
+                  } else {
+                    setLoadError('Failed to load thread messages')
+                  }
+                })
+                .catch(() => setLoadError('Failed to load thread messages'))
+                .finally(() => setLoadingThread(false))
+            } else {
+              setLoadingThread(true)
+              emailService.getFullEmailContent(email._id)
+                .then(response => {
+                  if (response.success) {
+                    setThreadMessages([response.email])
+                  } else {
+                    setLoadError('Failed to load email content')
+                  }
+                })
+                .catch(() => setLoadError('Failed to load email content'))
+                .finally(() => setLoadingThread(false))
+            }
+          }}
+          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+        >
+          Retry
+        </button>
+      </div>
+    )
   }
 
   return (
@@ -284,65 +370,118 @@ const EmailReader = ({ email, onArchive, onUnarchive, onDelete, onExport, onClos
           </div>
         </div>
 
-        {/* Email Body Section */}
+        {/* Thread Messages Section */}
         <div className="p-8">
-          <div className="prose prose-slate max-w-none break-words leading-relaxed">
-            <div className="text-slate-900 text-sm leading-6">
-              {renderEmailBody()}
-            </div>
-          </div>
-        </div>
-
-        {/* Attachments Section */}
-        {(fullEmail?.attachments || email.attachments) && (fullEmail?.attachments?.length > 0 || email.attachments?.length > 0) && (
-          <div className="border-t border-white/30 bg-gradient-to-r from-slate-50/50 to-blue-50/30">
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center">
-                  <ModernIcon type="attachment" size={3} color="#2563eb" />
-                </div>
-                <h3 className="text-lg font-semibold text-slate-900">
-                  Attachments ({(fullEmail?.attachments || email.attachments).length})
-                </h3>
-              </div>
-              <div className="space-y-3">
-                {(fullEmail?.attachments || email.attachments).map((attachment, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-4 bg-white/60 backdrop-blur-sm rounded-2xl border border-white/30 hover:bg-white/80 transition-all duration-200 shadow-sm hover:shadow-md"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center">
-                        <ModernIcon type="attachment" size={4} color="#2563eb" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-slate-900 text-sm">{attachment.filename}</p>
-                        <p className="text-xs text-slate-600">
-                          {Math.round(attachment.size / 1024)} KB
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        // Handle attachment download
-                        window.open(`${API_BASE_URL}/emails/${email._id}/attachments/${attachment.attachmentId}/download`)
-                      }}
-                      className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all duration-200 text-sm font-medium shadow-sm hover:shadow-md hover:scale-105"
+          {loadError ? (
+            renderError()
+          ) : threadMessages.length === 0 ? (
+            <div className="text-center text-slate-600 italic">No messages to display</div>
+          ) : (
+            <div className="space-y-6">
+              {threadMessages.map((message, index) => {
+                const isLatest = index === threadMessages.length - 1
+                const isFirst = index === 0
+                
+                return (
+                  <div key={message._id || index}>
+                    {/* Message Container */}
+                    <div
+                      className={`
+                        ${!isLatest ? 'opacity-80' : ''}
+                        transition-opacity duration-200
+                      `}
                     >
-                      Download
-                    </button>
+                      {/* Message Header */}
+                      <div className="flex items-start justify-between mb-4 pb-3 border-b border-slate-200/50">
+                        <div className="flex items-start gap-3 flex-1">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            isLatest ? 'bg-gradient-to-br from-blue-100 to-blue-200' : 'bg-slate-200'
+                          }`}>
+                            <span className="text-sm font-semibold text-slate-700">
+                              {message.from?.charAt(0)?.toUpperCase() || 'U'}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-slate-900">
+                              {message.from}
+                            </div>
+                            <div className="text-xs text-slate-500 mt-0.5">
+                              to {message.to}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-xs text-slate-500 whitespace-nowrap ml-4">
+                          {formatDate(message.date)}
+                        </div>
+                      </div>
+
+                      {/* Message Body */}
+                      <div className={`
+                        prose prose-slate max-w-none break-words leading-relaxed
+                        ${!isLatest ? 'prose-sm' : ''}
+                      `}>
+                        <div className="text-slate-900 text-sm leading-6">
+                          {renderMessageBody(message)}
+                        </div>
+                      </div>
+
+                      {/* Message Attachments */}
+                      {message.attachments && message.attachments.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-slate-200/50">
+                          <div className="flex items-center gap-2 mb-3">
+                            <ModernIcon type="attachment" size={3} color="#64748b" />
+                            <span className="text-sm font-medium text-slate-700">
+                              {message.attachments.length} {message.attachments.length === 1 ? 'attachment' : 'attachments'}
+                            </span>
+                          </div>
+                          <div className="space-y-2">
+                            {message.attachments.map((attachment, attIndex) => (
+                              <div
+                                key={attIndex}
+                                className="flex items-center justify-between p-3 bg-slate-50/60 rounded-xl border border-slate-200/50 hover:bg-slate-100/60 transition-all duration-200"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center">
+                                    <ModernIcon type="attachment" size={3} color="#2563eb" />
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-slate-900 text-sm">{attachment.filename}</p>
+                                    <p className="text-xs text-slate-600">
+                                      {Math.round(attachment.size / 1024)} KB
+                                    </p>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    window.open(`${API_BASE_URL}/emails/${message._id}/attachments/${attachment.attachmentId}/download`)
+                                  }}
+                                  className="px-3 py-1.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 text-xs font-medium shadow-sm hover:shadow-md"
+                                >
+                                  Download
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Separator between messages (not after last message) */}
+                    {!isLatest && (
+                      <div className="my-6 border-t-2 border-slate-200/30"></div>
+                    )}
                   </div>
-                ))}
-              </div>
+                )
+              })}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </motion.div>
 
       {/* Quick Reply Panel */}
       {showQuickReply && (
         <QuickReply
-          email={email}
+          email={threadMessages.length > 0 ? threadMessages[threadMessages.length - 1] : email}
           onClose={() => setShowQuickReply(false)}
           onSuccess={handleReplySuccess}
         />

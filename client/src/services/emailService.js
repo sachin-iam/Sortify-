@@ -8,7 +8,8 @@ const emailService = {
       limit = 25,
       category = 'All',
       provider = 'gmail',
-      q: search = ''
+      q: search = '',
+      threaded = true // Enable threading by default
     } = params
 
     const queryParams = new URLSearchParams({
@@ -16,6 +17,7 @@ const emailService = {
       limit: limit.toString(),
       category,
       provider,
+      threaded: threaded.toString(),
       ...(search && { q: search }),
       t: Date.now() // Cache-busting parameter
     })
@@ -44,6 +46,12 @@ const emailService = {
   // Get full email content (lazy loading)
   getFullEmailContent: async (id) => {
     const response = await api.get(`/emails/${id}/full-content`)
+    return response.data
+  },
+
+  // Get all messages in a thread
+  getThreadMessages: async (containerId) => {
+    const response = await api.get(`/emails/thread/${containerId}`)
     return response.data
   },
 
@@ -145,6 +153,16 @@ const emailService = {
   sendReply: async (emailId, replyBody) => {
     const response = await api.post(`/emails/${emailId}/reply`, {
       body: replyBody
+    })
+    return response.data
+  },
+
+  // Mark email(s) as read
+  markAsRead: async (emailIds) => {
+    const ids = Array.isArray(emailIds) ? emailIds : [emailIds]
+    const response = await api.post('/emails/bulk', {
+      emailIds: ids,
+      operation: 'markRead'
     })
     return response.data
   }

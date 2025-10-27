@@ -43,9 +43,9 @@ const QuickReply = ({ email, onClose, onSuccess }) => {
         // Clear reply text
         setReplyText('')
         
-        // Call success callback
+        // Call success callback with sent email data
         if (onSuccess) {
-          onSuccess()
+          onSuccess(result.sentEmail)
         }
         
         // Close the reply panel

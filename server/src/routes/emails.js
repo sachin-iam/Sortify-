@@ -12,6 +12,7 @@ import { updateUserActivity } from '../services/enhancedRealtimeSync.js'
 import { reclassifyAllEmails, getJobStatus } from '../services/emailReclassificationService.js'
 import { estimateReclassificationTime } from '../services/categoryFeatureService.js'
 import { sendReply } from '../services/gmailSendService.js'
+import { groupEmailsIntoThreads } from '../services/threadGroupingService.js'
 
 const router = express.Router()
 
@@ -254,9 +255,11 @@ router.get('/', protect, asyncHandler(async (req, res) => {
       limit = 25, 
       category, 
       provider = 'gmail', 
-      q: search 
+      q: search,
+      threaded = 'false' // New parameter for thread grouping
     } = req.query
     const skip = (page - 1) * limit
+    const isThreaded = threaded === 'true'
 
     let query = { userId: req.user._id }
 
@@ -288,13 +291,32 @@ router.get('/', protect, asyncHandler(async (req, res) => {
       ]
     }
 
+    // Fetch emails - need more data for threading
+    const selectFields = isThreaded 
+      ? '_id subject from to snippet date category classification isRead labels isArchived archivedAt threadId'
+      : '_id subject from to snippet date category classification isRead labels isArchived archivedAt'
+
     const emails = await Email.find(query)
       .sort({ date: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .select('_id subject from to snippet date category classification isRead labels isArchived archivedAt')
+      .select(selectFields)
+      .lean()
 
-    const total = await Email.countDocuments(query)
+    // Apply threading if requested
+    let items
+    let total
+    
+    if (isThreaded) {
+      // Group emails into threads
+      const allThreads = groupEmailsIntoThreads(emails)
+      total = allThreads.length
+      
+      // Apply pagination to threads
+      items = allThreads.slice(skip, skip + parseInt(limit))
+    } else {
+      // Regular pagination on individual emails
+      items = emails.slice(skip, skip + parseInt(limit))
+      total = await Email.countDocuments(query)
+    }
 
     // Set cache control headers to prevent caching
     res.set({
@@ -306,10 +328,11 @@ router.get('/', protect, asyncHandler(async (req, res) => {
     // Format response as requested
     res.json({
       success: true,
-      items: emails,
+      items,
       total,
       page: parseInt(page),
-      limit: parseInt(limit)
+      limit: parseInt(limit),
+      threaded: isThreaded
     })
 
   } catch (error) {
@@ -367,6 +390,102 @@ router.get('/stats', protect, asyncHandler(async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch email statistics'
+    })
+  }
+}))
+
+// @desc    Get all messages in a thread
+// @route   GET /api/emails/thread/:containerId
+// @access  Private
+router.get('/thread/:containerId', protect, asyncHandler(async (req, res) => {
+  try {
+    const { containerId } = req.params
+    console.log(`📧 Thread request for container: ${containerId}`)
+    
+    const { parseThreadContainerId, getThreadMessages } = await import('../services/threadGroupingService.js')
+    
+    // Parse the container ID to get threadId and dateKey
+    const parsed = parseThreadContainerId(containerId)
+    console.log(`📧 Parsed result:`, parsed)
+    
+    if (!parsed) {
+      console.log(`📧 Not a thread container ID, trying as single email`)
+      // If not a valid container ID, try to fetch as single email
+      const email = await Email.findOne({
+        _id: containerId,
+        userId: req.user._id
+      })
+      
+      if (!email) {
+        console.log(`❌ Email not found: ${containerId}`)
+        return res.status(404).json({
+          success: false,
+          message: 'Thread or email not found'
+        })
+      }
+      
+      console.log(`✅ Single email found: ${email.subject}`)
+      console.log(`   Thread ID: ${email.threadId}`)
+      
+      // If this email has a threadId, fetch all messages in that thread for the same day
+      if (email.threadId) {
+        console.log(`📧 Email is part of a thread, fetching all thread messages`)
+        const { normalizeDate } = await import('../services/threadGroupingService.js')
+        const dateKey = normalizeDate(email.date)
+        
+        const messages = await getThreadMessages(Email, email.threadId, req.user._id, dateKey)
+        console.log(`📧 Found ${messages ? messages.length : 0} messages in thread`)
+        
+        if (messages && messages.length > 0) {
+          return res.json({
+            success: true,
+            messages,
+            isThread: messages.length > 1,
+            threadId: email.threadId,
+            dateKey
+          })
+        }
+      }
+      
+      // Return single email as array
+      return res.json({
+        success: true,
+        messages: [email],
+        isThread: false
+      })
+    }
+    
+    const { threadId, dateKey } = parsed
+    console.log(`📧 Fetching thread messages for threadId: ${threadId}, date: ${dateKey}`)
+    
+    // Fetch all messages in the thread for that day
+    const messages = await getThreadMessages(Email, threadId, req.user._id, dateKey)
+    console.log(`📧 Found ${messages ? messages.length : 0} messages`)
+    
+    if (!messages || messages.length === 0) {
+      console.log(`❌ No messages found for thread`)
+      return res.status(404).json({
+        success: false,
+        message: 'Thread not found'
+      })
+    }
+    
+    console.log(`✅ Returning ${messages.length} thread messages`)
+    res.json({
+      success: true,
+      messages,
+      isThread: messages.length > 1,
+      threadId,
+      dateKey
+    })
+    
+  } catch (error) {
+    console.error('Get thread messages error:', error)
+    console.error('Error stack:', error.stack)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch thread messages',
+      error: error.message
     })
   }
 }))
@@ -918,6 +1037,73 @@ router.post('/:id/reply', protect, asyncHandler(async (req, res) => {
       console.log(`   Thread ID: ${result.threadId}`)
       console.log(`${'='.repeat(60)}\n`)
 
+      // Fetch the sent message from Gmail to get full details
+      let sentEmailData = null
+      try {
+        const gmail = getGmailClient(user.gmailAccessToken, user.gmailRefreshToken)
+        const sentMessage = await gmail.users.messages.get({
+          userId: 'me',
+          id: result.messageId,
+          format: 'full'
+        })
+
+        // Parse the sent message and save it to database
+        const headers = sentMessage.data.payload.headers
+        const getHeader = (name) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value
+
+        // Get email body
+        let emailBody = ''
+        let emailHtml = ''
+        
+        const getBody = (payload) => {
+          if (payload.body && payload.body.data) {
+            const decoded = Buffer.from(payload.body.data, 'base64').toString('utf-8')
+            return decoded
+          }
+          if (payload.parts) {
+            for (const part of payload.parts) {
+              if (part.mimeType === 'text/plain' && part.body.data) {
+                emailBody = Buffer.from(part.body.data, 'base64').toString('utf-8')
+              }
+              if (part.mimeType === 'text/html' && part.body.data) {
+                emailHtml = Buffer.from(part.body.data, 'base64').toString('utf-8')
+              }
+            }
+          }
+        }
+        
+        getBody(sentMessage.data.payload)
+
+        // Create email document for the sent reply
+        const newEmail = new Email({
+          userId: req.user._id,
+          provider: 'gmail',
+          gmailId: result.messageId,
+          messageId: getHeader('Message-ID'),
+          threadId: result.threadId,
+          subject: getHeader('Subject') || `Re: ${email.subject}`,
+          from: user.email,
+          to: extractEmail(email.from),
+          date: new Date(parseInt(sentMessage.data.internalDate)),
+          snippet: sentMessage.data.snippet,
+          body: emailBody || replyBody,
+          html: emailHtml,
+          text: emailBody || replyBody,
+          isRead: true,
+          labels: sentMessage.data.labelIds || [],
+          category: email.category || 'Other',
+          isFullContentLoaded: true,
+          fullContentLoadedAt: new Date()
+        })
+
+        await newEmail.save()
+        sentEmailData = newEmail
+        console.log(`✅ Sent reply saved to database with ID: ${newEmail._id}`)
+      } catch (saveError) {
+        console.error('⚠️  Failed to save sent reply to database:', saveError.message)
+        // Don't fail the request if saving fails - the email was still sent
+      }
+
       // Send notification about successful reply
       notificationService.sendEmailOperationNotification(req.user._id.toString(), {
         operation: 'replied',
@@ -930,7 +1116,8 @@ router.post('/:id/reply', protect, asyncHandler(async (req, res) => {
         success: true,
         message: 'Reply sent successfully',
         messageId: result.messageId,
-        threadId: result.threadId
+        threadId: result.threadId,
+        sentEmail: sentEmailData // Include the saved email data
       })
     } else {
       throw new Error('Failed to send reply')
@@ -1629,19 +1816,45 @@ router.post('/outlook/sync-all', protect, asyncHandler(async (req, res) => {
 router.get('/:id/full-content', protect, asyncHandler(async (req, res) => {
   try {
     const emailId = req.params.id
+    console.log(`📧 Full-content request for: ${emailId}`)
+    
     const user = await User.findById(req.user._id)
 
-    // Find email and verify it belongs to the user
-    const email = await Email.findOne({ 
-      _id: emailId, 
-      userId: req.user._id 
-    })
-
-    if (!email) {
-      return res.status(404).json({
-        success: false,
-        message: 'Email not found'
+    // Check if this is a thread container ID
+    const { parseThreadContainerId, getThreadMessages } = await import('../services/threadGroupingService.js')
+    const parsed = parseThreadContainerId(emailId)
+    
+    let email
+    
+    if (parsed) {
+      // It's a thread container ID - get the first/only message
+      console.log(`📧 Thread container ID detected, fetching messages`)
+      const { threadId, dateKey } = parsed
+      const messages = await getThreadMessages(Email, threadId, req.user._id, dateKey)
+      
+      if (!messages || messages.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Email not found'
+        })
+      }
+      
+      // Use the first message (or latest message if multiple)
+      email = messages[messages.length - 1] // Latest message
+      console.log(`📧 Using message from thread: ${email._id}`)
+    } else {
+      // Regular email ID
+      email = await Email.findOne({ 
+        _id: emailId, 
+        userId: req.user._id 
       })
+      
+      if (!email) {
+        return res.status(404).json({
+          success: false,
+          message: 'Email not found'
+        })
+      }
     }
 
     // If full content is already loaded, return it
