@@ -3,24 +3,13 @@ import { motion } from 'framer-motion'
 import ModernIcon from './ModernIcon'
 import { api } from '../services/api'
 import { useWebSocketContext } from '../contexts/WebSocketContext'
+import { getCategoryColor } from '../utils/categoryColors'
 
 const CategoryTabs = ({ value, onChange, refreshTrigger }) => {
   const [categories, setCategories] = useState([{ id: 'All', label: 'All', color: '#64748b' }])
   const [loading, setLoading] = useState(true)
   const { lastMessage } = useWebSocketContext()
 
-  // Helper function to assign colors to categories
-  const getCategoryColor = (categoryName) => {
-    const colorMap = {
-      'Academic': '#8fa4c7',
-      'Promotions': '#c09999',
-      'Placement': '#a8b5a0',
-      'Spam': '#d4b5b5',
-      'Newsletter': '#c9a58b',
-      'Other': '#64748b'
-    }
-    return colorMap[categoryName] || '#64748b'
-  }
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -31,7 +20,7 @@ const CategoryTabs = ({ value, onChange, refreshTrigger }) => {
         const serverCategories = response.data.categories.map(category => ({
           id: category.name,
           label: category.name,
-          color: getCategoryColor(category.name)
+          color: getCategoryColor(category.name, 'hex')
         }))
         
         // Always include "All" at the beginning and "Other" at the end
@@ -105,7 +94,7 @@ const CategoryTabs = ({ value, onChange, refreshTrigger }) => {
             const newCategory = {
               id: category.name,
               label: category.name,
-              color: getCategoryColor(category.name)
+              color: getCategoryColor(category.name, 'hex')
             }
             // Add new category before "Other" if it exists
             const otherIndex = prev.findIndex(cat => cat.id === 'Other')

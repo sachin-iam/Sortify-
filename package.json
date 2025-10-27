@@ -15,6 +15,7 @@
     "install:deps": "npm install && cd client && npm install && cd ../server && npm install && cd .. && npm run setup:venv",
     "build": "cd client && npm run build",
     "start": "cd server && npm start",
+    "migrate:reclassify": "cd server && npm run migrate:reclassify",
     "test": "npm run test:client && npm run test:server && npm run test:model",
     "test:client": "cd client && npm test",
     "test:server": "cd server && npm test",

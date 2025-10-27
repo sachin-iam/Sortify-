@@ -2,6 +2,7 @@
 import mongoose from 'mongoose'
 import Category from '../models/Category.js'
 import Email from '../models/Email.js'
+import { startReclassificationJob } from './emailReclassificationService.js'
 
 // Helper function to convert userId to ObjectId
 const toObjectId = (userId) => {
@@ -93,10 +94,20 @@ export const addCategory = async (userId, categoryData) => {
       description: categoryData.description || `Custom category: ${categoryData.name.trim()}`,
       color: categoryData.color || '#6B7280',
       isDefault: false,
-      emailCount: 0
+      emailCount: 0,
+      // Add new fields for dynamic classification
+      classificationStrategy: categoryData.classificationStrategy || null,
+      patterns: categoryData.patterns || null,
+      trainingStatus: categoryData.trainingStatus || 'pending',
+      sampleEmailIds: categoryData.sampleEmailIds || [],
+      keywords: categoryData.keywords || []
     })
 
     const savedCategory = await newCategory.save()
+    
+    // Don't trigger reclassification here - let the caller handle it
+    // This prevents duplicate reclassification jobs
+    console.log(`✅ Category "${savedCategory.name}" saved to database`)
     
     return {
       id: savedCategory._id.toString(),
@@ -106,6 +117,10 @@ export const addCategory = async (userId, categoryData) => {
       color: savedCategory.color,
       isDefault: savedCategory.isDefault,
       isActive: savedCategory.isActive,
+      classificationStrategy: savedCategory.classificationStrategy,
+      patterns: savedCategory.patterns,
+      trainingStatus: savedCategory.trainingStatus,
+      mlServiceId: savedCategory.mlServiceId,
       createdAt: savedCategory.createdAt,
       updatedAt: savedCategory.updatedAt
     }
@@ -140,6 +155,11 @@ export const updateCategory = async (userId, categoryId, updates) => {
       throw new Error('Cannot rename the "Other" category')
     }
 
+    // Check if classification strategy is being updated
+    const shouldTriggerReclassification = 
+      updates.classificationStrategy && 
+      JSON.stringify(updates.classificationStrategy) !== JSON.stringify(category.classificationStrategy)
+
     const updatedCategory = await Category.findByIdAndUpdate(
       categoryId,
       {
@@ -149,6 +169,17 @@ export const updateCategory = async (userId, categoryId, updates) => {
       },
       { new: true }
     )
+
+    // Trigger reclassification if classification strategy changed
+    if (shouldTriggerReclassification && updatedCategory) {
+      try {
+        console.log(`🔄 Triggering reclassification for updated category strategy: ${updatedCategory.name}`)
+        await startReclassificationJob(userId, updatedCategory.name, updatedCategory._id.toString())
+      } catch (reclassifyError) {
+        console.error('❌ Error starting reclassification for updated category:', reclassifyError)
+        // Don't fail the category update if reclassification fails
+      }
+    }
 
     return {
       id: updatedCategory._id.toString(),

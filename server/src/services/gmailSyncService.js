@@ -1,7 +1,7 @@
 import { google } from 'googleapis'
 import pLimit from 'p-limit'
 import Email from '../models/Email.js'
-import { classifyEmail } from './classificationService.js'
+import { classifyEmail } from './enhancedClassificationService.js'
 import axios from 'axios'
 
 const GMAIL_SYNC_MAX_CONCURRENCY = parseInt(process.env.GMAIL_SYNC_MAX_CONCURRENCY) || 5
@@ -126,9 +126,62 @@ export const fetchMessage = async (oauth2, messageId) => {
 }
 
 /**
+ * Extract URLs from HTML content
+ * @param {string} html - HTML content
+ * @returns {Array} Array of URLs found
+ */
+const extractUrlsFromHtml = (html) => {
+  if (!html) return []
+  
+  const urlRegex = /href\s*=\s*['"](https?:\/\/[^'"]+)['"]/gi
+  const urls = []
+  let match
+  
+  while ((match = urlRegex.exec(html)) !== null) {
+    urls.push(match[1])
+  }
+  
+  return urls
+}
+
+/**
+ * Extract URLs from plain text
+ * @param {string} text - Plain text content
+ * @returns {Array} Array of URLs found
+ */
+const extractUrlsFromText = (text) => {
+  if (!text) return []
+  
+  const urlRegex = /https?:\/\/[^\s<>\"{}|\\^`\[\]]+/gi
+  return text.match(urlRegex) || []
+}
+
+/**
+ * Parse sender domain from email address
+ * @param {string} fromHeader - From header value
+ * @returns {string} Domain name
+ */
+const parseSenderDomain = (fromHeader) => {
+  if (!fromHeader) return 'unknown'
+  
+  // Extract email address using regex
+  const emailRegex = /<([^>]+)>|^([^\s<>]+@[^\s<>]+)/
+  const match = fromHeader.match(emailRegex)
+  
+  if (match) {
+    const email = match[1] || match[2]
+    if (email && email.includes('@')) {
+      return email.split('@')[1].toLowerCase()
+    }
+  }
+  
+  return 'unknown'
+}
+
+/**
  * Parse email headers and body from Gmail message
  * @param {Object} message - Gmail message object
- * @returns {Object} Parsed email data
+ * @returns {Object} Parsed email data with enhanced metadata
  */
 export const parseEmailMessage = (message) => {
   const headers = message.payload?.headers || []
@@ -154,7 +207,7 @@ export const parseEmailMessage = (message) => {
         }
       }
     } else if (part.body?.attachmentId) {
-      // Handle attachments
+      // Handle attachments with enhanced metadata
       attachments.push({
         attachmentId: part.body.attachmentId,
         filename: part.filename || `attachment_${part.body.attachmentId}`,
@@ -179,13 +232,61 @@ export const parseEmailMessage = (message) => {
     }
   }
 
+  // Extract comprehensive header information
+  const enhancedHeaders = {}
+  headers.forEach(header => {
+    enhancedHeaders[header.name.toLowerCase()] = header.value
+  })
+
+  // Extract thread metadata
+  const inReplyTo = getHeader('In-Reply-To')
+  const references = getHeader('References')
+  const replyTo = getHeader('Reply-To')
+  
+  // Parse sender domain
+  const fromHeader = getHeader('From') || 'Unknown Sender'
+  const senderDomain = parseSenderDomain(fromHeader)
+  
+  // Parse recipient information
+  const toHeader = getHeader('To') || ''
+  const ccHeader = getHeader('Cc') || ''
+  const bccHeader = getHeader('Bcc') || ''
+  
+  // Count recipients
+  const recipientCount = [
+    ...toHeader.split(','),
+    ...ccHeader.split(','),
+    ...bccHeader.split(',')
+  ].filter(email => email.trim().includes('@')).length
+
+  // Extract URLs from content
+  const htmlUrls = extractUrlsFromHtml(html)
+  const textUrls = extractUrlsFromText(text + ' ' + body)
+  const allUrls = [...new Set([...htmlUrls, ...textUrls])]
+
+  // Parse authentication headers
+  const authHeaders = {
+    spf: getHeader('Received-SPF') || getHeader('Authentication-Results'),
+    dkim: getHeader('DKIM-Signature') || getHeader('Authentication-Results'),
+    dmarc: getHeader('ARC-Authentication-Results') || getHeader('Authentication-Results')
+  }
+
+  // Extract priority/importance headers
+  const priorityHeaders = {
+    priority: getHeader('X-Priority') || getHeader('Priority'),
+    importance: getHeader('X-MSMail-Priority') || getHeader('Importance'),
+    mimeVersion: getHeader('MIME-Version')
+  }
+
   return {
     gmailId: message.id,
     messageId: message.id,
     threadId: message.threadId,
     subject: getHeader('Subject') || 'No Subject',
-    from: getHeader('From') || 'Unknown Sender',
-    to: getHeader('To') || '',
+    from: fromHeader,
+    to: toHeader,
+    cc: ccHeader,
+    bcc: bccHeader,
     date: new Date(parseInt(message.internalDate)),
     snippet: message.snippet || '',
     html,
@@ -194,7 +295,37 @@ export const parseEmailMessage = (message) => {
     attachments,
     isRead: !message.labelIds?.includes('UNREAD'),
     labels: message.labelIds || [],
-    provider: 'gmail'
+    provider: 'gmail',
+    
+    // Enhanced metadata for feature extraction
+    enhancedMetadata: {
+      senderDomain,
+      recipientCount,
+      threadMetadata: {
+        inReplyTo,
+        references,
+        isReply: !!inReplyTo,
+        isForward: false // Could be enhanced to detect forwards
+      },
+      headers: {
+        replyTo,
+        returnPath: getHeader('Return-Path'),
+        messageId: getHeader('Message-ID'),
+        userAgent: getHeader('User-Agent') || getHeader('X-Mailer'),
+        ...authHeaders,
+        ...priorityHeaders
+      },
+      urls: allUrls,
+      urlCount: allUrls.length,
+      hasExternalLinks: allUrls.some(url => {
+        try {
+          const urlObj = new URL(url)
+          return urlObj.protocol === 'http:' || urlObj.protocol === 'https:'
+        } catch {
+          return false
+        }
+      })
+    }
   }
 }
 
@@ -265,32 +396,68 @@ export const upsertEmail = async (user, emailData) => {
  */
 export const classifyAndSave = async (emailDoc) => {
   try {
-    // Use local classification to avoid ML service dependency
+    // Use enhanced classification with full email data
     let classification
     try {
-      // Use the local classification service instead of external ML service
-      const { classifyEmail } = await import('./classificationService.js')
-      classification = await classifyEmail(emailDoc.subject, emailDoc.snippet, emailDoc.body || emailDoc.text)
+      // Prepare comprehensive email data for enhanced classification
+      const emailData = {
+        subject: emailDoc.subject,
+        body: emailDoc.body || emailDoc.text,
+        html: emailDoc.html,
+        from: emailDoc.from,
+        to: emailDoc.to,
+        cc: emailDoc.cc,
+        bcc: emailDoc.bcc,
+        date: emailDoc.date,
+        attachments: emailDoc.attachments || [],
+        enhancedMetadata: emailDoc.enhancedMetadata || {}
+      }
+      
+      classification = await classifyEmail(
+        emailDoc.subject, 
+        emailDoc.snippet, 
+        emailDoc.body || emailDoc.text, 
+        emailDoc.userId.toString(),
+        emailData
+      )
     } catch (localError) {
-      console.log('Local classification failed, using fallback')
+      console.log('Enhanced classification failed, using fallback:', localError.message)
       classification = {
         label: 'Other',
-        confidence: 0.5
+        confidence: 0.5,
+        scores: {},
+        model: 'fallback'
       }
     }
     
-    // Update email with classification
+    // Prepare update data with enhanced features
+    const updateData = {
+      category: classification.label,
+      classification: {
+        label: classification.label,
+        confidence: classification.confidence,
+        modelVersion: '2.0.0-ensemble',
+        classifiedAt: new Date(),
+        model: classification.model || 'enhanced',
+        reason: 'Enhanced ensemble classification',
+        ensembleScores: classification.ensembleScores || {},
+        featureContributions: classification.featureContributions || {}
+      }
+    }
+    
+    // Add extracted features and enhanced metadata if available
+    if (classification.extractedFeatures) {
+      updateData.extractedFeatures = classification.extractedFeatures
+    }
+    
+    if (classification.enhancedMetadata) {
+      updateData.enhancedMetadata = classification.enhancedMetadata
+    }
+    
+    // Update email with enhanced classification
     const updatedEmail = await Email.findByIdAndUpdate(
       emailDoc._id,
-      {
-        category: classification.label,
-        classification: {
-          label: classification.label,
-          confidence: classification.confidence,
-          modelVersion: '1.0.0',
-          classifiedAt: new Date()
-        }
-      },
+      updateData,
       { new: true }
     )
 

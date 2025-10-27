@@ -13,6 +13,7 @@ import BulkOperations from '../components/BulkOperations'
 import NotificationCenter from '../components/NotificationCenter'
 import PerformanceDashboard from '../components/PerformanceDashboard'
 import CategoriesCard from '../components/CategoriesCard'
+import ReclassificationProgress from '../components/ReclassificationProgress'
 import { api } from '../services/api'
 import emailService from '../services/emailService'
 import ModernIcon from '../components/ModernIcon'
@@ -81,6 +82,10 @@ const Dashboard = () => {
   const [showPerformanceDashboard, setShowPerformanceDashboard] = useState(false)
   const [categoryTabsRefresh, setCategoryTabsRefresh] = useState(0)
   const [currentCategoryCount, setCurrentCategoryCount] = useState(0)
+  
+  // Reclassification progress state
+  const [reclassificationJobs, setReclassificationJobs] = useState([])
+  const [showReclassificationProgress, setShowReclassificationProgress] = useState(false)
   
   // Rate limiting for API calls
   const [lastApiCall, setLastApiCall] = useState(0)
@@ -554,7 +559,7 @@ const Dashboard = () => {
       console.log('🔌 WebSocket connected, subscribing to events')
       // Use a small delay to prevent multiple rapid subscriptions
       const timeoutId = setTimeout(() => {
-        subscribeToEvents(['email_synced', 'category_updated', 'sync_status', 'stats_updated', 'realtime_update'])
+        subscribeToEvents(['email_synced', 'category_updated', 'sync_status', 'stats_updated', 'realtime_update', 'email_archived', 'email_unarchived', 'reclassification_started', 'reclassification_progress', 'reclassification_complete', 'reclassification_failed'])
       }, 100)
       
       return () => clearTimeout(timeoutId)
@@ -598,6 +603,99 @@ const Dashboard = () => {
         fetchStats(true)
         break
         
+      case 'reclassification_started':
+        console.log('🔄 Dashboard received reclassification start:', lastMessage.data)
+        toast.success(`Started reclassifying emails for category: ${lastMessage.data?.categoryName || 'All Emails'}`, {
+          duration: 5000
+        })
+        break
+        
+      case 'reclassification_progress':
+        console.log('🔄 Dashboard received reclassification progress:', lastMessage.data)
+        
+        // Update reclassification jobs state
+        setReclassificationJobs(prevJobs => {
+          const existingIndex = prevJobs.findIndex(job => job.jobId === lastMessage.data.jobId)
+          if (existingIndex !== -1) {
+            // Update existing job
+            const updatedJobs = [...prevJobs]
+            updatedJobs[existingIndex] = { ...updatedJobs[existingIndex], ...lastMessage.data }
+            return updatedJobs
+          } else {
+            // Add new job
+            setShowReclassificationProgress(true)
+            return [...prevJobs, lastMessage.data]
+          }
+        })
+        
+        // Show progress toast for major milestones
+        if (lastMessage.data?.progress % 25 === 0) {
+          toast.loading(
+            `Reclassifying: ${lastMessage.data?.progress}% (${lastMessage.data?.processedEmails}/${lastMessage.data?.totalEmails} emails)`, 
+            { id: 'reclassification_progress', duration: 10000 }
+          )
+        }
+        break
+        
+      case 'reclassification_complete':
+        console.log('✅ Dashboard received reclassification complete:', lastMessage.data)
+        toast.dismiss('reclassification_progress')
+        toast.success(`Reclassification completed! ${lastMessage.data?.successfulClassifications}/${lastMessage.data?.totalEmails} emails updated.`, {
+          duration: 6000
+        })
+        // Refresh emails and stats after reclassification
+        fetchEmails(true)
+        fetchStats(true)
+        break
+        
+      case 'reclassification_failed':
+        console.log('❌ Dashboard received reclassification failed:', lastMessage.data)
+        toast.dismiss('reclassification_progress')
+        toast.error(`Reclassification failed: ${lastMessage.data?.error || 'Unknown error'}`, {
+          duration: 8000
+        })
+        break
+        
+      case 'email_archived':
+        console.log('📦 Dashboard received email archived:', lastMessage.data)
+        // Mark email as archived but keep it visible in the list
+        setEmails(prevEmails => prevEmails.map(email => 
+          email._id === lastMessage.data?.emailId
+            ? { ...email, isArchived: true, archivedAt: new Date() }
+            : email
+        ))
+        // Update selected email if this email was open
+        if (selectedEmail && selectedEmail._id === lastMessage.data?.emailId) {
+          setSelectedEmail({ ...selectedEmail, isArchived: true, archivedAt: new Date() })
+        }
+        // Update stats
+        fetchStats(true)
+        // Show success notification
+        toast.success(`Email archived${lastMessage.data?.gmailSynced ? ' and synced with Gmail' : ''}`, {
+          duration: 3000
+        })
+        break
+        
+      case 'email_unarchived':
+        console.log('📥 Dashboard received email unarchived:', lastMessage.data)
+        // Mark email as unarchived in the list
+        setEmails(prevEmails => prevEmails.map(email => 
+          email._id === lastMessage.data?.emailId
+            ? { ...email, isArchived: false, archivedAt: null }
+            : email
+        ))
+        // Update selected email if this email was open
+        if (selectedEmail && selectedEmail._id === lastMessage.data?.emailId) {
+          setSelectedEmail({ ...selectedEmail, isArchived: false, archivedAt: null })
+        }
+        // Update stats
+        fetchStats(true)
+        // Show success notification
+        toast.success(`Email unarchived${lastMessage.data?.gmailSynced ? ' and synced with Gmail' : ''}`, {
+          duration: 3000
+        })
+        break
+        
       case 'realtime_update':
         console.log('⚡ Dashboard received real-time update:', lastMessage.data)
         // Handle general real-time updates - refresh all data
@@ -611,7 +709,7 @@ const Dashboard = () => {
       default:
         console.log('📡 Unknown message type:', lastMessage.type)
     }
-  }, [lastMessage, handleCategoryUpdate, handleEmailSync, handleSyncStatus, fetchStats, fetchSyncStatus, fetchEmails, gmailConnected])
+  }, [lastMessage, handleCategoryUpdate, handleEmailSync, handleSyncStatus, fetchStats, fetchSyncStatus, fetchEmails, gmailConnected, selectedEmailId, selectedEmail])
 
   // Listen for messages from popup windows (Gmail OAuth)
   useEffect(() => {
@@ -895,17 +993,98 @@ const Dashboard = () => {
   }
 
   const handleEmailArchive = async (emailId) => {
+    // Optimistic UI update: immediately mark email as archived
+    const previousEmails = [...emails]
+    
+    // Immediately update UI - mark as archived but keep visible
+    setEmails(prevEmails => prevEmails.map(email => 
+      email._id === emailId 
+        ? { ...email, isArchived: true, archivedAt: new Date() }
+        : email
+    ))
+    
+    // Update selected email if this email is open
+    if (selectedEmail && selectedEmail._id === emailId) {
+      setSelectedEmail({ ...selectedEmail, isArchived: true, archivedAt: new Date() })
+    }
+    
     try {
-      await emailService.archive(emailId)
-      toast.success('Email archived')
-      fetchEmails() // Refresh list
-      if (selectedEmailId === emailId) {
-        setSelectedEmailId(null)
-        setSelectedEmail(null)
+      const response = await emailService.archive(emailId)
+      
+      if (response.success) {
+        toast.success(
+          response.gmailSynced 
+            ? '📦 Email archived and synced with Gmail' 
+            : '📦 Email archived locally',
+          { duration: 3000 }
+        )
+        
+        // Refresh stats to reflect the change
+        fetchStats(true)
+      } else {
+        // Revert on failure
+        setEmails(previousEmails)
+        if (selectedEmail && selectedEmail._id === emailId) {
+          setSelectedEmail(previousEmails.find(e => e._id === emailId) || null)
+        }
+        toast.error(response.message || 'Failed to archive email')
       }
     } catch (error) {
+      // Revert optimistic update on error
       console.error('Archive error:', error)
-      toast.error('Failed to archive email')
+      setEmails(previousEmails)
+      if (selectedEmail && selectedEmail._id === emailId) {
+        setSelectedEmail(previousEmails.find(e => e._id === emailId) || null)
+      }
+      toast.error(error?.response?.data?.message || 'Failed to archive email')
+    }
+  }
+
+  const handleEmailUnarchive = async (emailId) => {
+    // Optimistic UI update: immediately mark email as unarchived
+    const previousEmails = [...emails]
+    
+    // Immediately update UI - mark as unarchived
+    setEmails(prevEmails => prevEmails.map(email => 
+      email._id === emailId 
+        ? { ...email, isArchived: false, archivedAt: null }
+        : email
+    ))
+    
+    // Update selected email if this email is open
+    if (selectedEmail && selectedEmail._id === emailId) {
+      setSelectedEmail({ ...selectedEmail, isArchived: false, archivedAt: null })
+    }
+    
+    try {
+      const response = await emailService.unarchive(emailId)
+      
+      if (response.success) {
+        toast.success(
+          response.gmailSynced 
+            ? '📥 Email unarchived and synced with Gmail' 
+            : '📥 Email unarchived locally',
+          { duration: 3000 }
+        )
+        
+        // Refresh stats to reflect the change
+        fetchStats(true)
+      } else {
+        // Revert on failure
+        setEmails(previousEmails)
+        if (selectedEmail && selectedEmail._id === emailId) {
+          setSelectedEmail(previousEmails.find(e => e._id === emailId) || null)
+        }
+        toast.error(response.message || 'Failed to unarchive email')
+      }
+    } catch (error) {
+      // Revert optimistic update on error
+      console.error('Unarchive error:', error)
+      setEmails(previousEmails)
+      if (selectedEmail && selectedEmail._id === emailId) {
+        setSelectedEmail(previousEmails.find(e => e._id === emailId) || null)
+      }
+      toast.error(error?.response?.data?.message || 'Failed to unarchive email')
     }
   }
 
@@ -1578,6 +1757,7 @@ const Dashboard = () => {
                     <EmailReader
                       email={selectedEmail}
                       onArchive={handleEmailArchive}
+                      onUnarchive={handleEmailUnarchive}
                       onDelete={handleEmailDelete}
                       onExport={handleEmailExport}
                       onClose={handleEmailClose}
@@ -1623,6 +1803,28 @@ const Dashboard = () => {
         isOpen={showPerformanceDashboard}
         onClose={() => setShowPerformanceDashboard(false)}
       />
+
+      {/* Reclassification Progress */}
+      {reclassificationJobs.map((job, index) => (
+        <ReclassificationProgress
+          key={job.jobId || index}
+          isVisible={showReclassificationProgress && job.status !== 'completed'}
+          job={job}
+          onClose={() => {
+            if (job.status === 'completed' || job.status === 'failed') {
+              setReclassificationJobs(prev => prev.filter(j => j.jobId !== job.jobId))
+              if (reclassificationJobs.length === 1) {
+                setShowReclassificationProgress(false)
+              }
+            }
+          }}
+          onViewDetails={() => {
+            // Refresh emails to show updated categories
+            fetchEmails(true)
+            setCategoryTabsRefresh(prev => prev + 1)
+          }}
+        />
+      ))}
 
     </div>
   )

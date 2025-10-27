@@ -12,7 +12,8 @@
     "test:gmail-sync": "node test-gmail-real-sync.js",
     "test:watch": "cross-env NODE_ENV=test jest --watch",
     "test:coverage": "cross-env NODE_ENV=test jest --coverage",
-    "seed": "node src/scripts/seed.js"
+    "seed": "node src/scripts/seed.js",
+    "migrate:reclassify": "node src/scripts/migrateExistingEmails.js"
   },
   "dependencies": {
     "all": "^0.0.0",
@@ -33,6 +34,7 @@
     "jspdf-autotable": "^5.0.2",
     "mongoose": "^8.0.3",
     "morgan": "^1.10.0",
+    "natural": "^8.1.0",
     "node-cron": "^4.2.1",
     "node-fetch": "^3.3.2",
     "nodemailer": "^7.0.6",

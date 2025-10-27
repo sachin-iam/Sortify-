@@ -53,6 +53,12 @@ const emailService = {
     return response.data
   },
 
+  // Unarchive email
+  unarchive: async (id) => {
+    const response = await api.put(`/emails/${id}/unarchive`)
+    return response.data
+  },
+
   // Delete email
   remove: async (id) => {
     const response = await api.delete(`/emails/${id}`)

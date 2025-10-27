@@ -16,6 +16,11 @@ const CategoryManagement = ({ onCategoryUpdate }) => {
   const [editName, setEditName] = useState('')
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, category: null })
   const [editModal, setEditModal] = useState({ isOpen: false, category: null })
+  const [trainingProgress, setTrainingProgress] = useState({})
+  const [reclassificationProgress, setReclassificationProgress] = useState({})
+  const [isReclassifyingAll, setIsReclassifyingAll] = useState(false)
+  const [reclassifyConfirmModal, setReclassifyConfirmModal] = useState({ isOpen: false })
+  const [reclassificationCountdown, setReclassificationCountdown] = useState({})
 
   // Fetch categories on component mount
   useEffect(() => {
@@ -24,32 +29,134 @@ const CategoryManagement = ({ onCategoryUpdate }) => {
 
   // Handle real-time category updates
   useEffect(() => {
-    if (lastMessage?.type === 'category_updated') {
-      const { type, category } = lastMessage.data
+    if (lastMessage?.type) {
+      const messageType = lastMessage.type
+      const data = lastMessage.data || lastMessage
       
-      switch (type) {
-        case 'category_added':
-          // Don't add "All" category to management panel
-          if (category.name !== 'All') {
-            setCategories(prev => [...prev, category])
-          }
-          break
+      switch (messageType) {
         case 'category_updated':
-          // Don't update "All" category in management panel
-          if (category.name !== 'All') {
-            setCategories(prev => 
-              prev.map(cat => cat.id === category.id ? category : cat)
-            )
+          const { type, category } = data
+          switch (type) {
+            case 'category_added':
+              // Don't add "All" category to management panel
+              if (category.name !== 'All') {
+                setCategories(prev => [...prev, category])
+              }
+              break
+            case 'category_updated':
+              // Don't update "All" category in management panel
+              if (category.name !== 'All') {
+                setCategories(prev => 
+                  prev.map(cat => cat.id === category.id ? category : cat)
+                )
+              }
+              break
+            case 'category_deleted':
+              setCategories(prev => prev.filter(cat => cat.id !== category.id))
+              break
+            default:
+              break
           }
           break
-        case 'category_deleted':
-          setCategories(prev => prev.filter(cat => cat.id !== category.id))
+          
+        case 'category_training_progress':
+          setTrainingProgress(prev => ({
+            ...prev,
+            [data.category.name]: {
+              status: 'training',
+              message: data.message || 'Training in progress...'
+            }
+          }))
           break
-        default:
+          
+        case 'reclassification_progress':
+          setReclassificationProgress(prev => ({
+            ...prev,
+            [data.categoryName]: {
+              progress: data.progress || 0,
+              processedEmails: data.processedEmails || 0,
+              totalEmails: data.totalEmails || 0,
+              message: data.message || 'Reclassifying emails...'
+            }
+          }))
+          
+          // Update countdown
+          if (data.remainingSeconds !== undefined) {
+            setReclassificationCountdown(prev => ({
+              ...prev,
+              [data.categoryName]: {
+                remainingSeconds: data.remainingSeconds,
+                totalSeconds: data.elapsedSeconds + data.remainingSeconds,
+                progress: data.progress
+              }
+            }))
+          }
+          break
+          
+        case 'reclassification_complete':
+          setReclassificationProgress(prev => {
+            const newProgress = { ...prev }
+            delete newProgress[data.categoryName]
+            return newProgress
+          })
+          
+          setTrainingProgress(prev => ({
+            ...prev,
+            [data.categoryName]: {
+              status: 'completed',
+              message: data.message || `Reclassified ${data.successfulClassifications}/${data.totalEmails} emails`
+            }
+          }))
+          
+          // Clear training progress after a delay
+          setTimeout(() => {
+            setTrainingProgress(prev => {
+              const newProgress = { ...prev }
+              delete newProgress[data.categoryName]
+              return newProgress
+            })
+          }, 5000)
+          break
+          
+        case 'reclassification_failed':
+        case 'reclassification_cancelled':
+          setReclassificationProgress(prev => {
+            const newProgress = { ...prev }
+            delete newProgress[data.categoryName]
+            return newProgress
+          })
+          
+          setTrainingProgress(prev => ({
+            ...prev,
+            [data.categoryName]: {
+              status: 'failed',
+              message: data.message || 'Reclassification failed'
+            }
+          }))
           break
       }
     }
   }, [lastMessage])
+
+  // Countdown timer effect
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setReclassificationCountdown(prev => {
+        const updated = { ...prev }
+        Object.keys(updated).forEach(categoryName => {
+          if (updated[categoryName].remainingSeconds > 0) {
+            updated[categoryName] = {
+              ...updated[categoryName],
+              remainingSeconds: updated[categoryName].remainingSeconds - 1
+            }
+          }
+        })
+        return updated
+      })
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [])
 
   // Handle body scroll locking when modals are open
   useEffect(() => {
@@ -108,23 +215,52 @@ const CategoryManagement = ({ onCategoryUpdate }) => {
       return
     }
 
+    const categoryToAdd = newCategory.trim()
+
     try {
       setAddingCategory(true)
+      console.log(`📝 Creating category: "${categoryToAdd}"`)
+      
       const response = await api.post('/realtime/categories', {
-        name: newCategory.trim(),
-        description: `Auto-generated category: ${newCategory.trim()}`
+        name: categoryToAdd,
+        description: `Auto-generated category: ${categoryToAdd}`
       })
 
-      setCategories(prev => [...prev, response.data.category])
-      setNewCategory('')
-      toast.success(`Category "${newCategory}" added successfully!`)
-      
-      if (onCategoryUpdate) {
-        onCategoryUpdate()
+      console.log('✅ Category creation response:', response.data)
+
+      if (response.data.success && response.data.category) {
+        setCategories(prev => [...prev, response.data.category])
+        setNewCategory('')
+        
+        // Show appropriate success message
+        if (response.data.message) {
+          toast.success(response.data.message)
+        } else {
+          toast.success(`Category "${categoryToAdd}" added successfully!`)
+        }
+        
+        if (onCategoryUpdate) {
+          onCategoryUpdate()
+        }
+      } else {
+        throw new Error(response.data.message || 'Unexpected response format')
       }
     } catch (error) {
-      console.error('Error adding category:', error)
-      toast.error(error.response?.data?.message || 'Failed to add category')
+      console.error('❌ Error adding category:', error)
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      })
+      
+      // Show detailed error message
+      const errorMessage = error.response?.data?.message 
+        || error.message 
+        || 'Failed to add category. Please try again.'
+      
+      toast.error(errorMessage, {
+        duration: 5000
+      })
       
       // Refresh categories list to ensure frontend and backend are in sync
       fetchCategories()
@@ -227,6 +363,53 @@ const CategoryManagement = ({ onCategoryUpdate }) => {
     setEditName('')
   }
 
+  const handleReclassifyAll = async () => {
+    try {
+      setIsReclassifyingAll(true)
+      setReclassifyConfirmModal({ isOpen: false })
+      
+      toast.loading('Starting reclassification of all emails...', { duration: 3000 })
+      
+      const response = await api.post('/emails/reclassify-all')
+      
+      if (response.data.success) {
+        const estimate = response.data.estimatedTime || {}
+        
+        toast.success(
+          `Reclassification started! Processing ${estimate.emailCount || 'all'} emails 
+           (est. ${estimate.estimatedMinutes || '?'} min)`,
+          { duration: 6000 }
+        )
+        
+        // Set initial countdown
+        if (estimate.estimatedSeconds) {
+          setReclassificationCountdown(prev => ({
+            ...prev,
+            'All Emails': {
+              remainingSeconds: estimate.estimatedSeconds,
+              totalSeconds: estimate.estimatedSeconds,
+              progress: 0
+            }
+          }))
+        }
+      } else {
+        toast.error(response.data.message || 'Failed to start reclassification')
+      }
+    } catch (error) {
+      console.error('Error starting reclassification:', error)
+      toast.error(error.response?.data?.message || 'Failed to start reclassification')
+    } finally {
+      setIsReclassifyingAll(false)
+    }
+  }
+
+  const openReclassifyModal = () => {
+    setReclassifyConfirmModal({ isOpen: true })
+  }
+
+  const closeReclassifyModal = () => {
+    setReclassifyConfirmModal({ isOpen: false })
+  }
 
   return (
     <div className="relative z-[100]">
@@ -305,6 +488,27 @@ const CategoryManagement = ({ onCategoryUpdate }) => {
                 </div>
               </form>
 
+              {/* Reclassify All Emails Button */}
+              <div className="mb-4">
+                <button
+                  onClick={openReclassifyModal}
+                  disabled={isReclassifyingAll}
+                  className="w-full px-4 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:from-blue-600 hover:to-blue-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isReclassifyingAll ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>Reclassifying...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ModernIcon type="sync" size={16} color="white" />
+                      <span>Reclassify All Emails</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
               {/* Categories List */}
               <div className="space-y-2 max-h-60 overflow-y-auto">
                 {loading ? (
@@ -331,6 +535,57 @@ const CategoryManagement = ({ onCategoryUpdate }) => {
                                 `${category.count} emails`
                               }
                             </span>
+                          )}
+                          
+                          {/* Training Progress Indicator */}
+                          {trainingProgress[category.name] && (
+                            <div className="flex items-center gap-2 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                              {trainingProgress[category.name].status === 'training' && (
+                                <div className="animate-spin rounded-full h-3 w-3 border-b border-blue-600"></div>
+                              )}
+                              {trainingProgress[category.name].status === 'completed' && (
+                                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                              )}
+                              {trainingProgress[category.name].status === 'failed' && (
+                                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                              )}
+                              <span className="truncate">{trainingProgress[category.name].message}</span>
+                            </div>
+                          )}
+                          
+                          {/* Reclassification Progress Indicator */}
+                          {reclassificationProgress[category.name] && (
+                            <div className="text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded-full">
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 border border-purple-600 rounded-full flex-shrink-0">
+                                  <div 
+                                    className="h-full bg-purple-600 rounded-full transition-all duration-300"
+                                    style={{ width: `${reclassificationProgress[category.name].progress}%` }}
+                                  ></div>
+                                </div>
+                                <span className="truncate">
+                                  {reclassificationProgress[category.name].message}
+                                </span>
+                              </div>
+                              {reclassificationProgress[category.name].processedEmails !== undefined && (
+                                <div className="text-xs text-purple-500 mt-1">
+                                  {reclassificationProgress[category.name].processedEmails}/
+                                  {reclassificationProgress[category.name].totalEmails} emails
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Reclassification Countdown */}
+                          {reclassificationCountdown[category.name] && 
+                           reclassificationCountdown[category.name].remainingSeconds > 0 && (
+                            <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full flex items-center gap-2">
+                              <div className="animate-pulse w-2 h-2 bg-blue-600 rounded-full"></div>
+                              <span>
+                                {Math.floor(reclassificationCountdown[category.name].remainingSeconds / 60)}:
+                                {String(reclassificationCountdown[category.name].remainingSeconds % 60).padStart(2, '0')} remaining
+                              </span>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -447,6 +702,89 @@ const CategoryManagement = ({ onCategoryUpdate }) => {
                     className="flex-1 px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl font-semibold hover:from-red-600 hover:to-red-700 transition-all duration-200 transform hover:scale-105 shadow-lg"
                   >
                     Delete
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* Reclassify All Emails Confirmation Modal */}
+      {reclassifyConfirmModal.isOpen && createPortal(
+        <AnimatePresence>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[10000]"
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              width: '100vw',
+              height: '100vh',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            onClick={closeReclassifyModal}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ type: "spring", damping: 20, stiffness: 300 }}
+              className="relative w-full max-w-md mx-4 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                position: 'relative',
+                zIndex: 10001
+              }}
+            >
+              {/* Header with gradient */}
+              <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-6 text-white">
+                <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 bg-white/20 rounded-full backdrop-blur-sm">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-center">Reclassify All Emails</h3>
+              </div>
+              
+              {/* Content */}
+              <div className="p-6">
+                <p className="text-slate-600 text-center mb-4">
+                  This will reclassify all your emails using the latest ML models and your custom categories.
+                </p>
+                <p className="text-slate-500 text-sm text-center mb-6">
+                  The process may take some time depending on the number of emails. You will receive updates on progress.
+                </p>
+                
+                {/* Buttons */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={closeReclassifyModal}
+                    className="flex-1 px-4 py-3 bg-slate-100 text-slate-700 rounded-xl font-semibold hover:bg-slate-200 transition-all duration-200 transform hover:scale-105"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleReclassifyAll}
+                    disabled={isReclassifyingAll}
+                    className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-blue-700 transition-all duration-200 transform hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
+                  >
+                    {isReclassifyingAll ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <span>Starting...</span>
+                      </>
+                    ) : (
+                      'Start Reclassification'
+                    )}
                   </button>
                 </div>
               </div>

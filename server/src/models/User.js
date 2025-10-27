@@ -112,6 +112,40 @@ const userSchema = new mongoose.Schema({
   emailVerificationExpire: {
     type: Date,
     default: null
+  },
+  feedbackStats: {
+    correctionsCount: {
+      type: Number,
+      default: 0
+    },
+    lastFeedbackAt: {
+      type: Date,
+      default: null
+    },
+    averageConfidence: {
+      type: Number,
+      default: 0.0
+    },
+    openCount: {
+      type: Number,
+      default: 0
+    },
+    replyCount: {
+      type: Number,
+      default: 0
+    },
+    deleteCount: {
+      type: Number,
+      default: 0
+    },
+    archiveCount: {
+      type: Number,
+      default: 0
+    },
+    unsubscribeCount: {
+      type: Number,
+      default: 0
+    }
   }
 }, {
   timestamps: true

@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { api } from '../services/api'
+import { useWebSocketContext } from '../contexts/WebSocketContext'
+import { getCategoryColor } from '../utils/categoryColors'
 import ModernIcon from './ModernIcon'
 
 const AdvancedAnalytics = () => {
+  const { lastMessage } = useWebSocketContext()
   const [analytics, setAnalytics] = useState({
     totalEmails: 0,
     categories: {},
@@ -23,6 +26,41 @@ const AdvancedAnalytics = () => {
     fetchAnalytics()
   }, [timeRange, selectedCategory])
 
+  // Handle WebSocket updates for category changes and reclassifications
+  useEffect(() => {
+    if (!lastMessage) return
+    
+    console.log('AdvancedAnalytics received WebSocket message:', lastMessage)
+    
+    switch (lastMessage.type) {
+      case 'category_updated':
+        console.log('🏷️ AdvancedAnalytics received category update:', lastMessage.data)
+        // Refresh analytics when categories change
+        fetchAnalytics()
+        break
+        
+      case 'reclassification_complete':
+        console.log('✅ AdvancedAnalytics received reclassification complete:', lastMessage.data)
+        // Refresh analytics when reclassification completes
+        fetchAnalytics()
+        break
+        
+      case 'reclassification_progress':
+        console.log('🔄 AdvancedAnalytics received reclassification progress:', lastMessage.data)
+        // Optionally show progress indicator or just log
+        break
+        
+      case 'email_synced':
+        console.log('📧 AdvancedAnalytics received email sync update:', lastMessage.data)
+        // Refresh analytics when new emails are synced
+        fetchAnalytics()
+        break
+        
+      default:
+        break
+    }
+  }, [lastMessage, timeRange, selectedCategory])
+
   const fetchAnalytics = async () => {
     try {
       setLoading(true)
@@ -41,16 +79,6 @@ const AdvancedAnalytics = () => {
     return num.toString()
   }
 
-  const getCategoryColor = (category) => {
-    const colors = {
-      'Academic': 'from-blue-500 to-blue-600',
-      'Promotions': 'from-purple-500 to-purple-600',
-      'Placement': 'from-green-500 to-green-600',
-      'Spam': 'from-red-500 to-red-600',
-      'Other': 'from-gray-500 to-gray-600'
-    }
-    return colors[category] || 'from-gray-500 to-gray-600'
-  }
 
   if (loading) {
     return (
@@ -174,13 +202,13 @@ const AdvancedAnalytics = () => {
           {Object.entries(analytics.categories).map(([category, count], index) => (
             <div key={category} className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className={`w-4 h-4 rounded-full bg-gradient-to-r ${getCategoryColor(category)}`}></div>
+                <div className={`w-4 h-4 rounded-full bg-gradient-to-r ${getCategoryColor(category, 'gradient')}`}></div>
                 <span className="font-medium text-slate-800">{category}</span>
               </div>
               <div className="flex items-center gap-3">
                 <div className="w-32 bg-slate-200 rounded-full h-2">
                   <div
-                    className={`h-2 rounded-full bg-gradient-to-r ${getCategoryColor(category)}`}
+                    className={`h-2 rounded-full bg-gradient-to-r ${getCategoryColor(category, 'gradient')}`}
                     style={{ width: `${(count / analytics.totalEmails) * 100}%` }}
                   ></div>
                 </div>

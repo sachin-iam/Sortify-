@@ -1,0 +1,375 @@
+{
+  "templates": {
+    "Academic": {
+      "id": "template_academic",
+      "name": "Academic",
+      "description": "Academic and educational content",
+      "keywords": [
+        "lecture",
+        "course",
+        "assignment",
+        "research",
+        "university",
+        "professor",
+        "student",
+        "exam",
+        "homework",
+        "syllabus",
+        "academic",
+        "education",
+        "learning",
+        "study",
+        "campus"
+      ],
+      "color": "#3B82F6",
+      "classification_strategy": {
+        "headerAnalysis": {
+          "senderDomains": [
+            "edu",
+            "university",
+            "college",
+            "school"
+          ],
+          "senderPatterns": [
+            "professor",
+            "instructor",
+            "teacher",
+            "academic",
+            "education"
+          ],
+          "subjectPatterns": [
+            "lecture",
+            "course",
+            "assignment",
+            "exam",
+            "homework",
+            "syllabus",
+            "academic",
+            "education"
+          ]
+        },
+        "bodyAnalysis": {
+          "keywords": [
+            "lecture",
+            "course",
+            "assignment",
+            "research",
+            "university",
+            "professor",
+            "student",
+            "exam",
+            "homework",
+            "syllabus",
+            "academic",
+            "education",
+            "learning",
+            "study",
+            "campus",
+            "grade",
+            "score",
+            "due date",
+            "deadline"
+          ],
+          "phrases": [
+            "course syllabus",
+            "assignment due",
+            "lecture notes",
+            "academic calendar",
+            "student portal",
+            "grade book",
+            "office hours",
+            "course materials"
+          ]
+        },
+        "metadataAnalysis": {
+          "timePatterns": {
+            "typicalHours": [9, 10, 11, 14, 15, 16],
+            "typicalDays": [1, 2, 3, 4, 5]
+          },
+          "lengthPatterns": {
+            "typicalRange": [200, 2000]
+          }
+        },
+        "confidenceThreshold": 0.7
+      }
+    },
+    "Promotions": {
+      "id": "template_promotions",
+      "name": "Promotions",
+      "description": "Promotional and marketing content",
+      "keywords": [
+        "sale",
+        "offer",
+        "discount",
+        "promotion",
+        "deal",
+        "special",
+        "limited time",
+        "exclusive",
+        "save",
+        "percent off",
+        "buy now",
+        "shop",
+        "store",
+        "retail"
+      ],
+      "color": "#10B981",
+      "classification_strategy": {
+        "headerAnalysis": {
+          "senderDomains": [
+            "shop",
+            "store",
+            "retail",
+            "commerce",
+            "marketing"
+          ],
+          "senderPatterns": [
+            "marketing",
+            "promotions",
+            "offers",
+            "deals",
+            "sales"
+          ],
+          "subjectPatterns": [
+            "sale",
+            "offer",
+            "discount",
+            "promotion",
+            "deal",
+            "special",
+            "limited time",
+            "exclusive",
+            "save",
+            "percent off",
+            "buy now"
+          ]
+        },
+        "bodyAnalysis": {
+          "keywords": [
+            "sale",
+            "offer",
+            "discount",
+            "promotion",
+            "deal",
+            "special",
+            "limited time",
+            "exclusive",
+            "save",
+            "percent off",
+            "buy now",
+            "shop",
+            "store",
+            "retail",
+            "price",
+            "cost",
+            "money",
+            "dollar",
+            "free shipping"
+          ],
+          "phrases": [
+            "limited time offer",
+            "exclusive deal",
+            "save money",
+            "buy now",
+            "free shipping",
+            "percent off",
+            "special promotion"
+          ]
+        },
+        "metadataAnalysis": {
+          "timePatterns": {
+            "typicalHours": [10, 11, 14, 15, 16, 17, 18, 19, 20],
+            "typicalDays": [1, 2, 3, 4, 5, 6]
+          }
+        },
+        "confidenceThreshold": 0.7
+      }
+    },
+    "Placement": {
+      "id": "template_placement",
+      "name": "Placement",
+      "description": "Job and career opportunities",
+      "keywords": [
+        "job",
+        "career",
+        "hiring",
+        "interview",
+        "position",
+        "employment",
+        "recruitment",
+        "resume",
+        "cv",
+        "application",
+        "opportunity",
+        "opening",
+        "vacancy",
+        "work",
+        "company"
+      ],
+      "color": "#F59E0B",
+      "classification_strategy": {
+        "headerAnalysis": {
+          "senderDomains": [
+            "careers",
+            "jobs",
+            "hr",
+            "recruitment",
+            "talent",
+            "company"
+          ],
+          "senderPatterns": [
+            "hr",
+            "recruiter",
+            "talent",
+            "careers",
+            "hiring",
+            "jobs"
+          ],
+          "subjectPatterns": [
+            "job",
+            "career",
+            "hiring",
+            "interview",
+            "position",
+            "employment",
+            "recruitment",
+            "opportunity",
+            "opening",
+            "vacancy"
+          ]
+        },
+        "bodyAnalysis": {
+          "keywords": [
+            "job",
+            "career",
+            "hiring",
+            "interview",
+            "position",
+            "employment",
+            "recruitment",
+            "resume",
+            "cv",
+            "application",
+            "opportunity",
+            "opening",
+            "vacancy",
+            "work",
+            "company",
+            "salary",
+            "benefits",
+            "requirements",
+            "qualifications"
+          ],
+          "phrases": [
+            "job opportunity",
+            "career opportunity",
+            "hiring now",
+            "interview process",
+            "job requirements",
+            "apply now",
+            "resume required",
+            "full time",
+            "part time"
+          ]
+        },
+        "metadataAnalysis": {
+          "timePatterns": {
+            "typicalHours": [9, 10, 11, 14, 15, 16, 17],
+            "typicalDays": [1, 2, 3, 4, 5]
+          }
+        },
+        "confidenceThreshold": 0.7
+      }
+    },
+    "Spam": {
+      "id": "template_spam",
+      "name": "Spam",
+      "description": "Spam and unwanted content",
+      "keywords": [
+        "spam",
+        "unwanted",
+        "junk",
+        "scam",
+        "phishing",
+        "virus",
+        "malware",
+        "suspicious",
+        "unsubscribe",
+        "remove",
+        "stop",
+        "block"
+      ],
+      "color": "#EF4444",
+      "classification_strategy": {
+        "headerAnalysis": {
+          "senderDomains": [
+            "suspicious",
+            "unknown",
+            "noreply",
+            "no-reply"
+          ],
+          "senderPatterns": [
+            "noreply",
+            "no-reply",
+            "unsubscribe",
+            "remove",
+            "stop"
+          ],
+          "subjectPatterns": [
+            "urgent",
+            "act now",
+            "limited time",
+            "free money",
+            "winner",
+            "congratulations",
+            "click here",
+            "verify",
+            "confirm"
+          ]
+        },
+        "bodyAnalysis": {
+          "keywords": [
+            "spam",
+            "unwanted",
+            "junk",
+            "scam",
+            "phishing",
+            "virus",
+            "malware",
+            "suspicious",
+            "unsubscribe",
+            "remove",
+            "stop",
+            "block",
+            "urgent",
+            "act now",
+            "free money",
+            "winner",
+            "congratulations"
+          ],
+          "phrases": [
+            "click here",
+            "act now",
+            "limited time",
+            "free money",
+            "you won",
+            "congratulations",
+            "verify account",
+            "confirm identity"
+          ]
+        },
+        "metadataAnalysis": {
+          "timePatterns": {
+            "typicalHours": [0, 1, 2, 3, 4, 5, 6, 22, 23]
+          }
+        },
+        "confidenceThreshold": 0.6
+      }
+    }
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "created_at": "2025-01-21T00:00:00.000Z",
+    "description": "Optional category templates for users to choose from"
+  }
+}

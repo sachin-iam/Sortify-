@@ -1,59 +1,7 @@
 {
   "categories": {
-    "Academic": {
-      "id": 0,
-      "description": "Academic and educational content",
-      "keywords": [
-        "lecture",
-        "course",
-        "assignment",
-        "research",
-        "university"
-      ],
-      "color": "#3B82F6",
-      "created_at": "2025-09-13T23:28:59.015313"
-    },
-    "Promotions": {
-      "id": 1,
-      "description": "Promotional and marketing content",
-      "keywords": [
-        "sale",
-        "offer",
-        "discount",
-        "promotion",
-        "deal"
-      ],
-      "color": "#10B981",
-      "created_at": "2025-09-13T23:28:59.015313"
-    },
-    "Placement": {
-      "id": 2,
-      "description": "Job and career opportunities",
-      "keywords": [
-        "job",
-        "career",
-        "hiring",
-        "interview",
-        "position"
-      ],
-      "color": "#F59E0B",
-      "created_at": "2025-09-13T23:28:59.015313"
-    },
-    "Spam": {
-      "id": 3,
-      "description": "Spam and unwanted content",
-      "keywords": [
-        "spam",
-        "unwanted",
-        "junk",
-        "scam",
-        "phishing"
-      ],
-      "color": "#EF4444",
-      "created_at": "2025-09-13T23:28:59.015313"
-    },
     "Other": {
-      "id": 4,
+      "id": 0,
       "description": "Miscellaneous content",
       "keywords": [
         "other",
@@ -61,20 +9,46 @@
         "general"
       ],
       "color": "#6B7280",
-      "created_at": "2025-09-13T23:28:59.015313"
-    },
-    "Newsletter": {
-      "id": 5,
-      "description": "Newsletter content",
-      "keywords": [
-        "newsletter",
-        "news"
-      ],
-      "color": "#8B5CF6",
-      "created_at": "2025-09-13T23:33:57.255672"
+      "created_at": "2025-01-21T00:00:00.000Z",
+      "classification_strategy": {
+        "headerAnalysis": {
+          "senderDomains": [],
+          "senderPatterns": [],
+          "subjectPatterns": []
+        },
+        "bodyAnalysis": {
+          "keywords": [
+            "other",
+            "misc",
+            "general"
+          ],
+          "phrases": [],
+          "tfidfScores": {}
+        },
+        "metadataAnalysis": {
+          "timePatterns": {
+            "hourDistribution": {},
+            "dayDistribution": {},
+            "peakHours": []
+          },
+          "lengthPatterns": {
+            "distribution": {},
+            "averageLength": 0
+          },
+          "attachmentPatterns": {
+            "mimeTypes": {},
+            "commonTypes": []
+          }
+        },
+        "confidenceThreshold": 0.5
+      },
+      "updated_at": "2025-01-21T00:00:00.000Z"
     }
   },
   "embeddings": {},
-  "metadata": {},
-  "last_updated": "2025-09-13T23:53:06.325019"
+  "metadata": {
+    "version": "3.0.0",
+    "last_updated": "2025-01-21T00:00:00.000Z",
+    "description": "Dynamic category system - only Other as default"
+  }
 }

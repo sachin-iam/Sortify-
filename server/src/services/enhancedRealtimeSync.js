@@ -183,7 +183,8 @@ const syncNewEmails = async (gmail, user) => {
           const classification = await classifyEmail(
             emailData.subject, 
             emailData.snippet, 
-            emailData.body || emailData.text
+            emailData.body || emailData.text,
+            user._id.toString()
           )
 
           // Add classification to email data

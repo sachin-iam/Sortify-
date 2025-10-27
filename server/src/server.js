@@ -29,6 +29,7 @@ import bulkOperationsRoutes from './routes/bulkOperations.js'
 import notificationsRoutes from './routes/notifications.js'
 import performanceRoutes from './routes/performance.js'
 import connectionsRoutes from './routes/connections.js'
+import feedbackRoutes from './routes/feedback.js'
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js'
@@ -152,6 +153,7 @@ app.use('/api/bulk', bulkOperationsRoutes)
 app.use('/api/notifications', notificationsRoutes)
 app.use('/api/performance', performanceRoutes)
 app.use('/api/connections', connectionsRoutes)
+app.use('/api/feedback', feedbackRoutes)
 
 // OAuth callback routes are now handled under /api/auth
 
@@ -215,8 +217,53 @@ const startServer = async () => {
       // Continue without cleanup scheduler
     }
     
+    // Initialize background job scheduler (Phase 1 & Phase 2 coordination)
+    console.log('📅 Initializing background job scheduler...')
+    try {
+      const { initializeJobScheduler } = await import('./services/backgroundJobScheduler.js')
+      await initializeJobScheduler()
+      console.log('✅ Background job scheduler initialized')
+    } catch (schedulerError) {
+      console.warn('⚠️ Job scheduler initialization failed:', schedulerError.message)
+      // Continue without scheduler
+    }
+    
     // Start listening
+    // Check for category migration on startup
+    const checkAndRunMigration = async () => {
+      try {
+        // Check if categories.json contains old hardcoded categories
+        const fs = await import('fs')
+        const path = await import('path')
+        
+        const categoriesPath = path.join(process.cwd(), '..', 'model_service', 'categories.json')
+        
+        if (fs.existsSync(categoriesPath)) {
+          const categoriesData = JSON.parse(fs.readFileSync(categoriesPath, 'utf8'))
+          const hasOldCategories = categoriesData.categories && 
+            Object.keys(categoriesData.categories).some(name => 
+              ['Academic', 'Promotions', 'Placement', 'Spam'].includes(name)
+            )
+          
+          if (hasOldCategories) {
+            console.log('🔄 Detected old hardcoded categories, running migration...')
+            const { runMigration } = await import('./scripts/migrateToUserCategories.js')
+            await runMigration()
+            console.log('✅ Migration completed')
+          } else {
+            console.log('✅ Categories already migrated')
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Migration check failed:', error.message)
+      }
+    }
+
     console.log(`🎯 Starting server on port ${PORT}...`)
+    
+    // Run migration check before starting server
+    await checkAndRunMigration()
+    
     server.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server running on port ${PORT}`)
       console.log(`📊 Health check: http://localhost:${PORT}/health`)

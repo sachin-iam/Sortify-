@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react'
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { motion } from 'framer-motion'
 import { analyticsService } from '../services/analyticsService'
+import { useWebSocketContext } from '../contexts/WebSocketContext'
 import toast from 'react-hot-toast'
 import ModernIcon from './ModernIcon'
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16', '#f97316']
 
 const AnalyticsDashboard = () => {
+  const { lastMessage } = useWebSocketContext()
   const [categoryData, setCategoryData] = useState([])
   const [accuracyData, setAccuracyData] = useState({})
   const [misclassifications, setMisclassifications] = useState([])
@@ -59,6 +61,41 @@ const AnalyticsDashboard = () => {
     // Load data once when component mounts
     loadAnalyticsData()
   }, []) // Empty dependency array to run only once on mount
+
+  // Handle WebSocket updates for category changes and reclassifications
+  useEffect(() => {
+    if (!lastMessage) return
+    
+    console.log('AnalyticsDashboard received WebSocket message:', lastMessage)
+    
+    switch (lastMessage.type) {
+      case 'category_updated':
+        console.log('🏷️ AnalyticsDashboard received category update:', lastMessage.data)
+        // Refresh analytics when categories change
+        loadAnalyticsData()
+        break
+        
+      case 'reclassification_complete':
+        console.log('✅ AnalyticsDashboard received reclassification complete:', lastMessage.data)
+        // Refresh analytics when reclassification completes
+        loadAnalyticsData()
+        break
+        
+      case 'reclassification_progress':
+        console.log('🔄 AnalyticsDashboard received reclassification progress:', lastMessage.data)
+        // Optionally show progress indicator or just log
+        break
+        
+      case 'email_synced':
+        console.log('📧 AnalyticsDashboard received email sync update:', lastMessage.data)
+        // Refresh analytics when new emails are synced
+        loadAnalyticsData()
+        break
+        
+      default:
+        break
+    }
+  }, [lastMessage])
 
   if (loading) {
     return (

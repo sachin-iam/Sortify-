@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { getCategoryLightColors } from '../utils/categoryColors'
 import ModernIcon from './ModernIcon'
 
 const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage = 1, totalPages = 1, onPageChange, totalEmails = 0, onBulkSelect, selectedEmails = [], gmailConnected = false, isCompact = false }) => {
@@ -227,16 +228,6 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
     )
   }
 
-  const getCategoryColor = (category) => {
-    const colors = {
-      Academic: 'bg-blue-100 text-blue-800',
-      Promotions: 'bg-purple-100 text-purple-800',
-      Placement: 'bg-green-100 text-green-800',
-      Spam: 'bg-red-100 text-red-800',
-      Other: 'bg-gray-100 text-gray-800'
-    }
-    return colors[category] || colors.Other
-  }
 
   const formatDate = (dateString) => {
     const date = new Date(dateString)
@@ -292,6 +283,7 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
                 : 'bg-white/30 border-white/20 hover:bg-white/40 hover:border-white/30'
             }
             ${isEmailSelected(email) ? 'ring-2 ring-blue-500/50' : ''}
+            ${email.isArchived ? 'opacity-70 bg-slate-50/50' : ''}
           `}
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.99 }}
@@ -321,16 +313,26 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
               <div className="flex items-start gap-3 w-full min-w-0">
                 <div className="flex-1 min-w-0 overflow-hidden">
                   <div className="flex items-center gap-2 mb-1 min-w-0">
-                    <span className="font-medium text-slate-800 truncate flex-1 min-w-0">
+                    <span className={`font-medium truncate flex-1 min-w-0 ${email.isArchived ? 'text-slate-600 italic' : 'text-slate-800'}`}>
                       {email.from}
                     </span>
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium flex-shrink-0 ${getCategoryColor(
-                        email.category
-                      )}`}
-                    >
-                      {email.category}
-                    </span>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {email.isArchived && (
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-200/80 text-gray-700 flex items-center gap-1">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                          </svg>
+                          Archived
+                        </span>
+                      )}
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${getCategoryLightColors(
+                          email.category
+                        )}`}
+                      >
+                        {email.category}
+                      </span>
+                    </div>
                   </div>
                   <h3 className="font-semibold text-slate-900 text-sm mb-1 truncate">
                     {email.subject}

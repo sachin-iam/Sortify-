@@ -3,10 +3,11 @@ import { motion } from 'framer-motion'
 import ModernIcon from './ModernIcon'
 import QuickReply from './QuickReply'
 import emailService from '../services/emailService'
+import { getCategoryLightColors } from '../utils/categoryColors'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
-const EmailReader = ({ email, onArchive, onDelete, onExport, onClose, loading = false }) => {
+const EmailReader = ({ email, onArchive, onUnarchive, onDelete, onExport, onClose, loading = false }) => {
   const [showQuickReply, setShowQuickReply] = useState(false)
   const [fullEmail, setFullEmail] = useState(null)
   const [loadingFullContent, setLoadingFullContent] = useState(false)
@@ -86,16 +87,6 @@ const EmailReader = ({ email, onArchive, onDelete, onExport, onClose, loading = 
     )
   }
 
-  const getCategoryColor = (category) => {
-    const colors = {
-      Academic: 'bg-blue-100 text-blue-800',
-      Promotions: 'bg-purple-100 text-purple-800',
-      Placement: 'bg-green-100 text-green-800',
-      Spam: 'bg-red-100 text-red-800',
-      Other: 'bg-gray-100 text-gray-800'
-    }
-    return colors[category] || colors.Other
-  }
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleString()
@@ -178,7 +169,7 @@ const EmailReader = ({ email, onArchive, onDelete, onExport, onClose, loading = 
                 {/* Category Badge */}
                 <div className="flex items-center gap-3">
                   <span
-                    className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm ${getCategoryColor(
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm ${getCategoryLightColors(
                       email.category
                     )}`}
                   >
@@ -206,18 +197,30 @@ const EmailReader = ({ email, onArchive, onDelete, onExport, onClose, loading = 
                     className="group-hover:scale-110 transition-transform duration-200"
                   />
                 </button>
-                <button
-                  onClick={() => onArchive(email._id)}
-                  className="group relative p-3 rounded-xl backdrop-blur-sm bg-gradient-to-br from-orange-400/20 to-orange-600/20 border border-orange-300/30 hover:from-orange-400/30 hover:to-orange-600/30 hover:border-orange-400/50 transition-all duration-300 shadow-md hover:shadow-orange-200/50 hover:scale-105 flex items-center justify-center"
-                  title="Archive"
-                >
-                  <ModernIcon 
-                    type="archive" 
-                    size={15} 
-                    color="#ea580c"
-                    className="group-hover:scale-110 transition-transform duration-200"
-                  />
-                </button>
+                {email.isArchived ? (
+                  <button
+                    onClick={() => onUnarchive(email._id)}
+                    className="group relative p-3 rounded-xl backdrop-blur-sm bg-gradient-to-br from-blue-400/20 to-blue-600/20 border border-blue-300/30 hover:from-blue-400/30 hover:to-blue-600/30 hover:border-blue-400/50 transition-all duration-300 shadow-md hover:shadow-blue-200/50 hover:scale-105 flex items-center justify-center"
+                    title="Unarchive"
+                  >
+                    <svg className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                    </svg>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => onArchive(email._id)}
+                    className="group relative p-3 rounded-xl backdrop-blur-sm bg-gradient-to-br from-orange-400/20 to-orange-600/20 border border-orange-300/30 hover:from-orange-400/30 hover:to-orange-600/30 hover:border-orange-400/50 transition-all duration-300 shadow-md hover:shadow-orange-200/50 hover:scale-105 flex items-center justify-center"
+                    title="Archive"
+                  >
+                    <ModernIcon 
+                      type="archive" 
+                      size={15} 
+                      color="#ea580c"
+                      className="group-hover:scale-110 transition-transform duration-200"
+                    />
+                  </button>
+                )}
                 <button
                   onClick={() => onDelete(email._id)}
                   className="group relative p-3 rounded-xl backdrop-blur-sm bg-gradient-to-br from-red-400/20 to-red-600/20 border border-red-300/30 hover:from-red-400/30 hover:to-red-600/30 hover:border-red-400/50 transition-all duration-300 shadow-md hover:shadow-red-200/50 hover:scale-105 flex items-center justify-center"

@@ -32,6 +32,8 @@ const emailSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  cc: String,
+  bcc: String,
   date: {
     type: Date,
     required: true
@@ -47,8 +49,8 @@ const emailSchema = new mongoose.Schema({
   labels: [String],
   category: {
     type: String,
-    default: 'Other',
-    enum: ['Academic', 'Promotions', 'Placement', 'Spam', 'Other', 'Newsletter', 'WebSocketTestCategory']
+    default: 'Other'
+    // Removed enum constraint to allow dynamic categories
   },
   classification: {
     label: {
@@ -60,6 +62,128 @@ const emailSchema = new mongoose.Schema({
       default: 0.5,
       min: 0,
       max: 1
+    },
+    modelVersion: {
+      type: String,
+      default: '2.1.0'
+    },
+    classifiedAt: {
+      type: Date,
+      default: Date.now
+    },
+    reason: {
+      type: String,
+      default: 'Initial classification'
+    },
+    model: {
+      type: String,
+      default: 'default'
+    },
+    ensembleScores: {
+      distilbert: {
+        type: Number,
+        default: 0.0
+      },
+      featureBased: {
+        type: Number,
+        default: 0.0
+      },
+      combined: {
+        type: Number,
+        default: 0.0
+      }
+    },
+    featureContributions: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {}
+    }
+  },
+  extractedFeatures: {
+    senderDomain: String,
+    attachmentCount: {
+      type: Number,
+      default: 0
+    },
+    attachmentTypes: [String],
+    linkCount: {
+      type: Number,
+      default: 0
+    },
+    hasExternalLinks: {
+      type: Boolean,
+      default: false
+    },
+    textLength: {
+      type: Number,
+      default: 0
+    },
+    htmlRatio: {
+      type: Number,
+      default: 0.0
+    },
+    timeOfDay: {
+      type: Number,
+      default: 12
+    },
+    recipientCount: {
+      type: Number,
+      default: 1
+    },
+    subjectLength: {
+      type: Number,
+      default: 0
+    },
+    businessKeywords: {
+      type: Number,
+      default: 0
+    },
+    academicKeywords: {
+      type: Number,
+      default: 0
+    },
+    jobKeywords: {
+      type: Number,
+      default: 0
+    }
+  },
+  enhancedMetadata: {
+    senderDomain: String,
+    recipientCount: {
+      type: Number,
+      default: 0
+    },
+    threadMetadata: {
+      inReplyTo: String,
+      references: String,
+      isReply: {
+        type: Boolean,
+        default: false
+      },
+      isForward: {
+        type: Boolean,
+        default: false
+      }
+    },
+    headers: {
+      replyTo: String,
+      returnPath: String,
+      messageId: String,
+      userAgent: String,
+      spf: String,
+      dkim: String,
+      dmarc: String,
+      priority: String,
+      importance: String,
+      mimeVersion: String
+    },
+    urls: [String],
+    urlCount: {
+      type: Number,
+      default: 0
+    },
+    hasExternalLinks: {
+      type: Boolean,
+      default: false
     }
   },
   attachments: [{
@@ -88,6 +212,31 @@ const emailSchema = new mongoose.Schema({
   },
   lastAccessedAt: {
     type: Date,
+    default: null
+  },
+  // Refinement tracking fields (Phase 2)
+  refinementStatus: {
+    type: String,
+    enum: ['pending', 'refined', 'verified'],
+    default: 'pending'
+  },
+  refinedAt: {
+    type: Date,
+    default: null
+  },
+  refinementConfidence: {
+    type: Number,
+    default: 0.0,
+    min: 0,
+    max: 1
+  },
+  analysisDepth: {
+    type: String,
+    enum: ['basic', 'comprehensive'],
+    default: 'basic'
+  },
+  previousCategory: {
+    type: String,
     default: null
   }
 }, {

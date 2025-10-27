@@ -8,11 +8,155 @@ import {
 } from './distilbertClassificationService.js'
 import { classifyEmail as mlClassifyEmail, classifyEmails as mlClassifyEmails } from './enhancedMLService.js'
 import notificationService from './notificationService.js'
+import Category from '../models/Category.js'
+import mongoose from 'mongoose'
+import axios from 'axios'
 
-// Main classification function - now uses DistilBERT model with fallback
+const ML_SERVICE_BASE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000'
+
+// Health check cache
+let mlServiceHealthCache = {
+  isHealthy: true,
+  lastCheck: 0,
+  checkInterval: 60000 // Check every minute
+}
+
+/**
+ * Check ML service health with caching
+ */
+const checkMLServiceHealth = async () => {
+  const now = Date.now()
+  
+  // Return cached result if recent enough
+  if (now - mlServiceHealthCache.lastCheck < mlServiceHealthCache.checkInterval) {
+    return mlServiceHealthCache.isHealthy
+  }
+  
+  try {
+    const response = await axios.get(`${ML_SERVICE_BASE_URL}/status`, { 
+      timeout: 5000 
+    })
+    
+    mlServiceHealthCache.isHealthy = response.status === 200 && 
+      response.data && 
+      response.data.status === 'ready'
+    mlServiceHealthCache.lastCheck = now
+    
+    console.log(`🔍 ML Service Health Check: ${mlServiceHealthCache.isHealthy ? 'HEALTHY' : 'UNHEALTHY'}`)
+    return mlServiceHealthCache.isHealthy
+  } catch (error) {
+    console.log('🔍 ML Service Health Check: UNHEALTHY -', error.message)
+    mlServiceHealthCache.isHealthy = false
+    mlServiceHealthCache.lastCheck = now
+    return false
+  }
+}
+
+/**
+ * Retry utility function with exponential backoff
+ */
+const retryWithBackoff = async (fn, maxRetries = 2, baseDelay = 1000) => {
+  let lastError
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error
+      
+      if (attempt === maxRetries) {
+        throw error
+      }
+      
+      // Only retry on network errors or 5xx responses
+      const shouldRetry = error.code === 'ECONNREFUSED' || 
+                         error.code === 'ETIMEDOUT' || 
+                         (error.response && error.response.status >= 500)
+      
+      if (!shouldRetry) {
+        throw error
+      }
+      
+      const delay = baseDelay * Math.pow(2, attempt)
+      console.log(`🔄 Retry attempt ${attempt + 1}/${maxRetries + 1} in ${delay}ms...`)
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+  }
+  
+  throw lastError
+}
+
+/**
+ * Classify email using the Python ML service with dynamic categories
+ */
+const classifyEmailWithDynamicML = async (subject, snippet, body, userId) => {
+  try {
+    console.log('🤖 Using Python ML service for dynamic classification...')
+    
+    // Check ML service health first
+    const isHealthy = await checkMLServiceHealth()
+    if (!isHealthy) {
+      throw new Error('ML service is not healthy')
+    }
+    
+    // Use retry logic for the request
+    const response = await retryWithBackoff(async () => {
+      return await axios.post(`${ML_SERVICE_BASE_URL}/predict`, {
+        subject: subject || '',
+        body: `${snippet || ''} ${body || ''}`.trim(),
+        user_id: userId
+      }, { 
+        timeout: 10000,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+    })
+
+    if (response.data && response.data.label) {
+      console.log(`✅ Dynamic ML Classification: "${subject}" -> ${response.data.label} (${response.data.confidence})`)
+      
+      return {
+        label: response.data.label,
+        confidence: response.data.confidence,
+        model: 'dynamic-ml'
+      }
+    } else {
+      throw new Error('Invalid response from ML service')
+    }
+  } catch (error) {
+    console.error('❌ Dynamic ML classification error:', error.message)
+    throw error
+  }
+}
+
+// Main classification function - now prioritizes dynamic ML service when userId is provided
 export const classifyEmail = async (subject, snippet, body, userId = null) => {
   try {
-    // First, try to use the DistilBERT model
+    // First, if userId is provided, try the dynamic ML service (includes user's custom categories)
+    if (userId) {
+      try {
+        console.log('🤖 Attempting dynamic ML classification for user categories...')
+        const dynamicResult = await classifyEmailWithDynamicML(subject, snippet, body, userId)
+        
+        console.log(`✅ Dynamic ML Classification: "${subject}" -> ${dynamicResult.label} (${dynamicResult.confidence})`)
+        
+        // Send notification if user ID is provided
+        if (dynamicResult.label) {
+          notificationService.sendClassificationNotification(userId, {
+            emailId: 'temp',
+            category: dynamicResult.label,
+            confidence: dynamicResult.confidence
+          })
+        }
+        
+        return dynamicResult
+      } catch (dynamicError) {
+        console.log('🔄 Dynamic ML failed, trying DistilBERT...', dynamicError.message)
+      }
+    }
+    
+    // Try to use the DistilBERT model
     console.log('🤖 Attempting DistilBERT classification...')
     const distilbertResult = await classifyEmailWithDistilBERT(subject, snippet, body)
     
@@ -66,7 +210,7 @@ export const classifyEmail = async (subject, snippet, body, userId = null) => {
   }
 }
 
-export const classifyEmails = async (emails) => {
+export const classifyEmails = async (emails, userId = null) => {
   try {
     // First, try to use DistilBERT for batch processing
     console.log(`🤖 Attempting DistilBERT batch classification for ${emails.length} emails...`)
@@ -91,7 +235,7 @@ export const classifyEmails = async (emails) => {
       
       // Final fallback to individual classification
       const classifiedEmails = await Promise.all(emails.map(async email => {
-        const classification = await classifyEmail(email.subject, email.snippet, email.body)
+        const classification = await classifyEmail(email.subject, email.snippet, email.body, userId)
     return {
       ...email,
       category: classification.label,
@@ -105,5 +249,17 @@ export const classifyEmails = async (emails) => {
   
   return classifiedEmails
     }
+  }
+}
+
+/**
+ * Get ML service health status (exported for use by other services)
+ */
+export const getMLServiceHealth = async () => {
+  const isHealthy = await checkMLServiceHealth()
+  return {
+    isHealthy,
+    lastCheck: mlServiceHealthCache.lastCheck,
+    serviceUrl: ML_SERVICE_BASE_URL
   }
 }

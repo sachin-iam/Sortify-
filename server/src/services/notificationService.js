@@ -367,6 +367,23 @@ class NotificationService {
     })
   }
 
+  // Refinement summary notifications (Phase 2)
+  async sendRefinementSummaryNotification(userId, summaryData) {
+    return await this.sendPushNotification(userId, {
+      type: 'refinement_summary',
+      title: summaryData.title || '✨ Email Classification Refined',
+      message: summaryData.message,
+      data: {
+        totalProcessed: summaryData.totalProcessed || 0,
+        reclassified: summaryData.reclassified || 0,
+        avgConfidenceImprovement: summaryData.avgConfidenceImprovement || 0,
+        categoryChanges: summaryData.categoryChanges || {},
+        phase: summaryData.phase || 'Phase 2',
+        timestamp: new Date().toISOString()
+      }
+    })
+  }
+
   async sendAuthNotification(userId, authData) {
     return await this.sendPushNotification(userId, {
       type: 'auth',
@@ -397,7 +414,8 @@ class NotificationService {
         'performance',
         'system',
         'login',
-        'auth'
+        'auth',
+        'refinement_summary'
       ],
       quietHours: preferences.quietHours || { start: '22:00', end: '08:00' },
       ...preferences
@@ -420,7 +438,8 @@ class NotificationService {
         'performance',
         'system',
         'login',
-        'auth'
+        'auth',
+        'refinement_summary'
       ],
       quietHours: { start: '22:00', end: '08:00' }
     }

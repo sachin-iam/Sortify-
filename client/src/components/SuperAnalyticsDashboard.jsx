@@ -3,12 +3,15 @@ import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { motion } from 'framer-motion'
 import { analyticsService } from '../services/analyticsService'
 import { api } from '../services/api'
+import { useWebSocketContext } from '../contexts/WebSocketContext'
+import { getCategoryColor } from '../utils/categoryColors'
 import toast from 'react-hot-toast'
 import ModernIcon from './ModernIcon'
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16', '#f97316']
 
 const SuperAnalyticsDashboard = () => {
+  const { lastMessage } = useWebSocketContext()
   // State from AnalyticsDashboard
   const [categoryData, setCategoryData] = useState([])
   const [accuracyData, setAccuracyData] = useState({})
@@ -36,21 +39,21 @@ const SuperAnalyticsDashboard = () => {
   // Simple flag to prevent unnecessary reloading
   const lastLoadParamsRef = useRef('')
 
-  // Handle manual refresh
-  const handleRefresh = async () => {
+  // Extract data loading logic into a reusable function
+  const loadAllAnalyticsData = async (isRefresh = false) => {
     try {
-      setRefreshLoading(true)
+      if (isRefresh) {
+        setRefreshLoading(true)
+      } else {
+        setLoading(true)
+      }
       
-      // Get current values for the refresh call
-      const currentTimeRange = timeRange
-      const currentSelectedCategory = selectedCategory
-      
-      // Load data from both services with current filter values
+      // Load data from both services - analyze all emails by default
       const [categories, accuracy, misclassificationsData, advancedAnalytics] = await Promise.all([
         analyticsService.getCategoryCounts(),
         analyticsService.getClassificationAccuracy(),
         analyticsService.getMisclassifications(10000), // Remove the 50 limit to get all emails
-        api.get(`/analytics/advanced?range=${currentTimeRange}&category=${currentSelectedCategory}`)
+        api.get(`/analytics/advanced?range=${timeRange}&category=${selectedCategory}`)
       ])
 
       // Safely handle API responses
@@ -58,14 +61,25 @@ const SuperAnalyticsDashboard = () => {
       setAccuracyData(typeof accuracy?.data === 'object' && accuracy.data ? accuracy.data : {})
       setMisclassifications(Array.isArray(misclassificationsData?.data) ? misclassificationsData.data : [])
       setAnalytics(typeof advancedAnalytics?.data === 'object' && advancedAnalytics.data ? advancedAnalytics.data : {})
-
-      toast.success('Analytics data refreshed successfully!')
+      
+      if (isRefresh) {
+        toast.success('Analytics data refreshed successfully!')
+      }
     } catch (error) {
-      toast.error('Failed to refresh analytics data')
-      console.error('Error refreshing analytics:', error)
+      toast.error('Failed to load analytics data')
+      console.error('Error loading analytics:', error)
     } finally {
-      setRefreshLoading(false)
+      if (isRefresh) {
+        setRefreshLoading(false)
+      } else {
+        setLoading(false)
+      }
     }
+  }
+
+  // Handle manual refresh
+  const handleRefresh = async () => {
+    loadAllAnalyticsData(true)
   }
 
   useEffect(() => {
@@ -73,36 +87,45 @@ const SuperAnalyticsDashboard = () => {
     
     // Only load if parameters have actually changed
     if (currentParams !== lastLoadParamsRef.current) {
-      // Inline the loadAllAnalyticsData call to avoid dependency issues
-      const loadData = async () => {
-        try {
-          setLoading(true)
-          
-          // Load data from both services - analyze all emails by default
-          const [categories, accuracy, misclassificationsData, advancedAnalytics] = await Promise.all([
-            analyticsService.getCategoryCounts(),
-            analyticsService.getClassificationAccuracy(),
-            analyticsService.getMisclassifications(10000), // Remove the 50 limit to get all emails
-            api.get(`/analytics/advanced?range=${timeRange}&category=${selectedCategory}`)
-          ])
-
-          // Safely handle API responses
-          setCategoryData(Array.isArray(categories?.data) ? categories.data : [])
-          setAccuracyData(typeof accuracy?.data === 'object' && accuracy.data ? accuracy.data : {})
-          setMisclassifications(Array.isArray(misclassificationsData?.data) ? misclassificationsData.data : [])
-          setAnalytics(typeof advancedAnalytics?.data === 'object' && advancedAnalytics.data ? advancedAnalytics.data : {})
-        } catch (error) {
-          toast.error('Failed to load analytics data')
-          console.error('Error loading analytics:', error)
-        } finally {
-          setLoading(false)
-        }
-      }
-
-      loadData()
+      loadAllAnalyticsData()
       lastLoadParamsRef.current = currentParams
     }
   }, [timeRange, selectedCategory])
+
+  // Handle WebSocket updates for category changes and reclassifications
+  useEffect(() => {
+    if (!lastMessage) return
+    
+    console.log('SuperAnalyticsDashboard received WebSocket message:', lastMessage)
+    
+    switch (lastMessage.type) {
+      case 'category_updated':
+        console.log('🏷️ SuperAnalyticsDashboard received category update:', lastMessage.data)
+        // Refresh analytics when categories change
+        loadAllAnalyticsData()
+        break
+        
+      case 'reclassification_complete':
+        console.log('✅ SuperAnalyticsDashboard received reclassification complete:', lastMessage.data)
+        // Refresh analytics when reclassification completes
+        loadAllAnalyticsData()
+        break
+        
+      case 'reclassification_progress':
+        console.log('🔄 SuperAnalyticsDashboard received reclassification progress:', lastMessage.data)
+        // Optionally show progress indicator - could add a progress bar or notification
+        break
+        
+      case 'email_synced':
+        console.log('📧 SuperAnalyticsDashboard received email sync update:', lastMessage.data)
+        // Refresh analytics when new emails are synced
+        loadAllAnalyticsData()
+        break
+        
+      default:
+        break
+    }
+  }, [lastMessage, timeRange, selectedCategory])
 
   const formatNumber = (num) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
@@ -110,16 +133,6 @@ const SuperAnalyticsDashboard = () => {
     return num.toString()
   }
 
-  const getCategoryColor = (category) => {
-    const colors = {
-      'Academic': 'from-blue-500 to-blue-600',
-      'Promotions': 'from-purple-500 to-purple-600',
-      'Placement': 'from-green-500 to-green-600',
-      'Spam': 'from-red-500 to-red-600',
-      'Other': 'from-gray-500 to-gray-600'
-    }
-    return colors[category] || 'from-gray-500 to-gray-600'
-  }
 
   if (loading) {
     return (
@@ -202,16 +215,6 @@ const SuperAnalyticsDashboard = () => {
             onClick={() => setActiveTab('accuracy')}
           >
             Accuracy
-          </button>
-          <button 
-            className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${
-              activeTab === 'trends' 
-                ? 'bg-blue-500 text-white shadow-lg' 
-                : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100/50'
-            }`}
-            onClick={() => setActiveTab('trends')}
-          >
-            Trends
           </button>
           <button 
             className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${
@@ -366,9 +369,20 @@ const SuperAnalyticsDashboard = () => {
               </h3>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={categoryData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                  <XAxis dataKey="label" stroke="rgba(255,255,255,0.7)" />
-                  <YAxis stroke="rgba(255,255,255,0.7)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.3)" />
+                  <XAxis 
+                    dataKey="label" 
+                    stroke="#475569" 
+                    tick={{ fill: '#475569', fontSize: 12, fontWeight: 600 }}
+                    angle={-15}
+                    textAnchor="end"
+                    height={60}
+                  />
+                  <YAxis 
+                    stroke="#475569" 
+                    tick={{ fill: '#475569', fontSize: 12, fontWeight: 600 }}
+                    tickFormatter={(value) => value >= 1000 ? `${(value / 1000).toFixed(1)}K` : value}
+                  />
                   <Tooltip 
                     contentStyle={{
                       backgroundColor: 'rgba(0,0,0,0.8)',
@@ -377,7 +391,7 @@ const SuperAnalyticsDashboard = () => {
                       color: 'white'
                     }}
                   />
-                  <Bar dataKey="count" fill="#3b82f6" />
+                  <Bar dataKey="count" fill="#3b82f6" radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </motion.div>
@@ -395,25 +409,36 @@ const SuperAnalyticsDashboard = () => {
               Category Distribution
             </h3>
             <div className="space-y-4">
-              {Object.entries(analytics.categories).map(([category, count], index) => (
-                <div key={category} className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-4 h-4 rounded-full bg-gradient-to-r ${getCategoryColor(category)}`}></div>
-                    <span className="font-medium text-slate-800">{category}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-32 bg-slate-200 rounded-full h-2">
-                      <div
-                        className={`h-2 rounded-full bg-gradient-to-r ${getCategoryColor(category)}`}
-                        style={{ width: `${(count / analytics.totalEmails) * 100}%` }}
-                      ></div>
+              {Object.entries(analytics.categories).map(([category, count], index) => {
+                const percentage = ((count / analytics.totalEmails) * 100).toFixed(1)
+                return (
+                  <div key={category} className="flex items-center justify-between p-3 rounded-xl hover:bg-white/20 transition-all duration-200">
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className={`w-4 h-4 rounded-full bg-gradient-to-r ${getCategoryColor(category, 'gradient')} shadow-md`}></div>
+                      <span className="font-semibold text-slate-800 text-sm">{category}</span>
                     </div>
-                    <span className="text-sm font-semibold text-slate-600 w-12 text-right">
-                      {formatNumber(count)}
-                    </span>
+                    <div className="flex items-center gap-4 flex-1 justify-end">
+                      <div className="w-48 bg-slate-300/80 rounded-full h-3 shadow-inner">
+                        <div
+                          className={`h-3 rounded-full bg-gradient-to-r ${getCategoryColor(category, 'gradient')} shadow-lg transition-all duration-500`}
+                          style={{ 
+                            width: `${Math.max(percentage, 2)}%`,
+                            minWidth: percentage > 0 ? '8px' : '0'
+                          }}
+                        ></div>
+                      </div>
+                      <div className="flex items-baseline gap-1 min-w-[80px]">
+                        <span className="text-base font-bold text-slate-800">
+                          {formatNumber(count)}
+                        </span>
+                        <span className="text-xs text-slate-500 font-medium">
+                          ({percentage}%)
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </motion.div>
         </div>
@@ -482,48 +507,6 @@ const SuperAnalyticsDashboard = () => {
               </div>
             </motion.div>
           )}
-        </div>
-      )}
-
-      {/* Trends Tab */}
-      {activeTab === 'trends' && (
-        <div className="space-y-6">
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            className="bg-gradient-to-br from-white/50 to-white/30 backdrop-blur-xl border border-white/30 rounded-2xl p-6 shadow-2xl shadow-blue-100/20"
-          >
-            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-              <ModernIcon type="chart" size={20} color="#06b6d4" />
-              Email Trends Over Time
-            </h3>
-            <div className="h-64 flex items-center justify-center bg-white/40 rounded-xl">
-              <div className="text-center">
-                <ModernIcon type="analytics" size={48} color="#94a3b8" />
-                <p className="text-slate-500 mt-2">Advanced trend analysis coming soon</p>
-                <p className="text-xs text-slate-400 mt-1">Time series charts and forecasting</p>
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.1 }}
-            className="bg-gradient-to-br from-white/50 to-white/30 backdrop-blur-xl border border-white/30 rounded-2xl p-6 shadow-2xl shadow-blue-100/20"
-          >
-            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-              <ModernIcon type="chart" size={20} color="#8b5cf6" />
-              Category Performance Trends
-            </h3>
-            <div className="h-64 flex items-center justify-center bg-white/40 rounded-xl">
-              <div className="text-center">
-                <ModernIcon type="chart" size={48} color="#94a3b8" />
-                <p className="text-slate-500 mt-2">Category trend analysis coming soon</p>
-                <p className="text-xs text-slate-400 mt-1">Performance metrics over time</p>
-              </div>
-            </div>
-          </motion.div>
         </div>
       )}
 

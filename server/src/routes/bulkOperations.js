@@ -3,8 +3,10 @@ import express from 'express'
 import { protect } from '../middleware/auth.js'
 import { asyncHandler } from '../middleware/errorHandler.js'
 import Email from '../models/Email.js'
+import Category from '../models/Category.js'
 import { classifyEmail } from '../services/classificationService.js'
 import { sendEmailSyncUpdate } from '../services/websocketService.js'
+import { getCategories } from '../services/categoryService.js'
 
 const router = express.Router()
 
@@ -30,12 +32,13 @@ router.post('/categorize', protect, asyncHandler(async (req, res) => {
       })
     }
 
-    // Validate category
-    const validCategories = ['Academic', 'Promotions', 'Placement', 'Spam', 'Newsletter', 'Other']
-    if (!validCategories.includes(category)) {
+    // Validate category exists for this user
+    const userCategories = await getCategories(userId)
+    const validCategoryNames = userCategories.map(cat => cat.name)
+    if (!validCategoryNames.includes(category)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid category'
+        message: 'Invalid category. Category must exist for this user.'
       })
     }
 
@@ -278,7 +281,8 @@ router.post('/reclassify', protect, asyncHandler(async (req, res) => {
         const classification = await classifyEmail(
           email.subject, 
           email.snippet, 
-          email.body || email.text
+          email.body || email.text,
+          userId.toString()
         )
 
         // Update email with new classification
@@ -341,6 +345,123 @@ router.post('/reclassify', protect, asyncHandler(async (req, res) => {
   }
 }))
 
+// @desc    Reclassify ALL emails for user (paged processing)
+// @route   POST /api/bulk/reclassify-all
+// @access  Private
+router.post('/reclassify-all', protect, asyncHandler(async (req, res) => {
+  try {
+    const userId = req.user._id
+    const { batchSize = 100, categoryFilter } = req.body
+
+    // Build query for emails to reclassify
+    let query = { userId }
+    
+    // Optional: filter by specific category (e.g., "Other" to catch misclassified emails)
+    if (categoryFilter && categoryFilter !== 'All') {
+      query.category = categoryFilter
+    }
+
+    // Get total count first
+    const totalEmails = await Email.countDocuments(query)
+    console.log(`Starting bulk reclassification for user ${userId}: ${totalEmails} emails`)
+
+    if (totalEmails === 0) {
+      return res.json({
+        success: true,
+        message: 'No emails found to reclassify',
+        totalEmails: 0,
+        reclassifiedCount: 0
+      })
+    }
+
+    let reclassifiedCount = 0
+    let errorCount = 0
+    let processedPages = 0
+    const totalPages = Math.ceil(totalEmails / batchSize)
+
+    // Process in batches
+    for (let page = 0; page < totalPages; page++) {
+      const skip = page * batchSize
+      
+      // Get batch of emails
+      const emails = await Email.find(query)
+        .select('_id subject snippet body text category classification gmailId')
+        .skip(skip)
+        .limit(batchSize)
+
+      processedPages++
+
+      // Process each email in the batch
+      for (const email of emails) {
+        try {
+          const classification = await classifyEmail(
+            email.subject, 
+            email.snippet, 
+            email.body || email.text,
+            userId.toString()
+          )
+
+          // Update email with new classification
+          await Email.findByIdAndUpdate(email._id, {
+            category: classification.label,
+            classification: {
+              label: classification.label,
+              confidence: classification.confidence,
+              modelVersion: '2.1.0',
+              classifiedAt: new Date(),
+              reason: 'Bulk reclassification all'
+            },
+            updatedAt: new Date()
+          })
+
+          reclassifiedCount++
+
+          // Send WebSocket update for real-time UI updates
+          sendEmailSyncUpdate(userId.toString(), {
+            gmailId: email.gmailId,
+            subject: email.subject,
+            category: classification.label,
+            classification: {
+              label: classification.label,
+              confidence: classification.confidence
+            }
+          })
+
+        } catch (error) {
+          console.error(`Error reclassifying email ${email._id}:`, error)
+          errorCount++
+        }
+      }
+
+      // Log progress every 10 pages to avoid spam
+      if (processedPages % 10 === 0 || processedPages === totalPages) {
+        console.log(`Bulk reclassification progress: ${processedPages}/${totalPages} pages, ${reclassifiedCount} emails reclassified`)
+      }
+    }
+
+    console.log(`Bulk reclassification completed for user ${userId}: ${reclassifiedCount} emails reclassified, ${errorCount} errors`)
+
+    res.json({
+      success: true,
+      message: `Successfully reclassified ${reclassifiedCount} emails`,
+      totalEmails,
+      reclassifiedCount,
+      errorCount,
+      processedPages,
+      totalPages,
+      batchSize
+    })
+
+  } catch (error) {
+    console.error('Bulk reclassify all error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reclassify all emails',
+      error: error.message
+    })
+  }
+}))
+
 // @desc    Get bulk operation status
 // @route   GET /api/bulk/status/:operationId
 // @access  Private
@@ -374,6 +495,10 @@ router.get('/status/:operationId', protect, asyncHandler(async (req, res) => {
 // @access  Private
 router.get('/operations', protect, asyncHandler(async (req, res) => {
   try {
+    // Get user's categories dynamically
+    const userCategories = await getCategories(req.user._id)
+    const categoryOptions = userCategories.map(cat => cat.name)
+    
     const operations = [
       {
         id: 'categorize',
@@ -382,7 +507,7 @@ router.get('/operations', protect, asyncHandler(async (req, res) => {
         icon: '🏷️',
         requiresInput: true,
         inputType: 'select',
-        options: ['Academic', 'Promotions', 'Placement', 'Spam', 'Other']
+        options: categoryOptions
       },
       {
         id: 'delete',

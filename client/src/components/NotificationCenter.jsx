@@ -18,7 +18,8 @@ import {
   EnvelopeIcon,
   PencilIcon,
   KeyIcon,
-  ShieldCheckIcon
+  ShieldCheckIcon,
+  SparklesIcon
 } from '@heroicons/react/24/outline'
 
 const NotificationCenter = ({ isOpen, onClose, onNotificationUpdate }) => {
@@ -89,7 +90,7 @@ const NotificationCenter = ({ isOpen, onClose, onNotificationUpdate }) => {
         setPreferences(response.data.preferences || {
           pushNotifications: true,
           emailAlerts: false,
-          notificationTypes: ['new_email', 'classification', 'bulk_operation', 'sync_status', 'email_operation', 'profile_update', 'connection', 'category_management', 'performance', 'system'],
+          notificationTypes: ['new_email', 'classification', 'bulk_operation', 'sync_status', 'email_operation', 'profile_update', 'connection', 'category_management', 'performance', 'system', 'refinement_summary'],
           quietHours: { start: '22:00', end: '08:00' }
         })
       }
@@ -98,7 +99,7 @@ const NotificationCenter = ({ isOpen, onClose, onNotificationUpdate }) => {
       setPreferences({
         pushNotifications: true,
         emailAlerts: false,
-        notificationTypes: ['new_email', 'classification', 'bulk_operation', 'sync_status', 'email_operation', 'profile_update', 'connection', 'category_management', 'performance', 'system'],
+        notificationTypes: ['new_email', 'classification', 'bulk_operation', 'sync_status', 'email_operation', 'profile_update', 'connection', 'category_management', 'performance', 'system', 'refinement_summary'],
         quietHours: { start: '22:00', end: '08:00' }
       })
     }
@@ -314,6 +315,8 @@ const NotificationCenter = ({ isOpen, onClose, onNotificationUpdate }) => {
         return <KeyIcon className="w-5 h-5" />
       case 'auth':
         return <ShieldCheckIcon className="w-5 h-5" />
+      case 'refinement_summary':
+        return <SparklesIcon className="w-5 h-5" />
       default:
         return <BellIcon className="w-5 h-5" />
     }
@@ -347,6 +350,8 @@ const NotificationCenter = ({ isOpen, onClose, onNotificationUpdate }) => {
         return 'bg-blue-50'
       case 'auth':
         return 'bg-red-50'
+      case 'refinement_summary':
+        return 'bg-indigo-50'
       default:
         return 'bg-gray-50'
     }
@@ -380,6 +385,8 @@ const NotificationCenter = ({ isOpen, onClose, onNotificationUpdate }) => {
         return 'text-blue-600'
       case 'auth':
         return 'text-red-600'
+      case 'refinement_summary':
+        return 'text-indigo-600'
       default:
         return 'text-gray-600'
     }

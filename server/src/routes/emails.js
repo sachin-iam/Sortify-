@@ -4,11 +4,13 @@ import { protect } from '../middleware/auth.js'
 import { asyncHandler } from '../middleware/errorHandler.js'
 import User from '../models/User.js'
 import Email from '../models/Email.js'
-import { classifyEmail } from '../services/classificationService.js'
+import { classifyEmail } from '../services/enhancedClassificationService.js'
 import { startRealtimeSync, stopRealtimeSync, isSyncActive } from '../services/realtimeSync.js'
 import { fullSync, syncLabels } from '../services/gmailSyncService.js'
 import notificationService from '../services/notificationService.js'
 import { updateUserActivity } from '../services/enhancedRealtimeSync.js'
+import { reclassifyAllEmails, getJobStatus } from '../services/emailReclassificationService.js'
+import { estimateReclassificationTime } from '../services/categoryFeatureService.js'
 
 const router = express.Router()
 
@@ -89,7 +91,7 @@ router.post('/gmail/sync', protect, asyncHandler(async (req, res) => {
         const snippet = messageData.data.snippet || ''
         const body = messageData.data.payload.body?.data || ''
         
-        const classification = await classifyEmail(subject, snippet, body)
+        const classification = await classifyEmail(subject, snippet, body, user._id.toString())
 
         const emailData = {
           userId: user._id,
@@ -267,7 +269,7 @@ router.get('/', protect, asyncHandler(async (req, res) => {
       .sort({ date: -1 })
       .skip(skip)
       .limit(parseInt(limit))
-      .select('_id subject from to snippet date category classification isRead labels')
+      .select('_id subject from to snippet date category classification isRead labels isArchived archivedAt')
 
     const total = await Email.countDocuments(query)
 
@@ -445,6 +447,205 @@ router.get('/:id/attachments/:attachmentId/download', protect, asyncHandler(asyn
 // @access  Private
 router.put('/:id/archive', protect, asyncHandler(async (req, res) => {
   try {
+    console.log(`\n${'='.repeat(60)}`)
+    console.log(`📦 ARCHIVE REQUEST RECEIVED`)
+    console.log(`   Email ID: ${req.params.id}`)
+    console.log(`   User ID: ${req.user._id}`)
+    console.log(`${'='.repeat(60)}\n`)
+    
+    const email = await Email.findOne({ 
+      _id: req.params.id, 
+      userId: req.user._id 
+    })
+
+    if (!email) {
+      console.log('❌ Email not found in database')
+      return res.status(404).json({
+        success: false,
+        message: 'Email not found'
+      })
+    }
+
+    console.log(`📧 Email found in database:`)
+    console.log(`   Subject: ${email.subject}`)
+    console.log(`   Provider: ${email.provider}`)
+    console.log(`   Gmail ID: ${email.gmailId || 'NOT SET'}`)
+    console.log(`   Current Labels: ${email.labels?.join(', ') || 'none'}`)
+    console.log(`   Currently Archived: ${email.isArchived || false}`)
+
+    // Update Gmail labels if Gmail email (fault-tolerant)
+    let gmailSyncSuccess = false
+    if (email.provider === 'gmail' && email.gmailId) {
+      try {
+        console.log(`\n🔄 Attempting to archive email in Gmail...`)
+        console.log(`   Gmail ID: ${email.gmailId}`)
+        
+        const User = (await import('../models/User.js')).default
+        const user = await User.findById(req.user._id)
+        
+        if (!user.gmailConnected) {
+          console.log('   ⚠️ Gmail not connected for user')
+        } else if (!user.gmailAccessToken) {
+          console.log('   ⚠️ No Gmail access token available')
+        } else {
+          console.log('   ✓ User has Gmail connected with access token')
+          
+          const { getOAuthForUser } = await import('../services/gmailSyncService.js')
+          const oauth2 = getOAuthForUser(user)
+          
+          // Set up token refresh handler
+          oauth2.on('tokens', async (tokens) => {
+            console.log('   🔄 OAuth token refreshed automatically')
+            if (tokens.access_token) {
+              user.gmailAccessToken = tokens.access_token
+            }
+            if (tokens.refresh_token) {
+              user.gmailRefreshToken = tokens.refresh_token
+            }
+            if (tokens.expiry_date) {
+              user.gmailTokenExpiry = new Date(tokens.expiry_date)
+            }
+            await user.save()
+          })
+          
+          const gmail = google.gmail({ version: 'v1', auth: oauth2 })
+
+          // First check current email state
+          console.log('   📥 Checking current Gmail state...')
+          const currentState = await gmail.users.messages.get({
+            userId: 'me',
+            id: email.gmailId,
+            format: 'minimal'
+          })
+          const currentLabels = currentState.data.labelIds || []
+          console.log('   📧 Current labels:', currentLabels.join(', '))
+          
+          // Check if email has INBOX label
+          if (!currentLabels.includes('INBOX')) {
+            console.log('   ⚠️ Email does not have INBOX label - already archived in Gmail')
+            console.log('   Skipping Gmail API call')
+            gmailSyncSuccess = true // Consider this a success since it's already archived
+          } else {
+            // Remove INBOX label to archive in Gmail
+            console.log('   📤 Calling Gmail API to remove INBOX label...')
+            const modifyResponse = await gmail.users.messages.modify({
+              userId: 'me',
+              id: email.gmailId,
+              requestBody: {
+                removeLabelIds: ['INBOX']
+              }
+            })
+            
+            const newLabels = modifyResponse.data.labelIds || []
+            console.log('   ✅ Gmail API modify response:', {
+              id: modifyResponse.data.id,
+              labelIds: newLabels.join(', '),
+              inboxRemoved: !newLabels.includes('INBOX')
+            })
+            
+            // Verify the change by fetching again
+            console.log('   🔍 Verifying change in Gmail...')
+            const verifyState = await gmail.users.messages.get({
+              userId: 'me',
+              id: email.gmailId,
+              format: 'minimal'
+            })
+            const finalLabels = verifyState.data.labelIds || []
+            console.log('   📧 Final labels after modification:', finalLabels.join(', '))
+            
+            if (finalLabels.includes('INBOX')) {
+              console.log('   ⚠️ WARNING: INBOX label still present after modification!')
+              console.log('   Gmail may not have processed the change yet')
+            } else {
+              console.log('   ✅ VERIFIED: INBOX label successfully removed from Gmail')
+            }
+            
+            gmailSyncSuccess = true
+            console.log(`✅ Gmail archive synced successfully for email: ${email.subject}`)
+          }
+        }
+      } catch (gmailError) {
+        console.error('\n❌ Gmail archive error (continuing with local update):')
+        console.error(`   Message: ${gmailError.message}`)
+        console.error(`   Code: ${gmailError.code}`)
+        if (gmailError.errors) {
+          console.error(`   Errors:`, gmailError.errors)
+        }
+        if (gmailError.response) {
+          console.error(`   Response:`, gmailError.response.data)
+        }
+        // Continue with local update even if Gmail fails
+      }
+    } else {
+      console.log('\n⚠️ SKIPPING Gmail sync:')
+      if (!email.provider || email.provider !== 'gmail') {
+        console.log(`   Reason: Provider is '${email.provider}', not 'gmail'`)
+      }
+      if (!email.gmailId) {
+        console.log(`   Reason: Email has no Gmail ID`)
+        console.log(`   This email may have been created manually or synced incorrectly`)
+      }
+    }
+
+    // Update local database (always happens regardless of Gmail sync)
+    email.isArchived = true
+    email.archivedAt = new Date()
+    if (email.labels) {
+      email.labels = email.labels.filter(label => label !== 'INBOX')
+    }
+    await email.save()
+
+    // Send WebSocket notification for real-time updates
+    try {
+      const { sendEmailSyncUpdate } = await import('../services/websocketService.js')
+      sendEmailSyncUpdate(req.user._id.toString(), {
+        type: 'email_archived',
+        emailId: req.params.id,
+        emailSubject: email.subject,
+        gmailSynced: gmailSyncSuccess,
+        message: 'Email archived successfully'
+      })
+    } catch (wsError) {
+      console.error('WebSocket notification error:', wsError.message)
+      // Don't fail the request if WebSocket fails
+    }
+
+    // Send notification about email archive
+    notificationService.sendEmailOperationNotification(req.user._id.toString(), {
+      operation: 'archived',
+      message: `Email "${email.subject || 'Untitled'}" has been archived`,
+      emailId: req.params.id,
+      emailSubject: email.subject
+    })
+
+    console.log(`\n✅ ARCHIVE OPERATION COMPLETE`)
+    console.log(`   Local DB Updated: YES`)
+    console.log(`   Gmail Synced: ${gmailSyncSuccess ? 'YES' : 'NO'}`)
+    console.log(`${'='.repeat(60)}\n`)
+
+    res.json({
+      success: true,
+      message: 'Email archived successfully',
+      email,
+      gmailSynced: gmailSyncSuccess
+    })
+
+  } catch (error) {
+    console.error(`\n❌ ARCHIVE OPERATION FAILED`)
+    console.error(`   Error: ${error.message}`)
+    console.error(`${'='.repeat(60)}\n`)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to archive email'
+    })
+  }
+}))
+
+// @desc    Unarchive email
+// @route   PUT /api/emails/:id/unarchive
+// @access  Private
+router.put('/:id/unarchive', protect, asyncHandler(async (req, res) => {
+  try {
     const email = await Email.findOne({ 
       _id: req.params.id, 
       userId: req.user._id 
@@ -457,55 +658,154 @@ router.put('/:id/archive', protect, asyncHandler(async (req, res) => {
       })
     }
 
-    // Update Gmail labels if Gmail email
+    // Update Gmail labels if Gmail email (fault-tolerant)
+    let gmailSyncSuccess = false
     if (email.provider === 'gmail' && email.gmailId) {
       try {
+        console.log(`🔄 Attempting to unarchive email in Gmail: ${email.subject}`)
+        console.log(`   Gmail ID: ${email.gmailId}`)
+        
         const User = (await import('../models/User.js')).default
         const user = await User.findById(req.user._id)
         
-        if (user.gmailConnected) {
+        if (!user.gmailConnected) {
+          console.log('   ⚠️ Gmail not connected for user')
+        } else if (!user.gmailAccessToken) {
+          console.log('   ⚠️ No Gmail access token available')
+        } else {
+          console.log('   ✓ User has Gmail connected with access token')
+          
           const { getOAuthForUser } = await import('../services/gmailSyncService.js')
           const oauth2 = getOAuthForUser(user)
+          
+          // Set up token refresh handler
+          oauth2.on('tokens', async (tokens) => {
+            console.log('   🔄 OAuth token refreshed automatically')
+            if (tokens.access_token) {
+              user.gmailAccessToken = tokens.access_token
+            }
+            if (tokens.refresh_token) {
+              user.gmailRefreshToken = tokens.refresh_token
+            }
+            if (tokens.expiry_date) {
+              user.gmailTokenExpiry = new Date(tokens.expiry_date)
+            }
+            await user.save()
+          })
+          
           const gmail = google.gmail({ version: 'v1', auth: oauth2 })
 
-          // Remove INBOX label and add ARCHIVE label
-          await gmail.users.messages.modify({
+          // First check current email state
+          console.log('   📥 Checking current Gmail state...')
+          const currentState = await gmail.users.messages.get({
             userId: 'me',
             id: email.gmailId,
-            requestBody: {
-              removeLabelIds: ['INBOX'],
-              addLabelIds: ['ARCHIVE']
-            }
+            format: 'minimal'
           })
+          const currentLabels = currentState.data.labelIds || []
+          console.log('   📧 Current labels:', currentLabels.join(', '))
+          
+          // Check if email already has INBOX label
+          if (currentLabels.includes('INBOX')) {
+            console.log('   ⚠️ Email already has INBOX label - not archived in Gmail')
+            console.log('   Skipping Gmail API call')
+            gmailSyncSuccess = true // Consider this a success since it's already in inbox
+          } else {
+            // Add INBOX label back to unarchive in Gmail
+            console.log('   📥 Calling Gmail API to add INBOX label...')
+            const modifyResponse = await gmail.users.messages.modify({
+              userId: 'me',
+              id: email.gmailId,
+              requestBody: {
+                addLabelIds: ['INBOX']
+              }
+            })
+            
+            const newLabels = modifyResponse.data.labelIds || []
+            console.log('   ✅ Gmail API modify response:', {
+              id: modifyResponse.data.id,
+              labelIds: newLabels.join(', '),
+              inboxAdded: newLabels.includes('INBOX')
+            })
+            
+            // Verify the change by fetching again
+            console.log('   🔍 Verifying change in Gmail...')
+            const verifyState = await gmail.users.messages.get({
+              userId: 'me',
+              id: email.gmailId,
+              format: 'minimal'
+            })
+            const finalLabels = verifyState.data.labelIds || []
+            console.log('   📧 Final labels after modification:', finalLabels.join(', '))
+            
+            if (!finalLabels.includes('INBOX')) {
+              console.log('   ⚠️ WARNING: INBOX label not present after modification!')
+              console.log('   Gmail may not have processed the change yet')
+            } else {
+              console.log('   ✅ VERIFIED: INBOX label successfully added to Gmail')
+            }
+            
+            gmailSyncSuccess = true
+            console.log(`✅ Gmail unarchive synced successfully for email: ${email.subject}`)
+          }
         }
       } catch (gmailError) {
-        console.error('Gmail archive error:', gmailError)
+        console.error('❌ Gmail unarchive error (continuing with local update):', {
+          message: gmailError.message,
+          code: gmailError.code,
+          errors: gmailError.errors
+        })
         // Continue with local update even if Gmail fails
+      }
+    } else {
+      if (!email.gmailId) {
+        console.log('   ⚠️ No Gmail ID for this email')
       }
     }
 
-    // Update local database
-    email.isArchived = true
-    email.archivedAt = new Date()
-    if (email.labels) {
-      email.labels = email.labels.filter(label => label !== 'INBOX')
-      if (!email.labels.includes('ARCHIVE')) {
-        email.labels.push('ARCHIVE')
-      }
+    // Update local database (always happens regardless of Gmail sync)
+    email.isArchived = false
+    email.archivedAt = null
+    if (email.labels && !email.labels.includes('INBOX')) {
+      email.labels.push('INBOX')
     }
     await email.save()
 
+    // Send WebSocket notification for real-time updates
+    try {
+      const { sendEmailSyncUpdate } = await import('../services/websocketService.js')
+      sendEmailSyncUpdate(req.user._id.toString(), {
+        type: 'email_unarchived',
+        emailId: req.params.id,
+        emailSubject: email.subject,
+        gmailSynced: gmailSyncSuccess,
+        message: 'Email unarchived successfully'
+      })
+    } catch (wsError) {
+      console.error('WebSocket notification error:', wsError.message)
+      // Don't fail the request if WebSocket fails
+    }
+
+    // Send notification about email unarchive
+    notificationService.sendEmailOperationNotification(req.user._id.toString(), {
+      operation: 'unarchived',
+      message: `Email "${email.subject || 'Untitled'}" has been unarchived`,
+      emailId: req.params.id,
+      emailSubject: email.subject
+    })
+
     res.json({
       success: true,
-      message: 'Email archived successfully',
-      email
+      message: 'Email unarchived successfully',
+      email,
+      gmailSynced: gmailSyncSuccess
     })
 
   } catch (error) {
-    console.error('Archive email error:', error)
+    console.error('Unarchive email error:', error)
     res.status(500).json({
       success: false,
-      message: 'Failed to archive email'
+      message: 'Failed to unarchive email'
     })
   }
 }))
@@ -571,6 +871,101 @@ router.delete('/:id', protect, asyncHandler(async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to delete email'
+    })
+  }
+}))
+
+// @desc    Recategorize email
+// @route   POST /api/emails/recategorize/:emailId
+// @access  Private
+router.post('/recategorize/:emailId', protect, asyncHandler(async (req, res) => {
+  try {
+    const { emailId } = req.params
+    const { newCategory } = req.body
+    const userId = req.user._id
+
+    if (!newCategory) {
+      return res.status(400).json({
+        success: false,
+        message: 'New category is required'
+      })
+    }
+
+    // Find the email
+    const email = await Email.findOne({
+      _id: emailId,
+      userId: userId,
+      isDeleted: false
+    })
+
+    if (!email) {
+      return res.status(404).json({
+        success: false,
+        message: 'Email not found'
+      })
+    }
+
+    // Check if category exists
+    const category = await Category.findOne({
+      userId: userId,
+      name: newCategory
+    })
+
+    if (!category) {
+      return res.status(404).json({
+        success: false,
+        message: 'Category not found'
+      })
+    }
+
+    const oldCategory = email.category
+
+    // Update email category
+    await Email.findByIdAndUpdate(emailId, {
+      category: newCategory,
+      updatedAt: new Date()
+    })
+
+    // Update category email counts
+    await Category.updateEmailCount(userId, oldCategory)
+    await Category.updateEmailCount(userId, newCategory)
+
+    // Trigger continuous learning
+    try {
+      const { onEmailRecategorized } = await import('../services/continuousLearningService.js')
+      await onEmailRecategorized(emailId, oldCategory, newCategory, userId.toString())
+    } catch (learningError) {
+      console.warn('Failed to trigger continuous learning:', learningError.message)
+    }
+
+    // Send WebSocket update
+    try {
+      const { sendEmailSyncUpdate } = await import('../services/websocketService.js')
+      sendEmailSyncUpdate(userId.toString(), {
+        type: 'email_recategorized',
+        emailId: emailId,
+        oldCategory: oldCategory,
+        newCategory: newCategory,
+        message: `Email moved from "${oldCategory}" to "${newCategory}"`
+      })
+    } catch (wsError) {
+      console.warn('Failed to send WebSocket update:', wsError.message)
+    }
+
+    res.json({
+      success: true,
+      message: 'Email recategorized successfully',
+      emailId: emailId,
+      oldCategory: oldCategory,
+      newCategory: newCategory
+    })
+
+  } catch (error) {
+    console.error('Recategorize email error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to recategorize email',
+      error: error.message
     })
   }
 }))
@@ -863,76 +1258,7 @@ router.put('/:id/category', protect, asyncHandler(async (req, res) => {
   }
 }))
 
-// @desc    Archive email
-// @route   PUT /api/emails/:id/archive
-// @access  Private
-router.put('/:id/archive', protect, asyncHandler(async (req, res) => {
-  try {
-    const { id } = req.params
 
-    const email = await Email.findOneAndUpdate(
-      { _id: id, userId: req.user._id },
-      { 
-        isArchived: true,
-        archivedAt: new Date()
-      },
-      { new: true }
-    )
-
-    if (!email) {
-      return res.status(404).json({
-        success: false,
-        message: 'Email not found'
-      })
-    }
-
-    res.json({
-      success: true,
-      message: 'Email archived successfully',
-      email
-    })
-
-  } catch (error) {
-    console.error('Archive email error:', error)
-    res.status(500).json({
-      success: false,
-      message: 'Failed to archive email'
-    })
-  }
-}))
-
-// @desc    Delete email
-// @route   DELETE /api/emails/:id
-// @access  Private
-router.delete('/:id', protect, asyncHandler(async (req, res) => {
-  try {
-    const { id } = req.params
-
-    const email = await Email.findOneAndDelete({
-      _id: id,
-      userId: req.user._id
-    })
-
-    if (!email) {
-      return res.status(404).json({
-        success: false,
-        message: 'Email not found'
-      })
-    }
-
-    res.json({
-      success: true,
-      message: 'Email deleted successfully'
-    })
-
-  } catch (error) {
-    console.error('Delete email error:', error)
-    res.status(500).json({
-      success: false,
-      message: 'Failed to delete email'
-    })
-  }
-}))
 
 // @desc    Bulk operations on emails
 // @route   POST /api/emails/bulk
@@ -1321,6 +1647,111 @@ router.get('/:id/full-content', protect, asyncHandler(async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to load email content'
+    })
+  }
+}))
+
+// @desc    Trigger reclassification of all user emails
+// @route   POST /api/emails/reclassify-all
+// @access  Private
+router.post('/reclassify-all', protect, asyncHandler(async (req, res) => {
+  try {
+    const userId = req.user._id.toString()
+    
+    console.log(`🔄 Starting reclassification for user: ${userId}`)
+
+    // Get time estimate before starting
+    const timeEstimate = await estimateReclassificationTime(userId)
+
+    // Start reclassification asynchronously to avoid timeout
+    reclassifyAllEmails(userId)
+      .then(result => {
+        console.log(`✅ Reclassification completed for user ${userId}:`, result)
+        
+        // Send notification about completion
+        notificationService.sendClassificationNotification(userId, {
+          emailId: 'system',
+          category: 'system',
+          confidence: 1.0,
+          message: `Reclassification completed: ${result.changedCount} emails updated out of ${result.totalEmails} total`
+        })
+      })
+      .catch(error => {
+        console.error(`❌ Reclassification failed for user ${userId}:`, error)
+        
+        // Send error notification
+        notificationService.sendClassificationNotification(userId, {
+          emailId: 'system',
+          category: 'system',
+          confidence: 0.0,
+          message: `Reclassification failed: ${error.message}`
+        })
+      })
+
+    // Return immediately with success status and time estimate
+    res.json({
+      success: true,
+      message: 'Reclassification started. You will receive notifications about progress.',
+      userId: userId,
+      estimatedTime: timeEstimate
+    })
+
+  } catch (error) {
+    console.error('Reclassification trigger error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to start reclassification'
+    })
+  }
+}))
+
+// @desc    Get reclassification job status
+// @route   GET /api/emails/reclassification-status/:jobId
+// @access  Private
+router.get('/reclassification-status/:jobId', protect, asyncHandler(async (req, res) => {
+  try {
+    const { jobId } = req.params
+    const userId = req.user._id.toString()
+    
+    const job = await getJobStatus(jobId)
+    
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        message: 'Job not found'
+      })
+    }
+    
+    // Verify job belongs to user
+    if (job.userId.toString() !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      })
+    }
+    
+    res.json({
+      success: true,
+      job: {
+        id: job._id,
+        status: job.status,
+        categoryName: job.categoryName,
+        totalEmails: job.totalEmails,
+        processedEmails: job.processedEmails || 0,
+        successfulClassifications: job.successfulClassifications || 0,
+        failedClassifications: job.failedClassifications || 0,
+        progressPercentage: job.progressPercentage || 0,
+        createdAt: job.createdAt,
+        completedAt: job.completedAt,
+        errorMessage: job.errorMessage
+      }
+    })
+    
+  } catch (error) {
+    console.error('Get reclassification status error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get job status'
     })
   }
 }))
