@@ -95,13 +95,14 @@ const generateBasicPatterns = (categoryName) => {
   }
   
   if (name.includes('hod')) {
-    patterns.senderNames.push('HOD', 'Head of Department', 'Department Head')
-    patterns.keywords.push('hod', 'department', 'head')
+    patterns.senderNames.push('HOD', 'Head of Department', 'Department Head', 'Dept. Head', 'hod.cse', 'hod cse')
+    patterns.keywords.push('hod', 'department', 'head', 'dept')
   }
   
-  if (name.includes('promotion')) {
-    patterns.senderDomains.push('promo', 'offer', 'deal')
-    patterns.keywords.push('promo', 'promotion', 'offer', 'discount', 'sale', 'deal')
+  if (name.includes('promotion') || name.includes('promo')) {
+    patterns.senderNames.push('Promotions', "'Promotions'", "Promotions' via", 'Promotion')
+    patterns.senderDomains.push('promo', 'offer', 'deal', 'marketing')
+    patterns.keywords.push('promo', 'promotion', 'offer', 'discount', 'sale', 'deal', 'limited', 'special', 'off', 'care', 'opd', 'diagnostics', 'percent')
   }
   
   if (name.includes('happening') || name.includes('what')) {

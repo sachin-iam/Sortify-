@@ -30,7 +30,7 @@ const getCategoriesForUser = async (userId) => {
   const categories = await Category.find({ 
     userId, 
     isActive: true 
-  }).select('name keywords patterns classificationStrategy').lean()
+  }).select('name keywords patterns classificationStrategy priority').lean()
   
   categoryCache.set(cacheKey, {
     data: categories,
@@ -145,7 +145,45 @@ const matchKeywords = (subject, snippet, category) => {
 }
 
 /**
- * Phase 1: Fast rule-based email classification
+ * Check category for any match (domain, name, or keyword)
+ * @param {Object} email - Email data
+ * @param {Object} category - Category to check
+ * @returns {Object|null} - Best match or null
+ */
+const checkCategoryMatch = (email, category) => {
+  const { subject = '', from = '', snippet = '' } = email
+  const matches = []
+  
+  // Check sender domain
+  const domainMatch = matchSenderDomain(from, category)
+  if (domainMatch) {
+    matches.push(domainMatch)
+  }
+  
+  // Check sender name
+  const nameMatch = matchSenderName(from, category)
+  if (nameMatch) {
+    matches.push(nameMatch)
+  }
+  
+  // Check keywords
+  const keywordMatch = matchKeywords(subject, snippet, category)
+  if (keywordMatch) {
+    matches.push(keywordMatch)
+  }
+  
+  // Return best match (highest confidence)
+  if (matches.length > 0) {
+    return matches.reduce((best, current) => 
+      current.confidence > best.confidence ? current : best
+    )
+  }
+  
+  return null
+}
+
+/**
+ * Phase 1: Fast rule-based email classification with priority-based matching
  * @param {Object} email - Email data {subject, from, snippet, body}
  * @param {string} userId - User ID
  * @returns {Promise<Object>} - Classification result
@@ -168,61 +206,65 @@ export const classifyEmailPhase1 = async (email, userId) => {
       }
     }
     
-    // Priority 1: Sender domain matching (highest confidence)
-    for (const category of categories) {
-      const domainMatch = matchSenderDomain(from, category)
-      if (domainMatch) {
-        console.log(`✅ Phase 1: Sender domain match - "${subject}" → ${domainMatch.category} (${domainMatch.confidence})`)
+    // Separate categories by priority
+    const highPriorityCategories = categories.filter(cat => cat.priority === 'high')
+    const normalPriorityCategories = categories.filter(cat => !cat.priority || cat.priority === 'normal')
+    const lowPriorityCategories = categories.filter(cat => cat.priority === 'low')
+    
+    // Priority Level 1: Check high-priority categories (Promotions, Placement, NPTEL, etc.)
+    for (const category of highPriorityCategories) {
+      const match = checkCategoryMatch(email, category)
+      if (match && match.confidence >= 0.75) {
+        console.log(`✅ Phase 1 [HIGH]: Match - "${subject}" → ${match.category} (${match.confidence}) via ${match.method}`)
         return {
-          label: domainMatch.category,
-          confidence: domainMatch.confidence,
-          method: 'phase1-sender-domain',
+          label: match.category,
+          confidence: match.confidence,
+          method: `phase1-${match.method}`,
           phase: 1,
-          matchedPattern: domainMatch.matchedPattern,
-          matchedValue: domainMatch.matchedValue
+          matchedPattern: match.matchedPattern,
+          matchedValue: match.matchedValue,
+          matchedKeywords: match.matchedKeywords,
+          keywordScore: match.keywordScore,
+          priorityLevel: 'high'
         }
       }
     }
     
-    // Priority 2: Sender name matching
-    for (const category of categories) {
-      const nameMatch = matchSenderName(from, category)
-      if (nameMatch) {
-        console.log(`✅ Phase 1: Sender name match - "${subject}" → ${nameMatch.category} (${nameMatch.confidence})`)
+    // Priority Level 2: Check normal-priority categories
+    for (const category of normalPriorityCategories) {
+      const match = checkCategoryMatch(email, category)
+      if (match) {
+        console.log(`✅ Phase 1 [NORMAL]: Match - "${subject}" → ${match.category} (${match.confidence}) via ${match.method}`)
         return {
-          label: nameMatch.category,
-          confidence: nameMatch.confidence,
-          method: 'phase1-sender-name',
+          label: match.category,
+          confidence: match.confidence,
+          method: `phase1-${match.method}`,
           phase: 1,
-          matchedPattern: nameMatch.matchedPattern,
-          matchedValue: nameMatch.matchedValue
+          matchedPattern: match.matchedPattern,
+          matchedValue: match.matchedValue,
+          matchedKeywords: match.matchedKeywords,
+          keywordScore: match.keywordScore,
+          priorityLevel: 'normal'
         }
       }
     }
     
-    // Priority 3: Keyword matching (lower confidence)
-    const keywordMatches = []
-    for (const category of categories) {
-      const keywordMatch = matchKeywords(subject, snippet, category)
-      if (keywordMatch) {
-        keywordMatches.push(keywordMatch)
-      }
-    }
-    
-    // Use best keyword match
-    if (keywordMatches.length > 0) {
-      const bestMatch = keywordMatches.reduce((best, current) => 
-        current.confidence > best.confidence ? current : best
-      )
-      
-      console.log(`✅ Phase 1: Keyword match - "${subject}" → ${bestMatch.category} (${bestMatch.confidence})`)
-      return {
-        label: bestMatch.category,
-        confidence: bestMatch.confidence,
-        method: 'phase1-keyword',
-        phase: 1,
-        matchedKeywords: bestMatch.matchedKeywords,
-        keywordScore: bestMatch.keywordScore
+    // Priority Level 3: Check low-priority categories (HOD)
+    for (const category of lowPriorityCategories) {
+      const match = checkCategoryMatch(email, category)
+      if (match) {
+        console.log(`✅ Phase 1 [LOW]: Match - "${subject}" → ${match.category} (${match.confidence}) via ${match.method}`)
+        return {
+          label: match.category,
+          confidence: match.confidence,
+          method: `phase1-${match.method}`,
+          phase: 1,
+          matchedPattern: match.matchedPattern,
+          matchedValue: match.matchedValue,
+          matchedKeywords: match.matchedKeywords,
+          keywordScore: match.keywordScore,
+          priorityLevel: 'low'
+        }
       }
     }
     
@@ -250,4 +292,5 @@ export const classifyEmailPhase1 = async (email, userId) => {
 }
 
 export default classifyEmailPhase1
+
 
