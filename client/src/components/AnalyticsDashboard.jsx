@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { motion } from 'framer-motion'
 import { analyticsService } from '../services/analyticsService'
@@ -16,6 +16,7 @@ const AnalyticsDashboard = () => {
   const [loading, setLoading] = useState(true)
   const [refreshLoading, setRefreshLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
+  const debounceTimerRef = useRef(null)
 
   // Extract data loading logic into a reusable function
   const loadAnalyticsData = async (isRefresh = false) => {
@@ -57,6 +58,27 @@ const AnalyticsDashboard = () => {
     loadAnalyticsData(true)
   }
 
+  // Debounced refresh for Phase 2 updates (max every 2-3 seconds)
+  const debouncedRefresh = useCallback(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+    }
+    
+    debounceTimerRef.current = setTimeout(() => {
+      loadAnalyticsData(true)
+      debounceTimerRef.current = null
+    }, 2500) // 2.5 second debounce
+  }, [])
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+    }
+  }, [])
+
   useEffect(() => {
     // Load data once when component mounts
     loadAnalyticsData()
@@ -81,9 +103,32 @@ const AnalyticsDashboard = () => {
         loadAnalyticsData()
         break
         
+      case 'reclassification_phase1_complete':
+        console.log('✅ Phase 1 complete, refreshing analytics:', lastMessage.data)
+        // Immediate refresh after Phase 1 completes
+        loadAnalyticsData(true)
+        break
+        
+      case 'phase2_category_changed':
+        console.log('🔄 Phase 2 category changed, debounced refresh:', lastMessage.data)
+        // Debounced refresh for Phase 2 category changes (silent, no visible indicator)
+        debouncedRefresh()
+        break
+        
+      case 'phase2_batch_complete':
+        console.log('📦 Phase 2 batch complete, debounced refresh:', lastMessage.data)
+        // Debounced refresh after Phase 2 batch if categories changed
+        if (lastMessage.data?.categoriesChanged > 0) {
+          debouncedRefresh()
+        }
+        break
+        
       case 'reclassification_progress':
         console.log('🔄 AnalyticsDashboard received reclassification progress:', lastMessage.data)
-        // Optionally show progress indicator or just log
+        // Show progress for Phase 1 batches, Phase 2 is silent
+        if (lastMessage.data?.phase === 1) {
+          // Optionally update a progress indicator for Phase 1
+        }
         break
         
       case 'email_synced':
@@ -95,7 +140,7 @@ const AnalyticsDashboard = () => {
       default:
         break
     }
-  }, [lastMessage])
+  }, [lastMessage, debouncedRefresh])
 
   if (loading) {
     return (

@@ -214,9 +214,64 @@ const countKeywords = (text, keywords) => {
 }
 
 /**
- * Enhanced email classification with automatic feature extraction
+ * Enhanced email classification with two-phase approach
+ * Phase 1: Fast rule-based (immediate)
+ * Phase 2: ML-based refinement (background)
  */
 export const classifyEmail = async (subject, snippet, body, userId = null, emailData = {}) => {
+  try {
+    // Import Phase 1 and job queue services
+    const { classifyEmailPhase1 } = await import('./phase1ClassificationService.js')
+    const { queuePhase2Classification } = await import('./classificationJobQueue.js')
+    
+    // Phase 1: Fast rule-based classification (synchronous)
+    console.log('⚡ Phase 1: Starting fast classification...')
+    const phase1Result = await classifyEmailPhase1({
+      subject,
+      from: emailData.from,
+      snippet,
+      body
+    }, userId)
+    
+    console.log(`⚡ Phase 1: Complete - ${phase1Result.label} (${phase1Result.confidence}) via ${phase1Result.method}`)
+    
+    // Queue Phase 2 for background processing if emailId provided
+    if (emailData.emailId) {
+      console.log(`📋 Queueing Phase 2 for email ${emailData.emailId}`)
+      queuePhase2Classification(emailData.emailId, userId)
+    }
+    
+    // Return Phase 1 result immediately
+    return {
+      label: phase1Result.label,
+      confidence: phase1Result.confidence,
+      phase: 1,
+      method: phase1Result.method,
+      matchedPattern: phase1Result.matchedPattern,
+      matchedValue: phase1Result.matchedValue,
+      matchedKeywords: phase1Result.matchedKeywords,
+      phase2Queued: !!emailData.emailId,
+      model: 'phase1-rule-based'
+    }
+    
+  } catch (error) {
+    console.error('❌ Classification error:', error.message)
+    return {
+      label: 'Other',
+      confidence: 0.3,
+      scores: {},
+      model: 'fallback',
+      phase: 1,
+      error: error.message
+    }
+  }
+}
+
+/**
+ * Legacy classification for backwards compatibility
+ * Use this when you need immediate ML classification without two-phase system
+ */
+export const classifyEmailLegacy = async (subject, snippet, body, userId = null, emailData = {}) => {
   try {
     // Check if we have enhanced metadata for ensemble classification
     const hasEnhancedData = emailData.enhancedMetadata || 
@@ -266,8 +321,9 @@ export const classifyEmail = async (subject, snippet, body, userId = null, email
 
 /**
  * Classify email using the Python ML service with dynamic categories (enhanced)
+ * Exported for use in Phase 2 refinement
  */
-const classifyEmailWithDynamicML = async (subject, snippet, body, userId) => {
+export const classifyEmailWithDynamicML = async (subject, snippet, body, userId) => {
   try {
     console.log('🤖 Using Python ML service for dynamic classification...')
     

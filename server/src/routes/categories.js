@@ -21,6 +21,7 @@ import { startReclassificationJob } from '../services/emailReclassificationServi
 import mlCategorySync, { syncCategoryToML, trainCategoryInML, removeCategoryFromML } from '../services/mlCategorySync.js'
 import { processNewCategoryWithFeatures, estimateReclassificationTime } from '../services/categoryFeatureService.js'
 import { schedulePhase2AfterPhase1 } from '../services/backgroundJobScheduler.js'
+import { clearAnalyticsCache } from './analytics.js'
 
 const router = express.Router()
 
@@ -144,31 +145,43 @@ router.post('/categories', protect, asyncHandler(async (req, res) => {
       await new Promise(resolve => setTimeout(resolve, 1000))
     }
 
-    // Start Phase 1 reclassification job with time estimate
-    let reclassificationJob = null
+    // Start two-phase reclassification for all emails with new category
+    let reclassificationResult = null
     let timeEstimate = { emailCount: 0, estimatedSeconds: 0, estimatedMinutes: 0 }
     
     try {
       timeEstimate = await estimateReclassificationTime(userId.toString())
       
-      reclassificationJob = await startReclassificationJob(
-        userId.toString(),
-        categoryName,
-        savedCategory.id
-      )
+      console.log(`🔄 Starting two-phase reclassification for new category "${categoryName}"`)
       
-      console.log(`✅ Phase 1 reclassification job started for "${categoryName}"`)
+      // Import two-phase orchestrator
+      const { reclassifyAllEmailsTwoPhase } = await import('../services/twoPhaseReclassificationService.js')
       
-      // Schedule Phase 2 refinement after Phase 1 completes
-      if (reclassificationJob) {
-        const scheduleId = schedulePhase2AfterPhase1(
-          userId.toString(),
-          reclassificationJob._id.toString()
-        )
-        console.log(`📅 Phase 2 scheduled for "${categoryName}", schedule ID: ${scheduleId}`)
-      }
+      // Start two-phase reclassification asynchronously
+      reclassifyAllEmailsTwoPhase(userId.toString(), categoryName)
+        .then(result => {
+          console.log(`✅ Two-phase reclassification completed for category "${categoryName}":`, result)
+          
+          // Clear analytics cache
+          clearAnalyticsCache(userId.toString())
+          
+          // Send WebSocket update about completion
+          sendCategoryUpdate(userId.toString(), {
+            type: 'category_reclassification_complete',
+            categoryName: categoryName,
+            phase1Results: result.phase1,
+            phase2Queued: result.phase2.queued,
+            message: `Category "${categoryName}" created. Phase 1: ${result.phase1.updated} emails classified. Phase 2: ${result.phase2.queued} queued for refinement.`
+          })
+        })
+        .catch(error => {
+          console.error(`❌ Two-phase reclassification failed for "${categoryName}":`, error)
+        })
+      
+      console.log(`✅ Two-phase reclassification initiated for "${categoryName}"`)
+      
     } catch (reclassifyError) {
-      console.warn(`⚠️ Reclassification job failed to start:`, reclassifyError.message)
+      console.warn(`⚠️ Reclassification failed to start:`, reclassifyError.message)
       // Continue - category is created, reclassification can be done manually
     }
 
@@ -177,12 +190,11 @@ router.post('/categories', protect, asyncHandler(async (req, res) => {
       sendCategoryUpdate(req.user._id.toString(), {
         type: 'category_created',
         category: savedCategory,
-        reclassificationJobId: reclassificationJob?._id,
         estimatedTime: timeEstimate,
         mlEnhanced,
         message: mlEnhanced 
-          ? `Category "${categoryName}" created with ML features. Reclassifying ~${timeEstimate.emailCount} emails.`
-          : `Category "${categoryName}" created. Reclassifying emails...`
+          ? `Category "${categoryName}" created with ML features. Two-phase reclassification started.`
+          : `Category "${categoryName}" created. Two-phase reclassification started.`
       })
     } catch (wsError) {
       console.warn(`⚠️ WebSocket notification failed:`, wsError.message)
@@ -193,8 +205,8 @@ router.post('/categories', protect, asyncHandler(async (req, res) => {
       await notificationService.sendCategoryNotification(req.user._id.toString(), {
         operation: 'added',
         message: mlEnhanced
-          ? `New category "${savedCategory.name}" has been added with ML features. Reclassification started.`
-          : `New category "${savedCategory.name}" has been added. Reclassification started.`,
+          ? `New category "${savedCategory.name}" has been added with ML features. Two-phase reclassification started.`
+          : `New category "${savedCategory.name}" has been added. Two-phase reclassification started.`,
         categoryName: savedCategory.name,
         categoryId: savedCategory.id
       })
@@ -202,22 +214,22 @@ router.post('/categories', protect, asyncHandler(async (req, res) => {
       console.warn('⚠️ Notification failed:', notifError.message)
     }
 
+    // Clear analytics cache to ensure dashboard updates
+    clearAnalyticsCache(userId.toString())
+
     // Return success response
     const responseData = {
       success: true,
       message: mlEnhanced 
-        ? 'Category created with ML features'
-        : 'Category created successfully',
-      category: savedCategory
-    }
-
-    if (reclassificationJob) {
-      responseData.reclassificationJob = {
-        id: reclassificationJob._id,
-        status: reclassificationJob.status,
+        ? 'Category created with ML features. Two-phase reclassification started.'
+        : 'Category created successfully. Two-phase reclassification started.',
+      category: savedCategory,
+      reclassification: {
+        started: true,
         estimatedSeconds: timeEstimate.estimatedSeconds,
         estimatedMinutes: timeEstimate.estimatedMinutes,
-        totalEmails: timeEstimate.emailCount
+        totalEmails: timeEstimate.emailCount,
+        message: 'Phase 1 results will appear immediately, Phase 2 refines in background'
       }
     }
 
@@ -335,6 +347,9 @@ router.put('/categories/:id', protect, asyncHandler(async (req, res) => {
       console.error('Error sending category notification:', error)
     }
 
+    // Clear analytics cache to ensure dashboard updates
+    clearAnalyticsCache(userId.toString())
+
     res.json({
       success: true,
       message: 'Category updated successfully',
@@ -397,6 +412,9 @@ router.delete('/categories/:id', protect, asyncHandler(async (req, res) => {
     } catch (error) {
       console.error('Error sending category notification:', error)
     }
+
+    // Clear analytics cache to ensure dashboard updates
+    clearAnalyticsCache(userId.toString())
 
     res.json({
       success: true,

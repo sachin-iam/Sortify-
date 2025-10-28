@@ -59,6 +59,36 @@ const CategoryManagement = ({ onCategoryUpdate }) => {
           }
           break
           
+        case 'reclassification_phase1_complete':
+          // Phase 1 completed - trigger analytics refresh
+          console.log('✅ Phase 1 complete:', data)
+          toast.success(`Phase 1 complete: ${data.updatedEmails} emails reclassified`)
+          if (onCategoryUpdate) {
+            onCategoryUpdate()
+          }
+          break
+          
+        case 'phase2_category_changed':
+          // Phase 2 changed an email's category - silently refresh analytics
+          console.log('🔄 Phase 2 category change:', data)
+          if (onCategoryUpdate) {
+            onCategoryUpdate()
+          }
+          break
+          
+        case 'phase2_batch_complete':
+          // Phase 2 batch completed - silently refresh analytics
+          console.log('📦 Phase 2 batch complete:', data)
+          if (data.categoriesChanged > 0 && onCategoryUpdate) {
+            onCategoryUpdate()
+          }
+          break
+          
+        case 'reclassification_phase2_queued':
+          // Phase 2 queued notification
+          console.log('📋 Phase 2 queued:', data)
+          break
+          
         case 'category_training_progress':
           setTrainingProgress(prev => ({
             ...prev,

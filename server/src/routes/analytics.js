@@ -26,6 +26,21 @@ function setCachedData(key, data) {
   }
 }
 
+/**
+ * Clear analytics cache for a specific user
+ * @param {string} userId - User ID
+ */
+export function clearAnalyticsCache(userId) {
+  const keysToDelete = []
+  for (const key of analyticsCache.keys()) {
+    if (key.includes(userId)) {
+      keysToDelete.push(key)
+    }
+  }
+  keysToDelete.forEach(key => analyticsCache.delete(key))
+  console.log(`🗑️ Cleared ${keysToDelete.length} analytics cache entries for user ${userId}`)
+}
+
 const router = express.Router()
 
 // @desc    Get email statistics
@@ -143,24 +158,48 @@ router.get('/categories', protect, asyncHandler(async (req, res) => {
       return res.json({ success: true, data: cached })
     }
 
-    // Get category counts for ALL emails (including uncategorized)
-    const categoryData = await Email.aggregate([
+    // IMPORTANT: Fetch ALL categories from the Category collection
+    // This includes categories with 0 emails
+    const Category = (await import('../models/Category.js')).default
+    const allCategories = await Category.find({ 
+      userId: req.user._id,
+      isActive: true 
+    }).select('name')
+
+    // Get email counts for categories that have emails
+    const emailCounts = await Email.aggregate([
       { $match: { userId: req.user._id } },
       {
         $group: {
           _id: { $ifNull: ['$category', 'Uncategorized'] },
           count: { $sum: 1 }
         }
-      },
-      {
-        $project: {
-          label: '$_id',
-          count: 1,
-          _id: 0
-        }
-      },
-      { $sort: { count: -1 } }
+      }
     ])
+
+    // Create a map of category counts
+    const countMap = new Map()
+    emailCounts.forEach(item => {
+      countMap.set(item._id, item.count)
+    })
+
+    // Build the final response with ALL categories
+    const categoryData = allCategories.map(category => ({
+      label: category.name,
+      count: countMap.get(category.name) || 0
+    }))
+
+    // Add "Uncategorized" if there are uncategorized emails
+    const uncategorizedCount = countMap.get('Uncategorized') || 0
+    if (uncategorizedCount > 0) {
+      categoryData.push({
+        label: 'Uncategorized',
+        count: uncategorizedCount
+      })
+    }
+
+    // Sort by count descending
+    categoryData.sort((a, b) => b.count - a.count)
 
     // Cache the result before sending
     setCachedData(cacheKey, categoryData)

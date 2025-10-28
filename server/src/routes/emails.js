@@ -13,6 +13,7 @@ import { reclassifyAllEmails, getJobStatus } from '../services/emailReclassifica
 import { estimateReclassificationTime } from '../services/categoryFeatureService.js'
 import { sendReply } from '../services/gmailSendService.js'
 import { groupEmailsIntoThreads } from '../services/threadGroupingService.js'
+import { clearAnalyticsCache } from './analytics.js'
 
 const router = express.Router()
 
@@ -106,12 +107,11 @@ router.post('/gmail/sync', protect, asyncHandler(async (req, res) => {
         const headers = messageData.data.payload.headers
         const getHeader = (name) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value
 
-        // Classify the email automatically
+        // Prepare email data
         const subject = getHeader('Subject') || 'No Subject'
         const snippet = messageData.data.snippet || ''
         const body = messageData.data.payload.body?.data || ''
-        
-        const classification = await classifyEmail(subject, snippet, body, user._id.toString())
+        const from = getHeader('From') || 'Unknown Sender'
 
         const emailData = {
           userId: user._id,
@@ -119,17 +119,17 @@ router.post('/gmail/sync', protect, asyncHandler(async (req, res) => {
           messageId: message.id,
           threadId: messageData.data.threadId || null,
           subject,
-          from: getHeader('From') || 'Unknown Sender',
+          from,
           to: getHeader('To') || user.email,
           date: new Date(parseInt(messageData.data.internalDate)),
           snippet,
           body,
           isRead: !messageData.data.labelIds?.includes('UNREAD'),
           labels: messageData.data.labelIds || [],
-          category: classification.label,
+          category: 'Other', // Temporary, will be updated with classification
           classification: {
-            label: classification.label,
-            confidence: classification.confidence
+            label: 'Other',
+            confidence: 0.5
           }
         }
 
@@ -139,6 +139,38 @@ router.post('/gmail/sync', protect, asyncHandler(async (req, res) => {
           emailData,
           { upsert: true, new: true }
         )
+        
+        // Classify the email with two-phase system
+        const classification = await classifyEmail(
+          subject, 
+          snippet, 
+          body, 
+          user._id.toString(),
+          {
+            emailId: result._id.toString(),
+            from: from
+          }
+        )
+
+        // Update email with Phase 1 classification
+        result.category = classification.label
+        result.classification = {
+          label: classification.label,
+          confidence: classification.confidence,
+          phase: 1,
+          phase1: {
+            label: classification.label,
+            confidence: classification.confidence,
+            classifiedAt: new Date(),
+            method: classification.method,
+            matchedPattern: classification.matchedPattern,
+            matchedValue: classification.matchedValue,
+            matchedKeywords: classification.matchedKeywords
+          },
+          modelVersion: '2.0.0-phase1',
+          classifiedAt: new Date()
+        }
+        await result.save()
         
         // Check if this was a new email (not existing before)
         if (!existingEmail) {
@@ -2091,26 +2123,32 @@ router.post('/reclassify-all', protect, asyncHandler(async (req, res) => {
   try {
     const userId = req.user._id.toString()
     
-    console.log(`🔄 Starting reclassification for user: ${userId}`)
+    console.log(`🔄 Starting two-phase reclassification for user: ${userId}`)
+
+    // Import the two-phase orchestrator
+    const { reclassifyAllEmailsTwoPhase } = await import('../services/twoPhaseReclassificationService.js')
 
     // Get time estimate before starting
     const timeEstimate = await estimateReclassificationTime(userId)
 
-    // Start reclassification asynchronously to avoid timeout
-    reclassifyAllEmails(userId)
+    // Start two-phase reclassification asynchronously
+    reclassifyAllEmailsTwoPhase(userId)
       .then(result => {
-        console.log(`✅ Reclassification completed for user ${userId}:`, result)
+        console.log(`✅ Two-phase reclassification completed for user ${userId}:`, result)
         
-        // Send notification about completion
+        // Clear analytics cache one final time
+        clearAnalyticsCache(userId)
+        
+        // Send notification about Phase 1 and Phase 2 completion
         notificationService.sendClassificationNotification(userId, {
           emailId: 'system',
           category: 'system',
           confidence: 1.0,
-          message: `Reclassification completed: ${result.changedCount} emails updated out of ${result.totalEmails} total`
+          message: `Reclassification complete: Phase 1 updated ${result.phase1.updated} emails, Phase 2 queued ${result.phase2.queued} for refinement`
         })
       })
       .catch(error => {
-        console.error(`❌ Reclassification failed for user ${userId}:`, error)
+        console.error(`❌ Two-phase reclassification failed for user ${userId}:`, error)
         
         // Send error notification
         notificationService.sendClassificationNotification(userId, {
@@ -2124,7 +2162,7 @@ router.post('/reclassify-all', protect, asyncHandler(async (req, res) => {
     // Return immediately with success status and time estimate
     res.json({
       success: true,
-      message: 'Reclassification started. You will receive notifications about progress.',
+      message: 'Two-phase reclassification started. Phase 1 results will appear immediately, Phase 2 refinement runs in background.',
       userId: userId,
       estimatedTime: timeEstimate
     })

@@ -11,6 +11,7 @@ import { classifyEmail } from './classificationService.js'
 import { sendEmailSyncUpdate } from './websocketService.js'
 import { updateCategoryAnalytics } from './categoryAnalyticsService.js'
 import { estimateReclassificationTime } from './categoryFeatureService.js'
+import { clearAnalyticsCache } from '../routes/analytics.js'
 
 // Store active jobs to prevent duplicates
 const activeJobs = new Map()
@@ -247,6 +248,9 @@ const processReclassificationJob = async (jobId) => {
     } catch (analyticsError) {
       console.error('❌ Error updating category analytics:', analyticsError)
     }
+
+    // Clear analytics cache to reflect updated category counts
+    clearAnalyticsCache(job.userId.toString())
 
     // Send completion update
     sendEmailSyncUpdate(job.userId.toString(), {

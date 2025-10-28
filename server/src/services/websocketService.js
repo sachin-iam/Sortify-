@@ -247,3 +247,67 @@ export const closeUserConnections = (userId) => {
     console.log(`🔌 Closed all connections for user: ${userId}`)
   }
 }
+
+/**
+ * Send Phase 1 completion update
+ * @param {string} userId - User ID
+ * @param {Object} data - Phase 1 completion data
+ */
+export const sendPhase1CompleteUpdate = (userId, data) => {
+  return sendUpdateToUser(userId, {
+    type: 'reclassification_phase1_complete',
+    data: {
+      phase: 1,
+      totalEmails: data.totalEmails,
+      processedEmails: data.processedEmails,
+      updatedEmails: data.updatedEmails,
+      errorCount: data.errorCount,
+      duration: data.duration,
+      message: data.message || `Phase 1 complete: ${data.updatedEmails} emails reclassified`
+    }
+  })
+}
+
+/**
+ * Send Phase 2 category change update
+ * @param {string} userId - User ID
+ * @param {Object} data - Category change data
+ */
+export const sendPhase2CategoryChanged = (userId, data) => {
+  return sendUpdateToUser(userId, {
+    type: 'phase2_category_changed',
+    data: {
+      phase: 2,
+      emailId: data.emailId,
+      emailSubject: data.emailSubject,
+      oldCategory: data.oldCategory,
+      newCategory: data.newCategory,
+      confidence: data.confidence,
+      improvement: data.improvement,
+      reason: data.reason,
+      timestamp: new Date().toISOString()
+    }
+  })
+}
+
+/**
+ * Send Phase 2 batch completion update
+ * @param {string} userId - User ID
+ * @param {Object} data - Batch completion data
+ */
+export const sendPhase2BatchComplete = (userId, data) => {
+  return sendUpdateToUser(userId, {
+    type: 'phase2_batch_complete',
+    data: {
+      phase: 2,
+      batchNumber: data.batchNumber,
+      emailsProcessed: data.emailsProcessed,
+      categoriesChanged: data.categoriesChanged,
+      categoryChanges: data.categoryChanges, // { fromCategory: count, toCategory: count }
+      totalProcessed: data.totalProcessed,
+      totalQueued: data.totalQueued,
+      progress: data.progress,
+      message: data.message || `Phase 2 batch ${data.batchNumber} complete`
+    }
+  })
+}

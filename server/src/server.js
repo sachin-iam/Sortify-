@@ -30,6 +30,7 @@ import notificationsRoutes from './routes/notifications.js'
 import performanceRoutes from './routes/performance.js'
 import connectionsRoutes from './routes/connections.js'
 import feedbackRoutes from './routes/feedback.js'
+import diagnosticRoutes from './routes/diagnostic.js'
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js'
@@ -154,6 +155,7 @@ app.use('/api/notifications', notificationsRoutes)
 app.use('/api/performance', performanceRoutes)
 app.use('/api/connections', connectionsRoutes)
 app.use('/api/feedback', feedbackRoutes)
+app.use('/api/diagnostic', diagnosticRoutes)
 
 // OAuth callback routes are now handled under /api/auth
 

@@ -63,6 +63,35 @@ const emailSchema = new mongoose.Schema({
       min: 0,
       max: 1
     },
+    phase: {
+      type: Number,
+      default: 1,
+      enum: [1, 2]
+    },
+    phase1: {
+      label: String,
+      confidence: Number,
+      classifiedAt: Date,
+      method: String,
+      matchedPattern: String,
+      matchedValue: String,
+      matchedKeywords: [String]
+    },
+    phase2: {
+      label: String,
+      confidence: Number,
+      classifiedAt: Date,
+      method: String,
+      model: String,
+      isComplete: {
+        type: Boolean,
+        default: false
+      },
+      updateReason: String,
+      improvement: Number,
+      result: String,
+      error: String
+    },
     modelVersion: {
       type: String,
       default: '2.1.0'

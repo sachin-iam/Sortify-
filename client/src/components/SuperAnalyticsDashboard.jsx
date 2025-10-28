@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, AreaChart, Area } from 'recharts'
 import { motion } from 'framer-motion'
 import { analyticsService } from '../services/analyticsService'
@@ -38,6 +38,7 @@ const SuperAnalyticsDashboard = () => {
   
   // Simple flag to prevent unnecessary reloading
   const lastLoadParamsRef = useRef('')
+  const debounceTimerRef = useRef(null)
 
   // Extract data loading logic into a reusable function
   const loadAllAnalyticsData = async (isRefresh = false) => {
@@ -82,6 +83,27 @@ const SuperAnalyticsDashboard = () => {
     loadAllAnalyticsData(true)
   }
 
+  // Debounced refresh for Phase 2 updates (max every 2-3 seconds)
+  const debouncedRefresh = useCallback(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+    }
+    
+    debounceTimerRef.current = setTimeout(() => {
+      loadAllAnalyticsData(true)
+      debounceTimerRef.current = null
+    }, 2500) // 2.5 second debounce
+  }, [timeRange, selectedCategory])
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+    }
+  }, [])
+
   useEffect(() => {
     const currentParams = `${timeRange}-${selectedCategory}`
     
@@ -111,9 +133,33 @@ const SuperAnalyticsDashboard = () => {
         loadAllAnalyticsData()
         break
         
+      case 'reclassification_phase1_complete':
+        console.log('✅ Phase 1 complete, refreshing analytics:', lastMessage.data)
+        // Immediate refresh after Phase 1 completes
+        loadAllAnalyticsData(true)
+        break
+        
+      case 'phase2_category_changed':
+        console.log('🔄 Phase 2 category changed, debounced refresh:', lastMessage.data)
+        // Debounced refresh for Phase 2 category changes (silent, no visible indicator)
+        debouncedRefresh()
+        break
+        
+      case 'phase2_batch_complete':
+        console.log('📦 Phase 2 batch complete, debounced refresh:', lastMessage.data)
+        // Debounced refresh after Phase 2 batch if categories changed
+        if (lastMessage.data?.categoriesChanged > 0) {
+          debouncedRefresh()
+        }
+        break
+        
       case 'reclassification_progress':
         console.log('🔄 SuperAnalyticsDashboard received reclassification progress:', lastMessage.data)
-        // Optionally show progress indicator - could add a progress bar or notification
+        // Show progress for Phase 1 batches
+        if (lastMessage.data?.phase === 1) {
+          // Optionally update a progress indicator for Phase 1
+          // Phase 2 progress is silent
+        }
         break
         
       case 'email_synced':
@@ -125,7 +171,7 @@ const SuperAnalyticsDashboard = () => {
       default:
         break
     }
-  }, [lastMessage, timeRange, selectedCategory])
+  }, [lastMessage, timeRange, selectedCategory, debouncedRefresh])
 
   const formatNumber = (num) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
