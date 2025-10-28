@@ -35,7 +35,8 @@ import { syncCategoryToML } from './src/services/mlCategorySync.js'
  */
 const connectDB = async () => {
   try {
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/sortify'
+    const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017/sortify'
+    console.log('Connecting to MongoDB...')
     await mongoose.connect(mongoUri)
     console.log('✅ Connected to MongoDB')
   } catch (error) {
