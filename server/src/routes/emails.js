@@ -314,13 +314,20 @@ router.get('/', protect, asyncHandler(async (req, res) => {
       query.category = category
     }
 
-    // Search functionality
-    if (search) {
+    // Search functionality - Enhanced to handle multi-word searches
+    if (search && search.trim()) {
+      // Escape special regex characters to prevent errors
+      const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const searchTerm = escapeRegex(search.trim())
+      
       query.$or = [
-        { subject: { $regex: search, $options: 'i' } },
-        { from: { $regex: search, $options: 'i' } },
-        { snippet: { $regex: search, $options: 'i' } }
+        { subject: { $regex: searchTerm, $options: 'i' } },
+        { from: { $regex: searchTerm, $options: 'i' } },
+        { snippet: { $regex: searchTerm, $options: 'i' } },
+        { body: { $regex: searchTerm, $options: 'i' } }
       ]
+      
+      console.log(`🔍 Server search query: "${searchTerm}"`)
     }
 
     // Fetch emails - need more data for threading

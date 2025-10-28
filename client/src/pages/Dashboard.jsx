@@ -110,13 +110,24 @@ const Dashboard = () => {
       console.log('📧 Fetching emails...', { currentPage, currentCategory, categoryToUse, searchQuery })
       console.log('📧 User token:', token ? 'Present' : 'Missing')
       console.log('📧 Gmail connected:', gmailConnected)
-      console.log('📧 API call parameters:', { page: currentPage, category: categoryToUse, q: searchQuery })
+      
+      // When searching, fetch MORE emails to search across entire database
+      // When not searching, use pagination
+      const isSearching = searchQuery.trim().length > 0
+      const searchLimit = isSearching ? 1000 : 100 // Fetch up to 1000 emails when searching
+      
+      console.log('📧 API call parameters:', { 
+        page: isSearching ? 1 : currentPage, // Always fetch from page 1 when searching
+        category: categoryToUse, 
+        q: searchQuery,
+        limit: searchLimit
+      })
       
       const response = await emailService.getEmails({
-        page: currentPage,
+        page: isSearching ? 1 : currentPage, // Start from page 1 when searching to get all results
         category: categoryToUse,
         q: searchQuery,
-        limit: searchQuery.trim() ? 25 : 100 // Load more emails when not searching for better client-side search
+        limit: searchLimit
       })
       
       console.log('📧 Email API response:', response)
@@ -1349,49 +1360,74 @@ const Dashboard = () => {
   }
 
   const handleSearchChange = (query) => {
+    // Allow any text length - no restrictions
     setSearchQuery(query)
     setCurrentPage(1) // Reset to first page
     // Clear selected email when searching
     setSelectedEmailId(null)
     setSelectedEmail(null)
     
-    // Immediate client-side filtering for instant feedback
-    if (query.trim()) {
-      const filteredEmails = allEmails.filter(email => 
-        email.subject?.toLowerCase().includes(query.toLowerCase()) ||
-        email.from?.toLowerCase().includes(query.toLowerCase()) ||
-        email.snippet?.toLowerCase().includes(query.toLowerCase())
-      )
+    const trimmedQuery = query.trim()
+    
+    if (trimmedQuery) {
+      // Immediate client-side filtering for instant feedback (from loaded emails only)
+      const searchTerms = trimmedQuery.toLowerCase()
+      const filteredEmails = allEmails.filter(email => {
+        const subject = email.subject?.toLowerCase() || ''
+        const from = email.from?.toLowerCase() || ''
+        const snippet = email.snippet?.toLowerCase() || ''
+        const body = email.body?.toLowerCase() || ''
+        
+        // Search in all fields
+        return subject.includes(searchTerms) ||
+               from.includes(searchTerms) ||
+               snippet.includes(searchTerms) ||
+               body.includes(searchTerms)
+      })
+      
+      // Show client-side results immediately for instant feedback
       setEmails(filteredEmails)
+      console.log(`🔍 Client-side search (instant): "${trimmedQuery}" found ${filteredEmails.length} results from loaded emails`)
     } else {
-      // If no search query, show all emails (will be updated by server call)
+      // If no search query, show all emails
       setEmails(allEmails)
+      setIsSearching(false)
     }
   }
+  
+  // Debounced server search effect - triggers after user stops typing
+  useEffect(() => {
+    if (!token || !gmailConnected) return
+    
+    const trimmedQuery = searchQuery.trim()
+    
+    if (trimmedQuery) {
+      // Set searching state
+      setIsSearching(true)
+      
+      // Debounce server search to avoid too many requests while typing
+      const timeoutId = setTimeout(() => {
+        console.log(`🔍 Server search (comprehensive): "${trimmedQuery}"`)
+        fetchEmails(true).finally(() => setIsSearching(false))
+      }, 400) // 400ms debounce - balanced for speed and efficiency
+      
+      return () => {
+        clearTimeout(timeoutId)
+      }
+    } else {
+      setIsSearching(false)
+    }
+  }, [searchQuery, token, gmailConnected, fetchEmails])
 
   const clearSearch = () => {
     setSearchQuery('')
     setCurrentPage(1)
     setSelectedEmailId(null)
     setSelectedEmail(null)
+    setIsSearching(false)
     // Restore all emails when clearing search
     setEmails(allEmails)
   }
-
-  // Server search effect - only for queries longer than 2 characters to reduce API calls
-  useEffect(() => {
-    if (!token || !gmailConnected || searchQuery.trim().length < 2) return
-    
-    setIsSearching(true)
-    const timeoutId = setTimeout(() => {
-      fetchEmails().finally(() => setIsSearching(false))
-    }, 300) // Slightly longer debounce for server calls
-    
-    return () => {
-      clearTimeout(timeoutId)
-      setIsSearching(false)
-    }
-  }, [searchQuery, token, gmailConnected, fetchEmails])
 
   const handlePageChange = (page) => {
     setCurrentPage(page)
@@ -1793,7 +1829,7 @@ const Dashboard = () => {
                   </div>
                   
                   {/* Search Input */}
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <div className="relative group">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
                         {isSearching ? (
@@ -1830,19 +1866,21 @@ const Dashboard = () => {
                       </div>
                       <input
                         type="text"
-                        placeholder={isSearching ? "Searching..." : "Search emails..."}
+                        placeholder="Search emails by subject, sender, or content..."
                         value={searchQuery}
                         onChange={(e) => handleSearchChange(e.target.value)}
-                        disabled={isSearching}
-                        className="w-full pl-10 pr-10 py-2 bg-gradient-to-r from-white/60 to-white/40 border border-white/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/70 shadow-lg hover:shadow-xl transition-all duration-300 text-slate-800 placeholder-slate-500 font-medium backdrop-blur-sm disabled:opacity-70 disabled:cursor-wait"
+                        autoComplete="off"
+                        spellCheck="false"
+                        className="w-full min-w-0 pl-10 pr-10 py-2 bg-gradient-to-r from-white/60 to-white/40 border border-white/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/70 shadow-lg hover:shadow-xl transition-all duration-300 text-slate-800 placeholder-slate-500 font-medium backdrop-blur-sm overflow-hidden text-ellipsis"
+                        style={{ maxWidth: '100%' }}
                       />
                       
                       {/* Clear Search Button */}
                       {searchQuery && (
                         <button
                           onClick={clearSearch}
-                          className="absolute inset-y-0 right-0 pr-3 flex items-center z-10 hover:bg-white/20 rounded-r-xl transition-colors duration-200"
-                          disabled={isSearching}
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center z-10 hover:bg-white/20 rounded-r-xl transition-colors duration-200 cursor-pointer"
+                          title="Clear search"
                         >
                           <svg 
                             className="h-3 w-3 text-slate-500 hover:text-slate-700 transition-colors duration-200" 
@@ -1962,6 +2000,7 @@ const Dashboard = () => {
                        selectedEmails={selectedEmails}
                        gmailConnected={gmailConnected}
                        isCompact={!!selectedEmail}
+                       searchQuery={searchQuery}
                      />
                   </div>
                 </section>

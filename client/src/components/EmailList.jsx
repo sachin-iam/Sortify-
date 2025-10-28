@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { getCategoryLightColors } from '../utils/categoryColors'
 import ModernIcon from './ModernIcon'
+import { highlightText } from '../utils/highlightText.jsx'
 
-const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage = 1, totalPages = 1, onPageChange, totalEmails = 0, onBulkSelect, selectedEmails = [], gmailConnected = false, isCompact = false }) => {
+const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage = 1, totalPages = 1, onPageChange, totalEmails = 0, onBulkSelect, selectedEmails = [], gmailConnected = false, isCompact = false, searchQuery = '' }) => {
   const [hoveredPage, setHoveredPage] = useState(null)
   const [hasNavigated, setHasNavigated] = useState(false)
   const [selectAll, setSelectAll] = useState(false)
@@ -317,7 +318,7 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
                 <div className="flex-1 min-w-0 overflow-hidden">
                   <div className="flex items-center gap-2 mb-1 min-w-0">
                     <span className={`font-medium truncate flex-1 min-w-0 ${email.isArchived ? 'text-slate-600 italic' : 'text-slate-800'}`}>
-                      {email.from}
+                      {searchQuery ? highlightText(email.from, searchQuery) : email.from}
                     </span>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       {/* Thread indicator */}
@@ -347,10 +348,10 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
                     </div>
                   </div>
                   <h3 className="font-semibold text-slate-900 text-sm mb-1 truncate">
-                    {email.subject}
+                    {searchQuery ? highlightText(email.subject, searchQuery) : email.subject}
                   </h3>
                   <p className="text-slate-600 text-sm line-clamp-2 break-words overflow-hidden">
-                    {email.snippet}
+                    {searchQuery ? highlightText(email.snippet, searchQuery) : email.snippet}
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-1 flex-shrink-0 ml-2">

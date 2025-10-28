@@ -1,7 +1,7 @@
 // Phase 2: Background ML-based email classification refinement
 import Email from '../models/Email.js'
 import { CLASSIFICATION_CONFIG } from '../config/classification.js'
-import { classifyEmailWithDynamicML } from './classificationService.js'
+import { classifyEmailWithDynamicML } from './enhancedClassificationService.js'
 import { sendPhase2CategoryChanged } from './websocketService.js'
 import { clearAnalyticsCache } from '../routes/analytics.js'
 

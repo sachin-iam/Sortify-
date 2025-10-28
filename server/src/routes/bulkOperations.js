@@ -15,10 +15,17 @@ const router = express.Router()
 // @access  Private
 router.post('/categorize', protect, asyncHandler(async (req, res) => {
   try {
+    console.log('📋 Bulk categorize request received:', {
+      bodyKeys: Object.keys(req.body),
+      userId: req.user?._id,
+      emailIdsCount: req.body.emailIds?.length
+    })
+    
     const { emailIds, category, reason } = req.body
     const userId = req.user._id
 
     if (!emailIds || !Array.isArray(emailIds) || emailIds.length === 0) {
+      console.log('❌ Validation failed: Invalid emailIds')
       return res.status(400).json({
         success: false,
         message: 'Email IDs are required'
@@ -26,14 +33,17 @@ router.post('/categorize', protect, asyncHandler(async (req, res) => {
     }
 
     if (!category) {
+      console.log('❌ Validation failed: Missing category')
       return res.status(400).json({
         success: false,
         message: 'Category is required'
       })
     }
 
+    console.log(`📂 Fetching categories for user ${userId}...`)
     // Validate category exists for this user
     const userCategories = await getCategories(userId)
+    console.log(`✅ Found ${userCategories.length} categories for user`)
     const validCategoryNames = userCategories.map(cat => cat.name)
     if (!validCategoryNames.includes(category)) {
       return res.status(400).json({

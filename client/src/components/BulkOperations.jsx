@@ -77,7 +77,7 @@ const BulkOperations = ({ selectedEmails, onOperationComplete, onClose }) => {
         })
       }, 100)
 
-      const response = await api.post(`/api/bulk/${selectedOperation.id}`, requestData)
+      const response = await api.post(`/bulk/${selectedOperation.id}`, requestData)
 
       clearInterval(progressInterval)
       setOperationProgress(100)

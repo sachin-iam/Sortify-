@@ -25,6 +25,97 @@ import { clearAnalyticsCache } from './analytics.js'
 
 const router = express.Router()
 
+/**
+ * Convert extracted patterns to Phase 1 compatible format
+ */
+const convertToPhase1Format = (extractedPatterns, categoryName) => {
+  const headerAnalysis = extractedPatterns.classificationStrategy?.headerAnalysis || {}
+  const bodyAnalysis = extractedPatterns.classificationStrategy?.bodyAnalysis || {}
+  
+  // Extract top sender domains (domains that appear frequently)
+  const senderDomains = (headerAnalysis.senderDomains || [])
+    .slice(0, 10)
+    .map(domain => {
+      // Handle both string and object formats
+      if (typeof domain === 'string') return domain
+      return domain.domain || domain.value || domain
+    })
+    .filter(d => d && d.length > 0)
+  
+  // Extract sender name patterns
+  const senderNames = (headerAnalysis.senderPatterns || [])
+    .slice(0, 10)
+    .map(pattern => {
+      if (typeof pattern === 'string') return pattern
+      return pattern.name || pattern.pattern || pattern.value || pattern
+    })
+    .filter(n => n && n.length > 0)
+  
+  // Extract keywords from body analysis
+  const keywords = bodyAnalysis.keywords || [categoryName.toLowerCase()]
+  
+  // Build Phase 1 compatible patterns object
+  return {
+    senderDomains: senderDomains.length > 0 ? senderDomains : [],
+    senderNames: senderNames.length > 0 ? senderNames : [],
+    keywords: keywords.length > 0 ? keywords : [categoryName.toLowerCase()],
+    extractedAt: new Date(),
+    source: 'direct_extraction'
+  }
+}
+
+/**
+ * Generate basic patterns when extraction fails
+ */
+const generateBasicPatterns = (categoryName) => {
+  const name = categoryName.toLowerCase()
+  const patterns = {
+    senderDomains: [],
+    senderNames: [],
+    keywords: []
+  }
+  
+  // Generate domain patterns based on category name
+  if (name.includes('zone') || name.includes('e-zone') || name.includes('ezone')) {
+    patterns.senderDomains.push('ezone@shardauniversity.com', 'e-zone', 'shardauniversity.com')
+    patterns.senderNames.push('E-Zone', 'e-zone', 'E-Zone Online Portal')
+    patterns.keywords.push('ezone', 'e-zone', 'portal', 'otp', 'login')
+  }
+  
+  if (name.includes('nptel')) {
+    patterns.senderDomains.push('nptel.ac.in', 'nptel.iitm.ac.in')
+    patterns.senderNames.push('NPTEL', 'nptel', 'IIT Madras')
+    patterns.keywords.push('nptel', 'course', 'assignment', 'lecture', 'certificate', 'exam')
+  }
+  
+  if (name.includes('placement')) {
+    patterns.senderDomains.push('placement', 'career', 'jobs')
+    patterns.senderNames.push('Placement', 'Career', 'Placement Cell', 'Training and Placement')
+    patterns.keywords.push('placement', 'job', 'interview', 'career', 'company', 'recruitment', 'hiring')
+  }
+  
+  if (name.includes('hod')) {
+    patterns.senderNames.push('HOD', 'Head of Department', 'Department Head')
+    patterns.keywords.push('hod', 'department', 'head')
+  }
+  
+  if (name.includes('promotion')) {
+    patterns.senderDomains.push('promo', 'offer', 'deal')
+    patterns.keywords.push('promo', 'promotion', 'offer', 'discount', 'sale', 'deal')
+  }
+  
+  if (name.includes('happening') || name.includes('what')) {
+    patterns.senderNames.push("What's Happening", "Whats Happening", "What's Happening' via")
+    patterns.senderDomains.push('shardaevents.com', 'sgei.org')
+    patterns.keywords.push('happening', 'events', 'announcement', 'semester', 'university')
+  }
+  
+  // Always include the category name as a keyword
+  patterns.keywords.push(categoryName.toLowerCase())
+  
+  return patterns
+}
+
 // @desc    Get all categories
 // @route   GET /api/realtime/categories
 // @access  Private
@@ -116,6 +207,7 @@ router.post('/categories', protect, asyncHandler(async (req, res) => {
         const updatedCategory = await serviceUpdateCategory(userId, savedCategory.id, {
           classificationStrategy: result.patterns.classificationStrategy,
           patterns: result.patterns.patterns,
+          keywords: result.patterns.classificationStrategy?.bodyAnalysis?.keywords || [],
           trainingStatus: 'completed'
         })
         
@@ -125,18 +217,63 @@ router.post('/categories', protect, asyncHandler(async (req, res) => {
           mlSyncSuccess = true
           console.log(`✅ ML features added to "${categoryName}"`)
         }
+      } else {
+        // ML succeeded but no patterns - use direct extraction
+        throw new Error('ML extraction returned no patterns')
       }
     } catch (mlError) {
       console.warn(`⚠️ ML feature extraction failed for "${categoryName}":`, mlError.message)
-      // Try basic ML sync instead
+      
+      // FALLBACK: Direct pattern extraction from existing emails
       try {
-        console.log(`🔄 Attempting basic ML sync for "${categoryName}"...`)
-        mlSyncSuccess = await syncCategoryToML(savedCategory)
-        if (mlSyncSuccess) {
-          console.log(`✅ Basic ML sync successful for "${categoryName}"`)
+        console.log(`🔄 Falling back to direct pattern extraction from existing emails...`)
+        
+        // Extract patterns from existing emails (analyze up to 1000 emails)
+        const extractedPatterns = await extractPatternsForCategory(
+          userId.toString(),
+          categoryName,
+          1000  // Sample size
+        )
+        
+        if (extractedPatterns && extractedPatterns.patterns) {
+          // Convert extracted patterns to Phase 1 compatible format
+          const phase1Patterns = convertToPhase1Format(
+            extractedPatterns,
+            categoryName
+          )
+          
+          // Update category with extracted patterns
+          const updatedCategory = await serviceUpdateCategory(userId, savedCategory.id, {
+            classificationStrategy: extractedPatterns.classificationStrategy,
+            patterns: phase1Patterns,
+            keywords: extractedPatterns.classificationStrategy?.bodyAnalysis?.keywords || 
+                      [categoryName.toLowerCase()],
+            trainingStatus: 'completed'
+          })
+          
+          if (updatedCategory) {
+            savedCategory = updatedCategory
+            console.log(`✅ Pattern extraction successful for "${categoryName}"`)
+            console.log(`   - Sender domains: ${phase1Patterns.senderDomains?.length || 0}`)
+            console.log(`   - Sender names: ${phase1Patterns.senderNames?.length || 0}`)
+            console.log(`   - Keywords: ${phase1Patterns.keywords?.length || 0}`)
+          }
+        } else {
+          // Last resort: Basic patterns from category name
+          const basicPatterns = generateBasicPatterns(categoryName)
+          await serviceUpdateCategory(userId, savedCategory.id, {
+            patterns: basicPatterns,
+            keywords: [categoryName.toLowerCase(), ...basicPatterns.keywords],
+            trainingStatus: 'basic'
+          })
+          console.log(`✅ Basic patterns created for "${categoryName}"`)
+          console.log(`   - Sender domains: ${basicPatterns.senderDomains?.length || 0}`)
+          console.log(`   - Sender names: ${basicPatterns.senderNames?.length || 0}`)
+          console.log(`   - Keywords: ${basicPatterns.keywords?.length || 0}`)
         }
-      } catch (syncError) {
-        console.warn(`⚠️ Basic ML sync also failed for "${categoryName}":`, syncError.message)
+      } catch (extractError) {
+        console.error(`❌ Pattern extraction also failed:`, extractError.message)
+        // Category still saved, just without patterns - user can manually add patterns later
       }
     }
 
@@ -802,6 +939,166 @@ router.post('/categories/reset-refinement', protect, asyncHandler(async (req, re
     res.status(500).json({
       success: false,
       message: 'Failed to reset refinement status',
+      error: error.message
+    })
+  }
+}))
+
+// @desc    Fix all existing categories by adding patterns
+// @route   POST /api/realtime/categories/fix-all-patterns
+// @access  Private
+router.post('/categories/fix-all-patterns', protect, asyncHandler(async (req, res) => {
+  try {
+    const userId = req.user._id
+    
+    console.log(`🔧 Fixing patterns for all categories for user: ${userId}`)
+    
+    // Get all categories without proper patterns
+    const categories = await Category.find({
+      userId: userId,
+      isActive: true,
+      $or: [
+        { patterns: null },
+        { patterns: { $exists: false } },
+        { 'patterns.senderDomains': { $size: 0 } }
+      ]
+    })
+    
+    console.log(`📋 Found ${categories.length} categories to fix`)
+    
+    const results = []
+    
+    for (const category of categories) {
+      try {
+        console.log(`\n🔧 Fixing category: "${category.name}"`)
+        
+        // Try pattern extraction first
+        let updatedData = null
+        try {
+          const extractedPatterns = await extractPatternsForCategory(
+            userId.toString(),
+            category.name,
+            1000
+          )
+          
+          if (extractedPatterns && extractedPatterns.patterns) {
+            const phase1Patterns = convertToPhase1Format(extractedPatterns, category.name)
+            
+            updatedData = {
+              patterns: phase1Patterns,
+              keywords: extractedPatterns.classificationStrategy?.bodyAnalysis?.keywords || 
+                        [category.name.toLowerCase()],
+              classificationStrategy: extractedPatterns.classificationStrategy,
+              trainingStatus: 'completed'
+            }
+            
+            console.log(`✅ Extracted patterns: domains=${phase1Patterns.senderDomains?.length}, names=${phase1Patterns.senderNames?.length}, keywords=${phase1Patterns.keywords?.length}`)
+          }
+        } catch (extractError) {
+          console.warn(`⚠️ Pattern extraction failed, using basic patterns`)
+        }
+        
+        // If extraction failed, use basic patterns
+        if (!updatedData) {
+          const basicPatterns = generateBasicPatterns(category.name)
+          updatedData = {
+            patterns: basicPatterns,
+            keywords: [category.name.toLowerCase(), ...basicPatterns.keywords],
+            trainingStatus: 'basic'
+          }
+          console.log(`✅ Generated basic patterns: domains=${basicPatterns.senderDomains?.length}, names=${basicPatterns.senderNames?.length}, keywords=${basicPatterns.keywords?.length}`)
+        }
+        
+        // Update category
+        await Category.findByIdAndUpdate(category._id, updatedData)
+        
+        results.push({
+          categoryName: category.name,
+          success: true,
+          patternsAdded: true,
+          hasPatterns: true
+        })
+        
+        console.log(`✅ Fixed "${category.name}"`)
+        
+      } catch (error) {
+        console.error(`❌ Error fixing "${category.name}":`, error)
+        results.push({
+          categoryName: category.name,
+          success: false,
+          error: error.message
+        })
+      }
+    }
+    
+    const successCount = results.filter(r => r.success).length
+    
+    console.log(`\n✅ Pattern fix complete: ${successCount}/${categories.length} categories fixed`)
+    
+    // Clear analytics cache
+    clearAnalyticsCache(userId.toString())
+    
+    res.json({
+      success: true,
+      message: `Fixed ${successCount} categories. Now click "Reclassify All Emails" to reclassify.`,
+      categoriesFixed: successCount,
+      totalCategories: categories.length,
+      results: results
+    })
+    
+  } catch (error) {
+    console.error('Fix categories error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fix categories',
+      error: error.message
+    })
+  }
+}))
+
+// @desc    Debug: Check category patterns
+// @route   GET /api/realtime/categories/:id/patterns
+// @access  Private
+router.get('/categories/:id/patterns', protect, asyncHandler(async (req, res) => {
+  try {
+    const { id } = req.params
+    const userId = req.user._id
+    
+    const category = await findCategoryById(userId, id)
+    
+    if (!category) {
+      return res.status(404).json({
+        success: false,
+        message: 'Category not found'
+      })
+    }
+    
+    res.json({
+      success: true,
+      category: {
+        name: category.name,
+        patterns: category.patterns,
+        keywords: category.keywords,
+        classificationStrategy: category.classificationStrategy,
+        trainingStatus: category.trainingStatus
+      },
+      diagnostic: {
+        hasPatterns: !!(category.patterns),
+        hasSenderDomains: !!(category.patterns?.senderDomains?.length > 0),
+        hasSenderNames: !!(category.patterns?.senderNames?.length > 0),
+        hasKeywords: !!(category.keywords?.length > 0 || category.patterns?.keywords?.length > 0),
+        canMatchInPhase1: !!(
+          (category.patterns?.senderDomains?.length > 0) ||
+          (category.patterns?.senderNames?.length > 0) ||
+          (category.keywords?.length > 0)
+        )
+      }
+    })
+  } catch (error) {
+    console.error('Get category patterns error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get category patterns',
       error: error.message
     })
   }
