@@ -11,6 +11,7 @@ import { classifyEmailPhase1 } from './phase1ClassificationService.js'
 import { queuePhase2Batch } from './classificationJobQueue.js'
 import { sendEmailSyncUpdate } from './websocketService.js'
 import { clearAnalyticsCache } from '../routes/analytics.js'
+import { clearCategoryCache } from './categoryService.js'
 
 const BATCH_SIZE = 1000
 
@@ -140,8 +141,9 @@ export const reclassifyAllEmailsTwoPhase = async (userId, categoryName = null) =
         message: `Phase 1: Classified ${phase1ProcessedCount}/${totalEmails} emails (${progressPercentage}%)`
       })
 
-      // Clear analytics cache to trigger frontend refresh
+      // Clear caches to trigger frontend refresh
       clearAnalyticsCache(userId)
+      clearCategoryCache(userId)
 
       console.log(`✅ Phase 1 batch ${currentBatch} complete: ${emails.length} emails processed`)
       console.log(`   Updated: ${phase1UpdatedCount}, Errors: ${phase1ErrorCount}`)
@@ -174,8 +176,9 @@ export const reclassifyAllEmailsTwoPhase = async (userId, categoryName = null) =
     // Update category counts after Phase 1
     await updateCategoryCounts(userId)
 
-    // Final analytics cache clear for Phase 1
+    // Final cache clear for Phase 1
     clearAnalyticsCache(userId)
+    clearCategoryCache(userId)
 
     // ========================================
     // PHASE 2: ML-Based Background Refinement

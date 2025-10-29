@@ -267,19 +267,30 @@ const main = async () => {
     // Connect to database
     await connectDB()
 
-    // Get first user with Gmail connected
-    const user = await User.findOne({
-      gmailConnected: true,
-      gmailAccessToken: { $exists: true, $ne: null }
-    })
+    // Find user with emails in database
+    const userWithEmails = await Email.aggregate([
+      { $match: { provider: 'gmail', isDeleted: false } },
+      { $group: { _id: '$userId', emailCount: { $sum: 1 } } },
+      { $sort: { emailCount: -1 } },
+      { $limit: 1 }
+    ])
 
-    if (!user) {
-      console.error('❌ No user found with Gmail connected')
-      console.log('   Please connect your Gmail account first')
+    if (!userWithEmails || userWithEmails.length === 0) {
+      console.error('❌ No user found with emails')
+      console.log('   Please sync Gmail first')
+      process.exit(1)
+    }
+
+    const user = await User.findById(userWithEmails[0]._id)
+
+    if (!user || !user.gmailConnected || !user.gmailAccessToken) {
+      console.error('❌ User found but Gmail not properly connected')
+      console.log('   Please reconnect your Gmail account')
       process.exit(1)
     }
 
     console.log(`👤 User: ${user.email}`)
+    console.log(`📧 Emails in database: ${userWithEmails[0].emailCount}`)
 
     // Check if model service is running
     console.log('\n🔍 Checking model service...')

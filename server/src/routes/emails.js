@@ -14,6 +14,8 @@ import { estimateReclassificationTime } from '../services/categoryFeatureService
 import { sendReply } from '../services/gmailSendService.js'
 import { groupEmailsIntoThreads } from '../services/threadGroupingService.js'
 import { clearAnalyticsCache } from './analytics.js'
+import { clearCategoryCache } from '../services/categoryService.js'
+import emailContentCache from '../services/emailContentCache.js'
 
 const router = express.Router()
 
@@ -274,6 +276,76 @@ router.post('/gmail/sync-all', protect, asyncHandler(async (req, res) => {
   }
 }))
 
+// @desc    Full Gmail inbox sync (fetch ALL historical emails)
+// @route   POST /api/emails/gmail/full-sync
+// @access  Private
+router.post('/gmail/full-sync', protect, asyncHandler(async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id)
+
+    if (!user.gmailConnected || !user.gmailAccessToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'Gmail account not connected'
+      })
+    }
+
+    console.log(`🚀 Starting full historical sync for user: ${user.email}`)
+
+    // Import full sync function
+    const { fullHistoricalSync } = await import('../services/gmailSyncService.js')
+
+    // Start full sync (don't await - long running)
+    fullHistoricalSync(user, {
+      onProgress: (progress) => {
+        console.log(`📊 Full sync progress: ${progress.totalFetched} fetched, ${progress.synced} synced, ${progress.classified} classified`)
+        
+        // Send WebSocket notification
+        notificationService.sendSyncStatusNotification(req.user._id.toString(), {
+          status: 'in_progress',
+          message: `Full sync in progress: ${progress.synced} emails synced`,
+          progress: progress.totalFetched,
+          timestamp: new Date().toISOString()
+        })
+      }
+    }).then(result => {
+      console.log('✅ Full sync complete:', result)
+      
+      // Send completion notification
+      notificationService.sendSyncStatusNotification(req.user._id.toString(), {
+        status: 'completed',
+        message: `Full sync complete: ${result.synced} emails synced, ${result.classified} classified`,
+        timestamp: new Date().toISOString(),
+        result
+      })
+    }).catch(error => {
+      console.error('❌ Full sync error:', error)
+      
+      // Send error notification
+      notificationService.sendSyncStatusNotification(req.user._id.toString(), {
+        status: 'failed',
+        message: `Full sync failed: ${error.message}`,
+        timestamp: new Date().toISOString()
+      })
+    })
+
+    // Return immediate response
+    res.json({
+      success: true,
+      message: 'Full historical sync started',
+      note: 'This will take 15-30 minutes to fetch all emails from Gmail. Check stats for progress.'
+    })
+
+  } catch (error) {
+    console.error('❌ Full sync error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to start full sync',
+      error: error.message
+    })
+  }
+}))
+
 // @desc    Get user emails
 // @route   GET /api/emails
 // @access  Private
@@ -330,32 +402,24 @@ router.get('/', protect, asyncHandler(async (req, res) => {
       console.log(`🔍 Server search query: "${searchTerm}"`)
     }
 
-    // Fetch emails - need more data for threading
+    // OPTIMIZED: Select only minimal fields for list view (metadata only, no heavy content)
     const selectFields = isThreaded 
-      ? '_id subject from to snippet date category classification isRead labels isArchived archivedAt threadId'
-      : '_id subject from to snippet date category classification isRead labels isArchived archivedAt'
+      ? '_id subject from to snippet date category classification isRead labels isArchived archivedAt threadId attachments'
+      : '_id subject from to snippet date category classification isRead labels isArchived archivedAt attachments'
 
-    const emails = await Email.find(query)
+    // Get total count first for pagination
+    const total = await Email.countDocuments(query)
+
+    // OPTIMIZED: Always use database-level pagination (threading disabled for performance)
+    // Use database-level pagination instead of in-memory slicing
+    // This is much faster as it only fetches the needed documents
+    const items = await Email.find(query)
       .sort({ date: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
       .select(selectFields)
+      .hint({ userId: 1, category: 1, date: -1 }) // Use optimal index for category filtering
       .lean()
-
-    // Apply threading if requested
-    let items
-    let total
-    
-    if (isThreaded) {
-      // Group emails into threads
-      const allThreads = groupEmailsIntoThreads(emails)
-      total = allThreads.length
-      
-      // Apply pagination to threads
-      items = allThreads.slice(skip, skip + parseInt(limit))
-    } else {
-      // Regular pagination on individual emails
-      items = emails.slice(skip, skip + parseInt(limit))
-      total = await Email.countDocuments(query)
-    }
 
     // Set cache control headers to prevent caching
     res.set({
@@ -370,8 +434,7 @@ router.get('/', protect, asyncHandler(async (req, res) => {
       items,
       total,
       page: parseInt(page),
-      limit: parseInt(limit),
-      threaded: isThreaded
+      limit: parseInt(limit)
     })
 
   } catch (error) {
@@ -1191,8 +1254,11 @@ router.delete('/:id', protect, asyncHandler(async (req, res) => {
       })
     }
 
-    // Move to Gmail TRASH if Gmail email
-    if (email.provider === 'gmail' && email.gmailId) {
+    // Check if user wants to delete from Gmail as well
+    const deleteFromGmail = req.query.deleteFromGmail === 'true'
+
+    // Move to Gmail TRASH if Gmail email AND user opted to delete from Gmail
+    if (deleteFromGmail && email.provider === 'gmail' && email.gmailId) {
       try {
         const User = (await import('../models/User.js')).default
         const user = await User.findById(req.user._id)
@@ -1207,6 +1273,7 @@ router.delete('/:id', protect, asyncHandler(async (req, res) => {
             userId: 'me',
             id: email.gmailId
           })
+          console.log('✅ Email moved to Gmail trash:', email.gmailId)
         }
       } catch (gmailError) {
         console.error('Gmail delete error:', gmailError)
@@ -1220,14 +1287,16 @@ router.delete('/:id', protect, asyncHandler(async (req, res) => {
     // Send notification about email deletion
     notificationService.sendEmailOperationNotification(req.user._id.toString(), {
       operation: 'deleted',
-      message: `Email "${email.subject || 'Untitled'}" has been deleted`,
+      message: `Email "${email.subject || 'Untitled'}" has been deleted${deleteFromGmail ? ' (also from Gmail)' : ' (from Sortify only)'}`,
       emailId: req.params.id,
       emailSubject: email.subject
     })
 
     res.json({
       success: true,
-      message: 'Email deleted successfully'
+      message: deleteFromGmail 
+        ? 'Email deleted from both Sortify and Gmail' 
+        : 'Email deleted from Sortify only'
     })
 
   } catch (error) {
@@ -1740,6 +1809,49 @@ router.post('/bulk', protect, asyncHandler(async (req, res) => {
         message = `Emails unarchived successfully${gmailSyncCount2 > 0 ? ` (${gmailSyncCount2} synced with Gmail)` : ''}`
         break
       case 'delete':
+        const deleteFromGmail = data?.deleteFromGmail === true
+        let gmailDeleteCount = 0
+        
+        // If user wants to delete from Gmail, do that first
+        if (deleteFromGmail) {
+          const emailsToDelete = await Email.find({
+            _id: { $in: emailIds },
+            userId: req.user._id,
+            provider: 'gmail',
+            gmailId: { $exists: true }
+          })
+          
+          if (emailsToDelete.length > 0) {
+            const User = (await import('../models/User.js')).default
+            const user = await User.findById(req.user._id)
+            
+            if (user?.gmailConnected) {
+              const { getOAuthForUser } = await import('../services/gmailSyncService.js')
+              const oauth2 = getOAuthForUser(user)
+              const gmail = google.gmail({ version: 'v1', auth: oauth2 })
+              
+              console.log(`🗑️  Bulk deleting ${emailsToDelete.length} emails from Gmail...`)
+              
+              for (const email of emailsToDelete) {
+                try {
+                  await gmail.users.messages.trash({
+                    userId: 'me',
+                    id: email.gmailId
+                  })
+                  gmailDeleteCount++
+                  console.log(`   ✅ Moved to Gmail trash: ${email.subject}`)
+                } catch (gmailError) {
+                  console.error(`   ❌ Failed to delete from Gmail: ${email.subject}`, gmailError.message)
+                  // Continue with others even if one fails
+                }
+              }
+              
+              console.log(`✅ Gmail deletion complete: ${gmailDeleteCount}/${emailsToDelete.length} deleted`)
+            }
+          }
+        }
+        
+        // Delete from local database
         await Email.deleteMany({
           _id: { $in: emailIds },
           userId: req.user._id
@@ -1750,13 +1862,16 @@ router.post('/bulk', protect, asyncHandler(async (req, res) => {
           operation: 'delete',
           count: emailIds.length,
           success: true,
-          message: `${emailIds.length} emails deleted successfully`
+          message: `${emailIds.length} emails deleted successfully${deleteFromGmail ? ` (${gmailDeleteCount} from Gmail)` : ' (from Sortify only)'}`
         })
         
         return res.json({
           success: true,
-          message: 'Emails deleted successfully',
-          count: emailIds.length
+          message: deleteFromGmail 
+            ? `Emails deleted from Sortify${gmailDeleteCount > 0 ? ` and ${gmailDeleteCount} from Gmail` : ''}`
+            : 'Emails deleted from Sortify only',
+          count: emailIds.length,
+          gmailDeleteCount: deleteFromGmail ? gmailDeleteCount : 0
         })
       case 'categorize':
         if (!data?.category) {
@@ -1978,31 +2093,48 @@ router.get('/:id/full-content', protect, asyncHandler(async (req, res) => {
       }
     }
 
-    // If full content is already loaded, return it
+    // CACHE: Check if full content is in session cache first
+    const cachedContent = emailContentCache.get(req.user._id, email._id)
+    if (cachedContent) {
+      console.log(`⚡ Returning cached full content for email ${email._id}`)
+      return res.json({
+        success: true,
+        email: cachedContent,
+        cached: true
+      })
+    }
+
+    // If full content is already loaded in DB, return it and cache it
     if (email.isFullContentLoaded && email.html) {
       // Mark as accessed for cleanup scheduling
       email.lastAccessedAt = new Date()
       await email.save()
 
+      const emailContent = {
+        _id: email._id,
+        subject: email.subject,
+        from: email.from,
+        to: email.to,
+        date: email.date,
+        html: email.html,
+        text: email.text,
+        body: email.body,
+        snippet: email.snippet,
+        attachments: email.attachments,
+        category: email.category,
+        isRead: email.isRead,
+        labels: email.labels,
+        isFullContentLoaded: email.isFullContentLoaded,
+        fullContentLoadedAt: email.fullContentLoadedAt
+      }
+
+      // CACHE: Store in session cache for future requests
+      emailContentCache.set(req.user._id, email._id, emailContent)
+
       return res.json({
         success: true,
-        email: {
-          _id: email._id,
-          subject: email.subject,
-          from: email.from,
-          to: email.to,
-          date: email.date,
-          html: email.html,
-          text: email.text,
-          body: email.body,
-          snippet: email.snippet,
-          attachments: email.attachments,
-          category: email.category,
-          isRead: email.isRead,
-          labels: email.labels,
-          isFullContentLoaded: email.isFullContentLoaded,
-          fullContentLoadedAt: email.fullContentLoadedAt
-        }
+        email: emailContent,
+        cached: false
       })
     }
 
@@ -2072,7 +2204,7 @@ router.get('/:id/full-content', protect, asyncHandler(async (req, res) => {
         }
       }
 
-      // Update email with full content
+      // Update email with full content in DB
       email.html = html
       email.text = text
       email.body = body
@@ -2085,25 +2217,31 @@ router.get('/:id/full-content', protect, asyncHandler(async (req, res) => {
 
       console.log(`✅ Loaded full content for email: ${email.subject}`)
 
+      const emailContent = {
+        _id: email._id,
+        subject: email.subject,
+        from: email.from,
+        to: email.to,
+        date: email.date,
+        html: email.html,
+        text: email.text,
+        body: email.body,
+        snippet: email.snippet,
+        attachments: email.attachments,
+        category: email.category,
+        isRead: email.isRead,
+        labels: email.labels,
+        isFullContentLoaded: email.isFullContentLoaded,
+        fullContentLoadedAt: email.fullContentLoadedAt
+      }
+
+      // CACHE: Store full content in session cache until logout
+      emailContentCache.set(req.user._id, email._id, emailContent)
+
       return res.json({
         success: true,
-        email: {
-          _id: email._id,
-          subject: email.subject,
-          from: email.from,
-          to: email.to,
-          date: email.date,
-          html: email.html,
-          text: email.text,
-          body: email.body,
-          snippet: email.snippet,
-          attachments: email.attachments,
-          category: email.category,
-          isRead: email.isRead,
-          labels: email.labels,
-          isFullContentLoaded: email.isFullContentLoaded,
-          fullContentLoadedAt: email.fullContentLoadedAt
-        }
+        email: emailContent,
+        cached: false
       })
 
     } catch (gmailError) {
@@ -2143,8 +2281,9 @@ router.post('/reclassify-all', protect, asyncHandler(async (req, res) => {
       .then(result => {
         console.log(`✅ Two-phase reclassification completed for user ${userId}:`, result)
         
-        // Clear analytics cache one final time
+        // Clear caches one final time
         clearAnalyticsCache(userId)
+        clearCategoryCache(userId)
         
         // Send notification about Phase 1 and Phase 2 completion
         notificationService.sendClassificationNotification(userId, {

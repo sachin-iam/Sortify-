@@ -22,17 +22,18 @@ const EmailReader = ({ email, threadContainerId, onArchive, onUnarchive, onDelet
       setLoadError(null)
       setIsThread(false)
       
-      // Check if this is a thread container (any thread, even with 1 message)
-      const isThreadContainer = email.isThread || email.threadId
+      // FIXED: Only treat as thread if explicitly marked as isThread with multiple messages
+      // Having a threadId doesn't mean it's a thread container
+      const isThreadContainer = email.isThread && email.messageCount > 1
       
       if (isThreadContainer) {
-        // Load thread messages (works for both multi-message and single-message threads)
+        // Load thread messages (only for multi-message threads)
         setLoadingThread(true)
-        setIsThread(email.messageCount > 1)
+        setIsThread(true)
         
         console.log('📧 Loading thread messages for container:', email._id)
         console.log('📧 Email object:', email)
-        console.log('📧 Is multi-message thread:', email.messageCount > 1)
+        console.log('📧 Message count:', email.messageCount)
         
         emailService.getThreadMessages(email._id)
           .then(response => {
@@ -56,16 +57,20 @@ const EmailReader = ({ email, threadContainerId, onArchive, onUnarchive, onDelet
             setLoadingThread(false)
           })
       } else {
-        // Single email with no thread - load full content
+        // Single email (even if it has a threadId) - load full content
         setLoadingThread(true)
         
         console.log('📧 Loading single email full content:', email._id)
+        console.log('📧 Email has threadId:', email.threadId, 'but treating as single email')
         
         emailService.getFullEmailContent(email._id)
           .then(response => {
+            console.log('📧 Full content response:', response)
             if (response.success) {
               setThreadMessages([response.email])
-              console.log('✅ Full email content loaded:', email.subject)
+              console.log('✅ Full email content loaded:', response.email?.subject || email.subject)
+              console.log('✅ Email has html:', !!response.email?.html)
+              console.log('✅ Email has text:', !!response.email?.text)
             } else {
               const errorMsg = response.message || 'Failed to load email content'
               console.error('❌ Email load failed:', errorMsg)
@@ -196,33 +201,48 @@ const EmailReader = ({ email, threadContainerId, onArchive, onUnarchive, onDelet
     return (
       <div className="text-center py-8">
         <div className="text-red-600 mb-2">Failed to load email content</div>
+        <div className="text-slate-500 text-sm mb-4">{loadError}</div>
         <button 
           onClick={() => {
             setLoadError(null)
-            // Retry loading
-            if (email.isThread && email.messageCount > 1) {
+            // Retry loading - use same logic as initial load
+            const isThreadContainer = email.isThread && email.messageCount > 1
+            
+            if (isThreadContainer) {
               setLoadingThread(true)
+              console.log('🔄 Retrying thread load for:', email._id)
               emailService.getThreadMessages(email._id)
                 .then(response => {
+                  console.log('🔄 Retry thread response:', response)
                   if (response.success) {
                     setThreadMessages(response.messages || [])
+                    console.log('✅ Retry successful, loaded', response.messages?.length, 'messages')
                   } else {
                     setLoadError('Failed to load thread messages')
                   }
                 })
-                .catch(() => setLoadError('Failed to load thread messages'))
+                .catch(error => {
+                  console.error('❌ Retry failed:', error)
+                  setLoadError('Failed to load thread messages')
+                })
                 .finally(() => setLoadingThread(false))
             } else {
               setLoadingThread(true)
+              console.log('🔄 Retrying full content load for:', email._id)
               emailService.getFullEmailContent(email._id)
                 .then(response => {
+                  console.log('🔄 Retry full content response:', response)
                   if (response.success) {
                     setThreadMessages([response.email])
+                    console.log('✅ Retry successful, email loaded')
                   } else {
                     setLoadError('Failed to load email content')
                   }
                 })
-                .catch(() => setLoadError('Failed to load email content'))
+                .catch(error => {
+                  console.error('❌ Retry failed:', error)
+                  setLoadError('Failed to load email content')
+                })
                 .finally(() => setLoadingThread(false))
             }
           }}

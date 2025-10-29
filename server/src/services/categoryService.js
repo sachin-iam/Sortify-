@@ -9,6 +9,24 @@ const toObjectId = (userId) => {
   return typeof userId === 'string' ? new mongoose.Types.ObjectId(userId) : userId
 }
 
+// Cache for category data to improve performance
+const categoryCache = new Map()
+const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+
+/**
+ * Clear category cache for a specific user
+ * @param {string} userId - User ID
+ */
+export const clearCategoryCache = (userId) => {
+  if (userId) {
+    categoryCache.delete(userId.toString())
+    console.log(`🗑️ Cleared category cache for user: ${userId}`)
+  } else {
+    categoryCache.clear()
+    console.log(`🗑️ Cleared all category cache`)
+  }
+}
+
 /**
  * Get all categories for a specific user
  * @param {string} userId - User ID
@@ -20,36 +38,68 @@ export const getCategories = async (userId) => {
       throw new Error('User ID is required')
     }
 
+    const userIdStr = userId.toString()
+
+    // Check cache first
+    const cached = categoryCache.get(userIdStr)
+    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+      console.log(`✅ Returning cached categories for user: ${userIdStr}`)
+      return cached.data
+    }
+
+    console.time(`getCategories-${userIdStr}`)
+
     // Convert userId to ObjectId
     const userIdObj = toObjectId(userId)
 
     // Ensure user has default categories
-    const categories = await Category.getOrCreateDefaults(userIdObj)
+    const allCategories = await Category.getOrCreateDefaults(userIdObj)
     
-    // Update email counts for all categories
-    const categoriesWithCounts = await Promise.all(
-      categories.map(async (category) => {
-        const count = await Email.countDocuments({ 
-          userId: category.userId, 
-          category: category.name 
-        })
-        
-        // Update the count in the database
-        await Category.findByIdAndUpdate(category._id, { emailCount: count })
-        
-        return {
-          id: category._id.toString(),
-          name: category.name,
-          description: category.description,
-          count: count,
-          color: category.color,
-          isDefault: category.isDefault,
-          isActive: category.isActive,
-          createdAt: category.createdAt,
-          updatedAt: category.updatedAt
-        }
-      })
+    // Filter to only active categories (matches previous analytics endpoint behavior)
+    const categories = allCategories.filter(category => category.isActive !== false)
+    
+    // OPTIMIZED: Get ALL email counts with a SINGLE aggregation query
+    const emailCounts = await Email.aggregate([
+      { 
+        $match: { 
+          userId: userIdObj,
+          isDeleted: false 
+        } 
+      },
+      { 
+        $group: { 
+          _id: '$category', 
+          count: { $sum: 1 } 
+        } 
+      }
+    ])
+
+    // Create a Map for O(1) lookups
+    const countMap = new Map(
+      emailCounts.map(item => [item._id, item.count])
     )
+
+    // Map categories with their counts (no additional queries!)
+    const categoriesWithCounts = categories.map(category => ({
+      id: category._id.toString(),
+      name: category.name,
+      description: category.description,
+      count: countMap.get(category.name) || 0,
+      color: category.color,
+      isDefault: category.isDefault,
+      isActive: category.isActive,
+      createdAt: category.createdAt,
+      updatedAt: category.updatedAt
+    }))
+
+    // Store in cache
+    categoryCache.set(userIdStr, {
+      data: categoriesWithCounts,
+      timestamp: Date.now()
+    })
+
+    console.timeEnd(`getCategories-${userIdStr}`)
+    console.log(`✅ Categories loaded and cached (${categories.length} categories, 1 query)`)
 
     return categoriesWithCounts
   } catch (error) {
@@ -104,6 +154,9 @@ export const addCategory = async (userId, categoryData) => {
     })
 
     const savedCategory = await newCategory.save()
+    
+    // Clear cache after adding category
+    clearCategoryCache(userId)
     
     // Don't trigger reclassification here - let the caller handle it
     // This prevents duplicate reclassification jobs
@@ -169,6 +222,9 @@ export const updateCategory = async (userId, categoryId, updates) => {
       },
       { new: true }
     )
+
+    // Clear cache after updating category
+    clearCategoryCache(userId)
 
     // Trigger reclassification if classification strategy changed
     if (shouldTriggerReclassification && updatedCategory) {
@@ -255,6 +311,9 @@ export const deleteCategory = async (userId, categoryId) => {
     }
 
     const deletedCategory = await Category.findByIdAndDelete(categoryId)
+    
+    // Clear cache after deleting category
+    clearCategoryCache(userId)
     
     return {
       id: deletedCategory._id.toString(),

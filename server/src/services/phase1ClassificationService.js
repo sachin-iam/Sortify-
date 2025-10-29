@@ -7,7 +7,10 @@ import {
   matchesDomainPattern,
   matchesNamePattern,
   countKeywordMatches,
-  calculateConfidence
+  calculateConfidence,
+  matchPhrases,
+  matchSpecificSender,
+  extractProfessorTitle
 } from '../utils/senderPatternMatcher.js'
 
 // Cache for user categories to reduce database queries
@@ -111,7 +114,7 @@ const matchSenderName = (from, category) => {
 }
 
 /**
- * Match email against category keywords
+ * Match email against category keywords and phrases
  * @param {string} subject - Email subject
  * @param {string} snippet - Email snippet/preview
  * @param {Object} category - Category with keywords
@@ -124,20 +127,35 @@ const matchKeywords = (subject, snippet, category) => {
   
   // Combine subject and snippet for keyword matching
   const text = `${subject} ${snippet}`
-  const matches = countKeywordMatches(text, category.keywords)
+  const keywordMatches = countKeywordMatches(text, category.keywords)
   
-  if (matches.count > 0) {
+  // Also check for phrase matches if classificationStrategy exists
+  let phraseMatches = { count: 0, matchedPhrases: [], score: 0 }
+  if (category.classificationStrategy?.bodyAnalysis?.phrases) {
+    phraseMatches = matchPhrases(text, category.classificationStrategy.bodyAnalysis.phrases)
+  }
+  
+  const totalMatches = keywordMatches.count + phraseMatches.count
+  const totalScore = keywordMatches.score + phraseMatches.score
+  
+  if (totalMatches > 0) {
+    const combinedMatches = {
+      count: totalMatches,
+      score: totalScore
+    }
+    
     const confidence = calculateConfidence(
-      matches,
+      combinedMatches,
       CLASSIFICATION_CONFIG.phase1.keywordConfidence
     )
     
     return {
       category: category.name,
       confidence,
-      method: 'keyword',
-      matchedKeywords: matches.matchedKeywords,
-      keywordScore: matches.score
+      method: phraseMatches.count > 0 ? 'keyword+phrase' : 'keyword',
+      matchedKeywords: keywordMatches.matchedKeywords,
+      matchedPhrases: phraseMatches.matchedPhrases,
+      keywordScore: totalScore
     }
   }
   
@@ -145,7 +163,7 @@ const matchKeywords = (subject, snippet, category) => {
 }
 
 /**
- * Check category for any match (domain, name, or keyword)
+ * Check category for any match (domain, name, keyword, phrase, or specific sender)
  * @param {Object} email - Email data
  * @param {Object} category - Category to check
  * @returns {Object|null} - Best match or null
@@ -154,19 +172,32 @@ const checkCategoryMatch = (email, category) => {
   const { subject = '', from = '', snippet = '' } = email
   const matches = []
   
-  // Check sender domain
+  // Priority 1: Check for specific sender patterns (HOD, E-Zone, NPTEL, Professor, etc.)
+  const specificSenderMatch = matchSpecificSender(from, category.name)
+  if (specificSenderMatch && specificSenderMatch.matched) {
+    matches.push({
+      category: category.name,
+      confidence: specificSenderMatch.confidence,
+      method: 'specific-sender',
+      matchedPattern: specificSenderMatch.pattern,
+      matchedValue: from,
+      professorTitle: specificSenderMatch.title
+    })
+  }
+  
+  // Priority 2: Check sender domain
   const domainMatch = matchSenderDomain(from, category)
   if (domainMatch) {
     matches.push(domainMatch)
   }
   
-  // Check sender name
+  // Priority 3: Check sender name
   const nameMatch = matchSenderName(from, category)
   if (nameMatch) {
     matches.push(nameMatch)
   }
   
-  // Check keywords
+  // Priority 4: Check keywords and phrases
   const keywordMatch = matchKeywords(subject, snippet, category)
   if (keywordMatch) {
     matches.push(keywordMatch)

@@ -39,196 +39,197 @@
     "Placement": {
       "id": 1,
       "description": "Job placement opportunities, recruitment drives, and career-related communications",
-      "keywords": ["placement", "job", "recruitment", "interview", "career", "company", "apply", "deadline", "opportunity", "campus", "drive"],
+      "keywords": ["placement", "job", "recruitment", "interview", "career", "company", "apply", "deadline", "opportunity", "campus", "drive", "resume", "shortlisting", "quality assurance", "qa", "agent ai challenge", "pre-placement", "training", "mandatory attendance", "accenture", "tcs", "infosys", "wipro", "network people services", "npst", "talent hiring", "josh technology", "tech mahindra", "cognizant"],
       "color": "#3B82F6",
       "created_at": "2025-01-21T00:00:00.000Z",
       "classification_strategy": {
         "headerAnalysis": {
-          "senderDomains": ["infylearn.com", "naukri.com", "linkedin.com"],
-          "senderPatterns": ["placement", "recruitment", "HR", "careers"],
-          "subjectPatterns": ["placement", "job", "apply", "interview", "deadline", "recruitment", "career", "opportunity"]
+          "senderDomains": ["infylearn.com", "naukri.com", "linkedin.com", "placement"],
+          "senderPatterns": ["placement", "recruitment", "HR", "careers", "SU Placement", "Placement Officer", "Sharda Informatics"],
+          "subjectPatterns": ["placement", "job", "apply", "interview", "deadline", "recruitment", "career", "opportunity", "resume shortlisting", "pre-placement training", "agent ai challenge", "talent hiring", "assessment", "shortlisted students"]
         },
         "bodyAnalysis": {
-          "keywords": ["placement", "job", "recruitment", "interview", "career", "company", "apply", "deadline", "opportunity", "campus", "drive", "selection", "round", "position", "role"],
-          "phrases": ["placement drive", "job opportunity", "apply now", "interview round", "career opportunity", "campus recruitment", "selection process"],
+          "keywords": ["placement", "job", "recruitment", "interview", "career", "company", "apply", "deadline", "opportunity", "campus", "drive", "selection", "round", "position", "role", "resume shortlisting", "quality assurance", "network people services", "application for position", "next stage", "pre-placement training", "mandatory attendance", "agent ai challenge", "accenture", "guidelines", "shortlisted", "assessment"],
+          "phrases": ["placement drive", "job opportunity", "apply now", "interview round", "career opportunity", "campus recruitment", "selection process", "resume shortlisting", "upcoming resume shortlisting", "placement opportunity", "agent ai challenge", "pre-placement training", "mandatory attendance", "application for the position", "next stage of your application", "shortlisted students", "talent hiring"],
           "tfidfScores": {}
         },
         "metadataAnalysis": {
           "timePatterns": {
             "peakHours": [9, 10, 11, 14, 15],
-            "keywords": ["deadline", "urgent", "apply", "asap"]
+            "keywords": ["deadline", "urgent", "apply", "asap", "reminder", "upcoming"]
           },
           "lengthPatterns": {
             "typicalRange": [500, 2000]
           }
         },
-        "confidenceThreshold": 0.7
+        "confidenceThreshold": 0.85
       },
-      "updated_at": "2025-01-21T00:00:00.000Z"
+      "updated_at": "2025-10-29T00:00:00.000Z"
     },
     "NPTEL": {
       "id": 2,
       "description": "NPTEL course registrations, lectures, and online learning content",
-      "keywords": ["nptel", "course", "lecture", "registration", "exam", "certificate", "iitm", "online", "learning", "study"],
+      "keywords": ["nptel", "course", "lecture", "registration", "exam", "certificate", "iitm", "online", "learning", "study", "newsletter", "star badges", "scmpro", "joint certification", "cii", "iit madras", "professor who never stopped learning", "lifelong learning", "supply chain career", "advance your career"],
       "color": "#8B5CF6",
       "created_at": "2025-01-21T00:00:00.000Z",
       "classification_strategy": {
         "headerAnalysis": {
-          "senderDomains": ["nptel.iitm.ac.in", "nptel.ac.in", "onlinecourses.nptel.ac.in"],
-          "senderPatterns": ["NPTEL", "IIT", "course"],
-          "subjectPatterns": ["nptel", "course", "lecture", "registration", "exam", "certificate"]
+          "senderDomains": ["nptel.iitm.ac.in", "nptel.ac.in", "onlinecourses.nptel.ac.in", "onlinecourses@nptel.iitm.ac.in"],
+          "senderPatterns": ["NPTEL", "IIT", "course", "NPTEL Team", "NPTEL Newsletter"],
+          "subjectPatterns": ["nptel", "course", "lecture", "registration", "exam", "certificate", "nptel newsletter", "star badges", "scmpro", "supply chain", "iit madras"]
         },
         "bodyAnalysis": {
-          "keywords": ["nptel", "course", "lecture", "registration", "exam", "certificate", "iitm", "online", "learning", "study", "module", "assignment", "video"],
-          "phrases": ["course registration", "lecture video", "nptel course", "online exam", "certificate exam", "course material"],
+          "keywords": ["nptel", "course", "lecture", "registration", "exam", "certificate", "iitm", "online", "learning", "study", "module", "assignment", "video", "nptel team", "star badges", "lifelong learning", "scmpro", "joint certification", "cii", "iit madras", "supply chain career", "best wishes from nptel team"],
+          "phrases": ["course registration", "lecture video", "nptel course", "online exam", "certificate exam", "course material", "nptel newsletter", "star badges", "professor who never stopped learning", "lifelong learning", "joint certification by cii", "advance your supply chain career", "best wishes from the nptel team"],
           "tfidfScores": {}
         },
         "metadataAnalysis": {
           "timePatterns": {
             "peakHours": [8, 9, 10, 14, 15, 16],
-            "keywords": ["lecture", "class", "session"]
+            "keywords": ["lecture", "class", "session", "newsletter"]
           }
         },
-        "confidenceThreshold": 0.8
+        "confidenceThreshold": 0.9
       },
-      "updated_at": "2025-01-21T00:00:00.000Z"
+      "updated_at": "2025-10-29T00:00:00.000Z"
     },
     "HOD": {
       "id": 3,
       "description": "Communications from Head of Department including administrative notices and official announcements",
-      "keywords": ["hod", "head", "department", "notice", "announcement", "administrative", "official", "mandatory", "circular"],
+      "keywords": ["hod", "head", "department", "notice", "announcement", "administrative", "official", "mandatory", "circular", "reschedule", "evaluation date", "hod office", "mark students absent", "meet me in person", "tickets booked", "dr. sudeep varshney"],
       "color": "#EF4444",
       "created_at": "2025-01-21T00:00:00.000Z",
       "classification_strategy": {
         "headerAnalysis": {
-          "senderDomains": ["sharda.ac.in", "ug.sharda.ac.in"],
-          "senderPatterns": ["HOD", "Head", "Department", "Dr.", "Prof."],
-          "subjectPatterns": ["hod", "department", "notice", "announcement", "mandatory", "circular", "important"]
+          "senderDomains": ["sharda.ac.in", "ug.sharda.ac.in", "hod.cse@sharda.ac.in"],
+          "senderPatterns": ["HOD", "Head", "Department", "Dr.", "Prof.", "HOD CSE", "HoD"],
+          "subjectPatterns": ["hod", "department", "notice", "announcement", "mandatory", "circular", "important", "request to reschedule", "evaluation date", "re:"]
         },
         "bodyAnalysis": {
-          "keywords": ["hod", "head", "department", "notice", "announcement", "administrative", "official", "mandatory", "circular", "students", "faculty", "regards"],
-          "phrases": ["head of department", "administrative notice", "official communication", "mandatory attendance", "all students", "dear students"],
+          "keywords": ["hod", "head", "department", "notice", "announcement", "administrative", "official", "mandatory", "circular", "students", "faculty", "regards", "mark all students absent", "reschedule evaluation", "hod office", "meet me in person", "respected hod sir", "dr. sudeep varshney", "phd", "iit dhanbad"],
+          "phrases": ["head of department", "administrative notice", "official communication", "mandatory attendance", "all students", "dear students", "mark all such students absent", "request to reschedule evaluation date", "meet me in person", "hod office", "respected hod sir"],
           "tfidfScores": {}
         },
         "metadataAnalysis": {
           "timePatterns": {
             "peakHours": [9, 10, 11, 12, 13, 14],
-            "keywords": ["urgent", "important", "mandatory", "notice"]
+            "keywords": ["urgent", "important", "mandatory", "notice", "tomorrow"]
           }
         },
-        "confidenceThreshold": 0.75
+        "confidenceThreshold": 0.9
       },
-      "updated_at": "2025-01-21T00:00:00.000Z"
+      "updated_at": "2025-10-29T00:00:00.000Z"
     },
     "E-Zone": {
       "id": 4,
       "description": "Student portal E-Zone related communications including login credentials, password resets, and portal updates",
-      "keywords": ["ezone", "e-zone", "portal", "login", "password", "otp", "student", "access", "account", "credentials"],
+      "keywords": ["ezone", "e-zone", "portal", "login", "password", "otp", "student", "access", "account", "credentials", "one time password", "sharda e-zone", "valid for today", "accessing sharda e-zone"],
       "color": "#10B981",
       "created_at": "2025-01-21T00:00:00.000Z",
       "classification_strategy": {
         "headerAnalysis": {
-          "senderDomains": ["shardauniversity.com", "ezone.sharda.ac.in", "student.sharda.ac.in"],
-          "senderPatterns": ["E-Zone", "Portal", "Student Portal"],
-          "subjectPatterns": ["ezone", "e-zone", "portal", "login", "password", "otp", "access", "account"]
+          "senderDomains": ["shardauniversity.com", "ezone.sharda.ac.in", "student.sharda.ac.in", "ezone@shardauniversity.com"],
+          "senderPatterns": ["E-Zone", "Portal", "Student Portal", "E-Zone Online Portal"],
+          "subjectPatterns": ["ezone", "e-zone", "portal", "login", "password", "otp", "access", "account", "one time password", "e-zone login"]
         },
         "bodyAnalysis": {
-          "keywords": ["ezone", "e-zone", "portal", "login", "password", "otp", "student", "access", "account", "credentials", "reset", "verification"],
-          "phrases": ["student portal", "login credentials", "password reset", "access portal", "e-zone login", "account access"],
+          "keywords": ["ezone", "e-zone", "portal", "login", "password", "otp", "student", "access", "account", "credentials", "reset", "verification", "sharda e-zone", "one time password", "dear user", "welcome to sharda e-zone", "valid for today", "accessing sharda e-zone", "visit website"],
+          "phrases": ["student portal", "login credentials", "password reset", "access portal", "e-zone login", "account access", "one time password", "sharda e-zone", "dear user welcome to sharda e-zone", "your one-time password", "valid for today only", "accessing sharda e-zone"],
         "tfidfScores": {}
       },
         "metadataAnalysis": {
         "timePatterns": {
             "peakHours": [8, 9, 10, 14, 15, 16, 17],
-            "keywords": ["urgent", "immediate", "access"]
+            "keywords": ["urgent", "immediate", "access", "today", "valid"]
           }
         },
-        "confidenceThreshold": 0.8
+        "confidenceThreshold": 0.95
       },
-      "updated_at": "2025-01-21T00:00:00.000Z"
+      "updated_at": "2025-10-29T00:00:00.000Z"
     },
     "Promotions": {
       "id": 5,
-      "description": "Marketing emails, promotional content, deals, offers, and advertisements",
-      "keywords": ["offer", "discount", "deal", "sale", "promotion", "marketing", "advertisement", "unsubscribe", "click", "buy"],
+      "description": "Marketing emails, promotional content, deals, offers, and advertisements including health camps and organizational events",
+      "keywords": ["offer", "discount", "deal", "sale", "promotion", "marketing", "advertisement", "unsubscribe", "click", "buy", "free screening camp", "shardacare", "healthcity", "breast health screening", "breast cancer awareness", "welcoming dr", "consultant", "obstetrics", "gynaecology", "hosting"],
       "color": "#F59E0B",
       "created_at": "2025-01-21T00:00:00.000Z",
       "classification_strategy": {
         "headerAnalysis": {
-          "senderDomains": ["marketing", "promo", "deals", "offers", "noreply"],
-          "senderPatterns": ["marketing", "promotional", "no-reply", "newsletter"],
-          "subjectPatterns": ["offer", "discount", "deal", "sale", "promotion", "exclusive", "limited", "special"]
+          "senderDomains": ["marketing", "promo", "deals", "offers", "noreply", "ug.sharda.ac.in"],
+          "senderPatterns": ["marketing", "promotional", "no-reply", "newsletter", "'Promotions' via", "Promotions via UG Student Group"],
+          "subjectPatterns": ["offer", "discount", "deal", "sale", "promotion", "exclusive", "limited", "special", "free screening camp", "welcoming dr", "breast health"]
         },
         "bodyAnalysis": {
-          "keywords": ["offer", "discount", "deal", "sale", "promotion", "marketing", "advertisement", "unsubscribe", "click", "buy", "limited", "exclusive", "special"],
-          "phrases": ["limited time offer", "exclusive deal", "special discount", "click here", "buy now", "unsubscribe", "promotional email"],
+          "keywords": ["offer", "discount", "deal", "sale", "promotion", "marketing", "advertisement", "unsubscribe", "click", "buy", "limited", "exclusive", "special", "dear all", "free breast health screening camp", "shardacare", "healthcity", "breast cancer awareness month", "promoting women's health", "early diagnosis", "prevention", "welcoming dr", "consultant", "obstetrics", "gynaecology", "delighted to welcome", "extensive experience"],
+          "phrases": ["limited time offer", "exclusive deal", "special discount", "click here", "buy now", "unsubscribe", "promotional email", "free breast health screening camp", "shardacare healthcity", "breast cancer awareness month", "promoting women's health", "early diagnosis and prevention", "welcoming dr", "delighted to welcome", "consultant obstetrics gynaecology"],
           "tfidfScores": {}
         },
         "metadataAnalysis": {
           "timePatterns": {
             "peakHours": [8, 9, 10, 15, 16, 17, 18],
-            "keywords": ["limited", "hurry", "today", "now"]
+            "keywords": ["limited", "hurry", "today", "now", "hosting", "free"]
         },
         "attachmentPatterns": {
             "hasExternalLinks": true
           }
         },
-        "confidenceThreshold": 0.75
+        "confidenceThreshold": 0.85
       },
-      "updated_at": "2025-01-21T00:00:00.000Z"
+      "updated_at": "2025-10-29T00:00:00.000Z"
     },
     "Whats happening": {
       "id": 6,
       "description": "Campus events, announcements, what's happening updates, and community activities",
-      "keywords": ["event", "happening", "campus", "announcement", "activity", "community", "participate", "register", "venue", "date"],
+      "keywords": ["event", "happening", "campus", "announcement", "activity", "community", "participate", "register", "venue", "date", "nss cell", "volunteers", "my bharat portal", "nurses week", "international nurses day", "aetcom", "tree plantation", "organizing", "celebration", "startup", "fundraise", "bizgrow", "sql mastery", "seminar", "digital forensics"],
       "color": "#EC4899",
       "created_at": "2025-01-21T00:00:00.000Z",
       "classification_strategy": {
         "headerAnalysis": {
-          "senderDomains": ["ug.sharda.ac.in", "batch2022-2023@ug.sharda.ac.in"],
-          "senderPatterns": ["What's Happening", "Whats Happening", "Events", "Campus"],
-          "subjectPatterns": ["event", "happening", "whats", "campus", "announcement", "activity", "participate"]
+          "senderDomains": ["ug.sharda.ac.in", "batch2022-2023@ug.sharda.ac.in", "whatshappening@sharda.ac.in"],
+          "senderPatterns": ["What's Happening", "Whats Happening", "Events", "Campus", "'What's Happening' via", "What's Happening via UG Student Group", "What's Happening via Batch"],
+          "subjectPatterns": ["event", "happening", "whats", "campus", "announcement", "activity", "participate", "nss cell", "register volunteers", "nurses week", "international nurses day", "aetcom", "tree plantation", "startup", "sql mastery", "seminar"]
         },
         "bodyAnalysis": {
-          "keywords": ["event", "happening", "campus", "announcement", "activity", "community", "participate", "register", "venue", "date", "time", "organized", "students"],
-          "phrases": ["what's happening", "campus event", "upcoming event", "register now", "join us", "event details", "venue and time"],
+          "keywords": ["event", "happening", "campus", "announcement", "activity", "community", "participate", "register", "venue", "date", "time", "organized", "students", "dear all", "nss cell", "sharda university", "dsw", "register 300 nss volunteers", "my bharat portal", "up government", "enthusiasm", "nurses week celebration", "international nurses day", "sharda school of nursing", "aetcom skills", "attitude ethics communication", "medico-legal", "tree plantation drive", "celebrate earth", "startup fundraise", "bizgrow", "ihub sharda", "sql mastery summit", "data pool club", "seminar on digital forensics"],
+          "phrases": ["what's happening", "campus event", "upcoming event", "register now", "join us", "event details", "venue and time", "nss cell sharda university", "register nss volunteers", "my bharat portal", "nurses week celebration", "international nurses day", "aetcom skills", "attitude ethics and communication", "tree plantation drive", "celebrate earth", "startup fundraise", "business growth fest", "sql mastery summit", "seminar on digital forensics"],
           "tfidfScores": {}
         },
         "metadataAnalysis": {
           "timePatterns": {
             "peakHours": [9, 10, 11, 14, 15, 16],
-            "keywords": ["today", "tomorrow", "upcoming", "register"]
+            "keywords": ["today", "tomorrow", "upcoming", "register", "organizing"]
           }
         },
-        "confidenceThreshold": 0.75
+        "confidenceThreshold": 0.85
       },
-      "updated_at": "2025-01-21T00:00:00.000Z"
+      "updated_at": "2025-10-29T00:00:00.000Z"
     },
-    "Assistant": {
+    "Professor": {
       "id": 7,
-      "description": "Mixed university communications, administrative emails, and general student affairs",
-      "keywords": ["university", "student", "faculty", "administration", "department", "office", "notice", "information"],
+      "description": "Communications from professors and faculty including evaluations, assignments, training sessions, and academic guidance",
+      "keywords": ["professor", "assistant professor", "associate professor", "faculty", "dr.", "evaluation", "project eval", "attendance", "spreadsheet shared", "outcome sheet", "training session", "oracle academy", "exam", "interview scheduled", "shortlisted students", "assessment", "panel members", "compulsory", "dear faculty", "dear students"],
       "color": "#6366F1",
       "created_at": "2025-01-21T00:00:00.000Z",
       "classification_strategy": {
         "headerAnalysis": {
           "senderDomains": ["sharda.ac.in", "ug.sharda.ac.in"],
-          "senderPatterns": ["Assistant", "Office", "Department", "University"],
-          "subjectPatterns": ["university", "student", "information", "notice", "update"]
+          "senderPatterns": ["Professor", "Assistant Professor", "Associate Professor", "Dr.", "SET Assistant Professor", "CSE Associate Professor", "SSET Assistant Professor", "Faculty"],
+          "subjectPatterns": ["evaluation", "project eval", "attendance", "spreadsheet shared", "outcome sheet", "training session", "oracle academy", "interview scheduled", "shortlisted students", "assessment", "check attendance", "regarding training"]
         },
         "bodyAnalysis": {
-          "keywords": ["university", "student", "faculty", "administration", "department", "office", "notice", "information", "regards", "dear", "students"],
-          "phrases": ["sharda university", "student affairs", "administrative office", "university administration", "dear students"],
+          "keywords": ["professor", "assistant professor", "associate professor", "faculty", "dr.", "evaluation", "evaluation-3", "project eval", "check attendance", "panel members", "data uploaded", "spreadsheet shared", "outcome sheet", "training session", "compulsory", "oracle academy exam", "start your exam", "link is active", "interview scheduled", "shortlisted students", "assessment", "jti", "josh technology group", "personal interviews", "sd role", "dear faculty members", "dear students", "kanika singla", "anubhava srivastava", "nishant gupta", "kapil kumar", "computer science engineering", "department"],
+          "phrases": ["assistant professor", "associate professor", "set assistant professor", "cse associate professor", "check attendance for project eval", "panel members", "spreadsheet shared with you", "outcome sheet", "training session", "training is compulsory", "oracle academy exam", "please start your exam", "interview scheduled", "shortlisted students for assessment", "personal interviews", "dear faculty members and students", "prepare the ppt", "discussion with the guide"],
           "tfidfScores": {}
         },
         "metadataAnalysis": {
         "timePatterns": {
-            "peakHours": [9, 10, 11, 12, 13, 14, 15]
+            "peakHours": [9, 10, 11, 12, 13, 14, 15, 16],
+            "keywords": ["evaluation", "deadline", "compulsory", "exam", "assessment"]
           }
         },
-        "confidenceThreshold": 0.6
+        "confidenceThreshold": 0.85
       },
-      "updated_at": "2025-01-21T00:00:00.000Z"
+      "updated_at": "2025-10-29T00:00:00.000Z"
     },
     "All": {
       "id": 8,
@@ -255,11 +256,14 @@
   },
   "embeddings": {},
   "metadata": {
-    "version": "4.0.0",
-    "last_updated": "2025-01-21T00:00:00.000Z",
-    "description": "Complete category system with 9 categories for email classification",
+    "version": "5.0.0",
+    "last_updated": "2025-10-29T00:00:00.000Z",
+    "description": "Enhanced category system with 9 categories - Assistant renamed to Professor with comprehensive pattern extraction from real emails",
     "total_categories": 9,
-    "training_ready": true
+    "training_ready": true,
+    "enhancements": {
+      "version_5": "Added comprehensive sender patterns, keywords, and phrases from real email examples; renamed Assistant to Professor; increased confidence thresholds for better accuracy"
+    }
   },
-  "last_updated": "2025-01-21T00:00:00.000Z"
+  "last_updated": "2025-10-29T00:00:00.000Z"
 }

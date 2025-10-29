@@ -265,10 +265,137 @@ export const classifyEmailById = async (emailId, userId) => {
   }
 }
 
+/**
+ * Reclassify all emails with trained model
+ * @param {string} userId - User ID
+ * @param {Object} options - Options { batchSize, onProgress }
+ * @returns {Promise<Object>} Reclassification results
+ */
+export const reclassifyAllEmails = async (userId, options = {}) => {
+  const { batchSize = 100, onProgress } = options
+
+  try {
+    console.log('🔄 Starting reclassification with trained model...')
+
+    // Check model is ready
+    const modelCheck = await axios.get(`${MODEL_SERVICE_URL}/status`, { timeout: 5000 })
+    if (modelCheck.data.status !== 'ready') {
+      throw new Error('Model service not ready')
+    }
+
+    // Get total count
+    const total = await Email.countDocuments({
+      userId,
+      isDeleted: false
+    })
+
+    if (total === 0) {
+      console.log('⚠️  No emails to reclassify')
+      return { total: 0, processed: 0, reclassified: 0, errors: 0 }
+    }
+
+    console.log(`📊 Found ${total} emails to reclassify`)
+
+    let processed = 0
+    let reclassified = 0
+    let errors = 0
+
+    // Process in batches
+    for (let skip = 0; skip < total; skip += batchSize) {
+      const emails = await Email.find({
+        userId,
+        isDeleted: false
+      })
+        .select('_id subject snippet')
+        .skip(skip)
+        .limit(batchSize)
+        .lean()
+
+      const batchNum = Math.floor(skip / batchSize) + 1
+      const totalBatches = Math.ceil(total / batchSize)
+      console.log(`📦 Processing batch ${batchNum}/${totalBatches} (${emails.length} emails)`)
+
+      // Classify emails in parallel
+      await Promise.all(emails.map(async (email) => {
+        try {
+          const response = await axios.post(
+            `${MODEL_SERVICE_URL}/predict`,
+            {
+              subject: email.subject || '',
+              body: email.snippet || '',
+              user_id: userId.toString()
+            },
+            { timeout: 10000 }
+          )
+
+          if (response.data && response.data.label) {
+            await Email.updateOne(
+              { _id: email._id },
+              {
+                $set: {
+                  category: response.data.label,
+                  'classification.label': response.data.label,
+                  'classification.confidence': response.data.confidence,
+                  'classification.model': 'distilbert-trained',
+                  'classification.modelVersion': '3.0.0',
+                  'classification.classifiedAt': new Date()
+                }
+              }
+            )
+            reclassified++
+          }
+          processed++
+        } catch (error) {
+          errors++
+          console.error(`Reclassification failed for ${email._id}:`, error.message)
+        }
+      }))
+
+      // Progress callback
+      if (onProgress) {
+        onProgress({
+          current: processed,
+          total,
+          percentage: Math.round((processed / total) * 100),
+          reclassified,
+          errors
+        })
+      }
+
+      const percentage = Math.round((processed / total) * 100)
+      console.log(`📊 Progress: ${processed}/${total} (${percentage}%) - Reclassified: ${reclassified}, Errors: ${errors}`)
+
+      // Small delay between batches
+      if (skip + batchSize < total) {
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
+    }
+
+    console.log(`\n✅ Reclassification complete!`)
+    console.log(`   Total: ${total}`)
+    console.log(`   Processed: ${processed}`)
+    console.log(`   Reclassified: ${reclassified}`)
+    console.log(`   Errors: ${errors}`)
+
+    return {
+      success: true,
+      total,
+      processed,
+      reclassified,
+      errors
+    }
+
+  } catch (error) {
+    console.error('❌ Reclassification failed:', error)
+    throw error
+  }
+}
+
 export default {
   classifyAndCache,
   processPendingClassifications,
   startClassificationWorker,
-  classifyEmailById
+  classifyEmailById,
+  reclassifyAllEmails
 }
 

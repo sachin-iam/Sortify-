@@ -281,15 +281,125 @@ const AnalyticsDashboard = () => {
               className="card-glass p-6"
             >
               <h3 className="text-lg font-semibold text-slate-800 mb-4">Email Distribution by Category</h3>
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={450}>
                 <PieChart>
                   <Pie
                     data={categoryData}
-                    cx="50%"
+                    cx="40%"
                     cy="50%"
-                    labelLine={false}
-                    label={({ label, percent }) => `${label} (${(percent * 100).toFixed(0)}%)`}
-                    outerRadius={80}
+                    labelLine={({ cx, cy, midAngle, outerRadius, percent, index }) => {
+                      if (!categoryData[index]) return null;
+                      
+                      const RADIAN = Math.PI / 180;
+                      const startRadius = outerRadius + 5;
+                      const startX = cx + startRadius * Math.cos(-midAngle * RADIAN);
+                      const startY = cy + startRadius * Math.sin(-midAngle * RADIAN);
+                      
+                      // Distribute labels to different positions around container
+                      const totalItems = categoryData.length;
+                      const containerWidth = 600;
+                      const containerHeight = 450;
+                      const padding = 20;
+                      
+                      // Define positions: top-left, top-right, right, bottom-right, bottom-left, left
+                      const positions = [
+                        { x: padding + 50, y: padding + 30, anchor: 'start' }, // top-left
+                        { x: containerWidth - padding - 50, y: padding + 30, anchor: 'end' }, // top-right
+                        { x: containerWidth - padding - 50, y: containerHeight * 0.35, anchor: 'end' }, // right-mid-top
+                        { x: containerWidth - padding - 50, y: containerHeight * 0.55, anchor: 'end' }, // right-mid
+                        { x: containerWidth - padding - 50, y: containerHeight * 0.75, anchor: 'end' }, // right-mid-bottom
+                        { x: containerWidth - padding - 50, y: containerHeight - padding - 30, anchor: 'end' }, // bottom-right
+                        { x: padding + 50, y: containerHeight - padding - 30, anchor: 'start' }, // bottom-left
+                        { x: padding + 50, y: containerHeight * 0.75, anchor: 'start' }, // left-mid-bottom
+                        { x: padding + 50, y: containerHeight * 0.55, anchor: 'start' }, // left-mid
+                        { x: padding + 50, y: containerHeight * 0.35, anchor: 'start' }, // left-mid-top
+                      ];
+                      
+                      // Assign position based on index
+                      const position = positions[index % positions.length];
+                      const endX = position.x;
+                      const endY = position.y;
+                      
+                      // Create bent path with quadratic curve
+                      const bendX = startX + (endX - startX) * 0.5;
+                      const bendY = startY + (endY - startY) * 0.6;
+                      
+                      // Z-index pattern: 0, 4, 8, 12, etc.
+                      const zIndex = index * 4;
+                      
+                      return (
+                        <g style={{ zIndex: zIndex }}>
+                          <path
+                            d={`M ${startX},${startY} Q ${bendX},${bendY} ${endX},${endY}`}
+                            stroke="#64748b"
+                            strokeWidth="1.2"
+                            fill="none"
+                            style={{ 
+                              filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.1))',
+                              zIndex: zIndex
+                            }}
+                          />
+                          <circle 
+                            cx={endX} 
+                            cy={endY} 
+                            r="2.5" 
+                            fill="#64748b"
+                            style={{ zIndex: zIndex }}
+                          />
+                        </g>
+                      );
+                    }}
+                    label={({ cx, cy, midAngle, outerRadius, percent, index }) => {
+                      if (!categoryData[index]) return null;
+                      
+                      // Distribute labels to different positions around container
+                      const containerWidth = 600;
+                      const containerHeight = 450;
+                      const padding = 20;
+                      
+                      // Define positions matching labelLine positions
+                      const positions = [
+                        { x: padding + 50, y: padding + 30, anchor: 'start' }, // top-left
+                        { x: containerWidth - padding - 50, y: padding + 30, anchor: 'end' }, // top-right
+                        { x: containerWidth - padding - 50, y: containerHeight * 0.35, anchor: 'end' }, // right-mid-top
+                        { x: containerWidth - padding - 50, y: containerHeight * 0.55, anchor: 'end' }, // right-mid
+                        { x: containerWidth - padding - 50, y: containerHeight * 0.75, anchor: 'end' }, // right-mid-bottom
+                        { x: containerWidth - padding - 50, y: containerHeight - padding - 30, anchor: 'end' }, // bottom-right
+                        { x: padding + 50, y: containerHeight - padding - 30, anchor: 'start' }, // bottom-left
+                        { x: padding + 50, y: containerHeight * 0.75, anchor: 'start' }, // left-mid-bottom
+                        { x: padding + 50, y: containerHeight * 0.55, anchor: 'start' }, // left-mid
+                        { x: padding + 50, y: containerHeight * 0.35, anchor: 'start' }, // left-mid-top
+                      ];
+                      
+                      // Assign position based on index
+                      const position = positions[index % positions.length];
+                      const labelX = position.x;
+                      const labelY = position.y;
+                      
+                      // Z-index pattern: 0, 4, 8, 12, etc.
+                      const zIndex = index * 4;
+
+                      return (
+                        <g style={{ zIndex: zIndex }}>
+                          <text 
+                            x={labelX} 
+                            y={labelY} 
+                            fill="#1e293b"
+                            textAnchor={position.anchor} 
+                            dominantBaseline="middle"
+                            fontSize="11"
+                            fontWeight="600"
+                            style={{ 
+                              textShadow: '0 1px 2px rgba(255,255,255,0.8)',
+                              zIndex: zIndex
+                            }}
+                          >
+                            {`${categoryData[index].label} (${(percent * 100).toFixed(1)}%)`}
+                          </text>
+                        </g>
+                      );
+                    }}
+                    outerRadius={70}
                     fill="#8884d8"
                     dataKey="count"
                   >

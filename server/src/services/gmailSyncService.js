@@ -913,3 +913,172 @@ export const syncEmailThumbnails = async (user, options = {}) => {
     }
   }
 }
+
+/**
+ * Full Gmail inbox sync - fetches ALL emails (not just incremental)
+ * @param {Object} user - User object
+ * @param {Object} options - Options { onProgress, classifyDuringSync }
+ * @returns {Promise<Object>} Sync results
+ */
+export const fullHistoricalSync = async (user, options = {}) => {
+  const { onProgress, classifyDuringSync = true } = options
+
+  try {
+    console.log(`🚀 Starting FULL Gmail sync for user: ${user.email}`)
+
+    if (!user.gmailConnected || !user.gmailAccessToken) {
+      throw new Error('Gmail account not connected')
+    }
+
+    // Initialize Gmail client
+    const oauth2Client = getOAuthForUser(user)
+    const gmail = google.gmail({ version: 'v1', auth: oauth2Client })
+
+    // Check if model service is available for classification
+    let modelAvailable = false
+    try {
+      const modelCheck = await axios.get(`${MODEL_SERVICE_URL}/status`, { timeout: 3000 })
+      modelAvailable = modelCheck.data.status === 'ready' && classifyDuringSync
+      console.log(`📊 Model service ${modelAvailable ? 'available' : 'unavailable'} for classification`)
+    } catch (error) {
+      console.log('⚠️  Model service not available, will skip classification during sync')
+    }
+
+    let totalFetched = 0
+    let pageToken = null
+    const stats = { 
+      synced: 0, 
+      classified: 0, 
+      skipped: 0,
+      errors: [] 
+    }
+
+    // Fetch ALL emails from inbox (no date filter)
+    do {
+      const response = await gmail.users.messages.list({
+        userId: 'me',
+        maxResults: 500,  // Larger batch size
+        q: 'in:inbox',    // No date filter - get ALL
+        pageToken
+      })
+
+      const messages = response.data.messages || []
+      console.log(`📦 Fetched batch: ${messages.length} emails (Page token: ${pageToken ? 'yes' : 'first'})`)
+
+      if (messages.length === 0) {
+        break
+      }
+
+      // Process batch with concurrency control
+      const batchResults = await Promise.all(
+        messages.map(msg => limit(async () => {
+          try {
+            // Check if email already exists
+            const existingEmail = await Email.findOne({ 
+              gmailId: msg.id,
+              userId: user._id 
+            }).select('_id').lean()
+
+            if (existingEmail) {
+              stats.skipped++
+              return { success: true, skipped: true }
+            }
+
+            // Fetch full message
+            const fullMessage = await fetchMessage(oauth2Client, msg.id)
+
+            // Parse email data
+            const emailData = parseEmailMessage(fullMessage)
+
+            // Upsert email
+            const savedEmail = await upsertEmail(user, emailData)
+
+            // Classify if model is available
+            if (modelAvailable) {
+              try {
+                const classifyResponse = await axios.post(
+                  `${MODEL_SERVICE_URL}/predict`,
+                  {
+                    subject: savedEmail.subject || '',
+                    body: savedEmail.snippet || '',
+                    user_id: user._id.toString()
+                  },
+                  { timeout: 10000 }
+                )
+
+                if (classifyResponse.data) {
+                  await Email.updateOne(
+                    { _id: savedEmail._id },
+                    {
+                      $set: {
+                        category: classifyResponse.data.label,
+                        'classification.label': classifyResponse.data.label,
+                        'classification.confidence': classifyResponse.data.confidence,
+                        'classification.model': 'distilbert-trained',
+                        'classification.classifiedAt': new Date()
+                      }
+                    }
+                  )
+                  stats.classified++
+                }
+              } catch (classifyError) {
+                console.error(`Classification failed for ${savedEmail._id}:`, classifyError.message)
+              }
+            }
+
+            stats.synced++
+            return { success: true, new: true }
+
+          } catch (error) {
+            stats.errors.push({ id: msg.id, error: error.message })
+            console.error(`Failed to process ${msg.id}:`, error.message)
+            return { success: false, error: error.message }
+          }
+        }))
+      )
+
+      totalFetched += messages.length
+      pageToken = response.data.nextPageToken
+
+      // Progress callback
+      if (onProgress) {
+        onProgress({
+          totalFetched,
+          synced: stats.synced,
+          classified: stats.classified,
+          skipped: stats.skipped,
+          hasMore: !!pageToken
+        })
+      }
+
+      console.log(`✅ Progress: Fetched ${totalFetched}, Synced ${stats.synced}, Classified ${stats.classified}, Skipped ${stats.skipped}`)
+
+      // Rate limiting - small delay between batches
+      if (pageToken) {
+        await new Promise(resolve => setTimeout(resolve, 1000))
+      }
+
+    } while (pageToken)
+
+    console.log(`\n✅ Full sync complete!`)
+    console.log(`   Total fetched: ${totalFetched}`)
+    console.log(`   New emails synced: ${stats.synced}`)
+    console.log(`   Classified: ${stats.classified}`)
+    console.log(`   Skipped (existing): ${stats.skipped}`)
+    console.log(`   Errors: ${stats.errors.length}`)
+
+    return {
+      success: true,
+      totalFetched,
+      synced: stats.synced,
+      classified: stats.classified,
+      skipped: stats.skipped,
+      errors: stats.errors.length,
+      errorDetails: stats.errors.slice(0, 10) // First 10 errors
+    }
+
+  } catch (error) {
+    console.error('❌ Full sync error:', error)
+    throw error
+  }
+}

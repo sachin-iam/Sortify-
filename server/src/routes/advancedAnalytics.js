@@ -7,6 +7,39 @@ import { getModelMetrics } from '../services/enhancedMLService.js'
 
 const router = express.Router()
 
+// Cache for advanced analytics
+const analyticsCache = new Map()
+const CACHE_TTL = 3 * 60 * 1000 // 3 minutes
+
+function getCachedData(key) {
+  const cached = analyticsCache.get(key)
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data
+  }
+  return null
+}
+
+function setCachedData(key, data) {
+  analyticsCache.set(key, { data, timestamp: Date.now() })
+  // Cleanup old entries
+  if (analyticsCache.size > 500) {
+    const oldestKeys = Array.from(analyticsCache.keys()).slice(0, 50)
+    oldestKeys.forEach(k => analyticsCache.delete(k))
+  }
+}
+
+// Clear cache for a specific user
+export function clearAdvancedAnalyticsCache(userId) {
+  const keysToDelete = []
+  for (const key of analyticsCache.keys()) {
+    if (key.includes(userId)) {
+      keysToDelete.push(key)
+    }
+  }
+  keysToDelete.forEach(key => analyticsCache.delete(key))
+  console.log(`🗑️ Cleared ${keysToDelete.length} advanced analytics cache entries for user ${userId}`)
+}
+
 // @desc    Get advanced analytics data
 // @route   GET /api/analytics/advanced
 // @access  Private
@@ -14,6 +47,16 @@ router.get('/advanced', protect, asyncHandler(async (req, res) => {
   try {
     const { range = 'all', category = 'All' } = req.query
     const userId = req.user._id
+    
+    // Check cache first
+    const cacheKey = `advanced_${userId}_${range}_${category}`
+    const cached = getCachedData(cacheKey)
+    if (cached) {
+      console.log(`✅ Returning cached advanced analytics for user ${userId}, range: ${range}, category: ${category}`)
+      return res.json(cached)
+    }
+    
+    console.log(`🔄 Cache miss - fetching analytics for user ${userId}, range: ${range}, category: ${category}`)
 
     // Build base query - analyze ALL emails by default unless date range is specified
     const query = {
@@ -53,23 +96,30 @@ router.get('/advanced', protect, asyncHandler(async (req, res) => {
       query.category = category
     }
 
+    // Run all aggregations in parallel for better performance
+    const [
+      totalEmails,
+      categoryStats,
+      dailyStats,
+      weeklyStats,
+      monthlyStats,
+      topSenders,
+      emailTrends,
+      accuracyStats,
+      responseTimeStats
+    ] = await Promise.all([
     // Get total emails
-    const totalEmails = await Email.countDocuments(query)
+      Email.countDocuments(query),
 
     // Get category distribution
-    const categoryPipeline = [
+      Email.aggregate([
       { $match: query },
       { $group: { _id: '$category', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
-    ]
-    const categoryStats = await Email.aggregate(categoryPipeline)
-    const categories = {}
-    categoryStats.forEach(stat => {
-      categories[stat._id] = stat.count
-    })
+      ]),
 
     // Get daily stats
-    const dailyPipeline = [
+      Email.aggregate([
       { $match: query },
       {
         $group: {
@@ -82,13 +132,12 @@ router.get('/advanced', protect, asyncHandler(async (req, res) => {
           categories: { $addToSet: '$category' }
         }
       },
-      { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } },
+        { $sort: { '_id.year': -1, '_id.month': -1, '_id.day': -1 } },
       { $limit: 30 }
-    ]
-    const dailyStats = await Email.aggregate(dailyPipeline)
+      ]),
 
     // Get weekly stats
-    const weeklyPipeline = [
+      Email.aggregate([
       { $match: query },
       {
         $group: {
@@ -99,13 +148,12 @@ router.get('/advanced', protect, asyncHandler(async (req, res) => {
           count: { $sum: 1 }
         }
       },
-      { $sort: { '_id.year': 1, '_id.week': 1 } },
+        { $sort: { '_id.year': -1, '_id.week': -1 } },
       { $limit: 12 }
-    ]
-    const weeklyStats = await Email.aggregate(weeklyPipeline)
+      ]),
 
     // Get monthly stats
-    const monthlyPipeline = [
+      Email.aggregate([
       { $match: query },
       {
         $group: {
@@ -116,13 +164,12 @@ router.get('/advanced', protect, asyncHandler(async (req, res) => {
           count: { $sum: 1 }
         }
       },
-      { $sort: { '_id.year': 1, '_id.month': 1 } },
+        { $sort: { '_id.year': -1, '_id.month': -1 } },
       { $limit: 12 }
-    ]
-    const monthlyStats = await Email.aggregate(monthlyPipeline)
+      ]),
 
     // Get top senders
-    const topSendersPipeline = [
+      Email.aggregate([
       { $match: query },
       {
         $group: {
@@ -141,11 +188,10 @@ router.get('/advanced', protect, asyncHandler(async (req, res) => {
           name: { $substr: ['$_id', 0, { $indexOfBytes: ['$_id', '<'] }] }
         }
       }
-    ]
-    const topSenders = await Email.aggregate(topSendersPipeline)
+      ]),
 
     // Get email trends (hourly distribution)
-    const trendsPipeline = [
+      Email.aggregate([
       { $match: query },
       {
         $group: {
@@ -154,21 +200,11 @@ router.get('/advanced', protect, asyncHandler(async (req, res) => {
         }
       },
       { $sort: { _id: 1 } }
-    ]
-    const emailTrends = await Email.aggregate(trendsPipeline)
-
-    // Get model metrics
-    const modelMetrics = getModelMetrics()
-
-    // Calculate real classification accuracy from actual data
-    let classificationAccuracy = 0
-    let responseTime = 0
-    
-    if (totalEmails > 0) {
+      ]),
+      
       // Calculate accuracy based on classification confidence levels
-      const accuracyQuery = { ...query, 'classification.confidence': { $exists: true } }
-      const accuracyStats = await Email.aggregate([
-        { $match: accuracyQuery },
+      Email.aggregate([
+        { $match: { ...query, 'classification.confidence': { $exists: true } } },
         {
           $group: {
             _id: null,
@@ -191,16 +227,10 @@ router.get('/advanced', protect, asyncHandler(async (req, res) => {
             }
           }
         }
-      ])
+      ]),
       
-      if (accuracyStats.length > 0) {
-        const stats = accuracyStats[0]
-        const estimatedCorrect = stats.highConfidence + (stats.mediumConfidence * 0.75) + (stats.lowConfidence * 0.4)
-        classificationAccuracy = stats.total > 0 ? estimatedCorrect / stats.total : 0
-      }
-      
-      // Calculate average response time from processing time if available
-      const responseTimeStats = await Email.aggregate([
+      // Calculate average response time from processing time
+      Email.aggregate([
         { $match: { ...query, 'processingTime': { $exists: true, $ne: null } } },
         {
           $group: {
@@ -210,7 +240,30 @@ router.get('/advanced', protect, asyncHandler(async (req, res) => {
           }
         }
       ])
+    ])
+    
+    // Process category stats
+    const categories = {}
+    categoryStats.forEach(stat => {
+      categories[stat._id] = stat.count
+    })
+
+    // Get model metrics
+    const modelMetrics = getModelMetrics()
+
+    // Calculate real classification accuracy from actual data (now from parallel batch)
+    let classificationAccuracy = 0
+    let responseTime = 0
+    
+    if (totalEmails > 0) {
+      // Process accuracy stats from parallel batch
+      if (accuracyStats.length > 0) {
+        const stats = accuracyStats[0]
+        const estimatedCorrect = stats.highConfidence + (stats.mediumConfidence * 0.75) + (stats.lowConfidence * 0.4)
+        classificationAccuracy = stats.total > 0 ? estimatedCorrect / stats.total : 0
+      }
       
+      // Process response time stats from parallel batch
       if (responseTimeStats.length > 0 && responseTimeStats[0].count > 0) {
         responseTime = Math.round(responseTimeStats[0].avgResponseTime)
       } else {
@@ -219,7 +272,7 @@ router.get('/advanced', protect, asyncHandler(async (req, res) => {
       }
     }
 
-    res.json({
+    const responseData = {
       success: true,
       totalEmails,
       categories,
@@ -251,7 +304,12 @@ router.get('/advanced', protect, asyncHandler(async (req, res) => {
       modelMetrics,
       timeRange: range,
       category: category
-    })
+    }
+    
+    // Cache the response
+    setCachedData(cacheKey, responseData)
+    
+    res.json(responseData)
 
   } catch (error) {
     console.error('Advanced analytics error:', error)

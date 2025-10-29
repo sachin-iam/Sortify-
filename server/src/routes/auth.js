@@ -493,6 +493,17 @@ router.post('/logout', protect, asyncHandler(async (req, res) => {
     // Continue with logout even if cleanup fails
   }
 
+  // Clear email content cache on logout
+  try {
+    const userId = req.user._id.toString()
+    const { default: emailContentCache } = await import('../services/emailContentCache.js')
+    const clearedCount = emailContentCache.clearUser(userId)
+    console.log(`✅ Cleared ${clearedCount} cached emails for user ${userId} on logout`)
+  } catch (error) {
+    console.error('❌ Email cache cleanup error on logout:', error)
+    // Continue with logout even if cache cleanup fails
+  }
+
   // Clear all notifications for this user on logout
   try {
     const userId = req.user._id.toString()

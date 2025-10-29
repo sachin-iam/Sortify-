@@ -14,6 +14,7 @@ import NotificationCenter from '../components/NotificationCenter'
 import PerformanceDashboard from '../components/PerformanceDashboard'
 import CategoriesCard from '../components/CategoriesCard'
 import ReclassificationProgress from '../components/ReclassificationProgress'
+import DeleteConfirmationModal from '../components/DeleteConfirmationModal'
 import { api } from '../services/api'
 import emailService from '../services/emailService'
 import ModernIcon from '../components/ModernIcon'
@@ -22,8 +23,15 @@ const Dashboard = () => {
   const { user, token, connectGmailAccount, updateTokenFromOAuth } = useAuth()
   const { isConnected, connectionStatus, subscribeToEvents, lastMessage } = useWebSocketContext()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [activeView, setActiveView] = useState('emails')
+  
+  // Initialize activeView from URL params, default to 'emails'
+  const [activeView, setActiveView] = useState(() => {
+    const viewParam = searchParams.get('view')
+    return viewParam && ['emails', 'analytics', 'notifications'].includes(viewParam) ? viewParam : 'emails'
+  })
   const [syncLoading, setSyncLoading] = useState(false)
+  const [fullSyncLoading, setFullSyncLoading] = useState(false)
+  const [reclassifyLoading, setReclassifyLoading] = useState(false)
   const [gmailConnected, setGmailConnected] = useState(false)
   const [loadingConnections, setLoadingConnections] = useState(true)
   const [connectingGmail, setConnectingGmail] = useState(false)
@@ -87,10 +95,14 @@ const Dashboard = () => {
   const [reclassificationJobs, setReclassificationJobs] = useState([])
   const [showReclassificationProgress, setShowReclassificationProgress] = useState(false)
   
+  // Delete confirmation modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [emailToDelete, setEmailToDelete] = useState(null)
+  
   // Rate limiting for API calls
   const [lastApiCall, setLastApiCall] = useState(0)
   const [statsLoading, setStatsLoading] = useState(false)
-  const API_CALL_THROTTLE = 5000 // 5 seconds throttle - much more reasonable
+  const API_CALL_THROTTLE = 1000 // 1 second throttle - balanced for performance and UX
 
   // Email fetching function
   const fetchEmails = useCallback(async (skipThrottle = false, categoryOverride = null) => {
@@ -101,33 +113,34 @@ const Dashboard = () => {
     }
     
     try {
-      setEmailsLoading(true)
+      // Only show loading spinner if we don't have emails yet (initial load)
+      // For search/filter/pagination, keep existing emails visible
+      if (emails.length === 0) {
+        setEmailsLoading(true)
+      }
       setLastApiCall(now)
       
       // Use the category override if provided, otherwise use current category
       const categoryToUse = categoryOverride !== null ? categoryOverride : currentCategory
       
       console.log('📧 Fetching emails...', { currentPage, currentCategory, categoryToUse, searchQuery })
-      console.log('📧 User token:', token ? 'Present' : 'Missing')
-      console.log('📧 Gmail connected:', gmailConnected)
       
-      // When searching, fetch MORE emails to search across entire database
-      // When not searching, use pagination
-      const isSearching = searchQuery.trim().length > 0
-      const searchLimit = isSearching ? 1000 : 100 // Fetch up to 1000 emails when searching
+      // OPTIMIZED: Use consistent smaller page sizes for faster loading
+      // Search is handled by backend efficiently, no need for large limits
+      const limit = 50 // Consistent limit for fast loading
       
       console.log('📧 API call parameters:', { 
-        page: isSearching ? 1 : currentPage, // Always fetch from page 1 when searching
+        page: currentPage,
         category: categoryToUse, 
         q: searchQuery,
-        limit: searchLimit
+        limit
       })
       
       const response = await emailService.getEmails({
-        page: isSearching ? 1 : currentPage, // Start from page 1 when searching to get all results
+        page: currentPage,
         category: categoryToUse,
         q: searchQuery,
-        limit: searchLimit
+        limit
       })
       
       console.log('📧 Email API response:', response)
@@ -156,12 +169,12 @@ const Dashboard = () => {
         const countToShow = response.total || 0
         setCurrentCategoryCount(countToShow)
         
-        // Store all emails for client-side search (only when not searching)
+        // Store all emails for quick restore when clearing search
         if (!searchQuery.trim()) {
           setAllEmails(filteredEmailItems)
         }
         
-        setTotalPages(Math.ceil(response.total / 25))
+        setTotalPages(Math.ceil(response.total / 50))
         console.log('✅ Emails loaded:', filteredEmailItems.length, 'out of', response.total || 0)
         console.log('✅ First email:', filteredEmailItems[0])
         console.log('✅ Email categories:', filteredEmailItems.map(email => ({ subject: email.subject, category: email.category })))
@@ -375,7 +388,7 @@ const Dashboard = () => {
             page: currentPage,
             category: currentCategory,
             q: searchQuery,
-            limit: 100 // Load more emails initially for better client-side search
+            limit: 50 // OPTIMIZED: Consistent limit for fast loading
           })
           
           console.log('📧 Email API response:', response)
@@ -384,10 +397,10 @@ const Dashboard = () => {
             const emailItems = response.items || []
             setEmails(emailItems)
             
-            // Store all emails for client-side search
+            // Store all emails for quick restore when clearing search
             setAllEmails(emailItems)
             
-            setTotalPages(Math.ceil((response.total || 0) / 25))
+            setTotalPages(Math.ceil((response.total || 0) / 50))
             console.log('✅ Emails loaded:', emailItems.length, 'out of', response.total || 0)
           } else {
             console.warn('⚠️ Email API returned unsuccessful response:', response)
@@ -444,19 +457,18 @@ const Dashboard = () => {
     // Remove periodic check to prevent infinite loops
   }, [gmailConnected]) // Run when Gmail connection status changes
 
-  // Load data when filters change (except category - handled by handleCategoryChange)
+  // Load data when pagination changes (search is handled separately)
   useEffect(() => {
     if (!token || !gmailConnected) return
     
-    console.log('🔄 Filters changed, loading data...', { currentPage })
-    const timeoutId = setTimeout(() => {
-      fetchEmails()
-      fetchStats()
-      fetchSyncStatus()
-    }, 300) // Debounce API calls
-    
-    return () => clearTimeout(timeoutId)
-  }, [currentPage, searchQuery, token, gmailConnected, fetchSyncStatus])
+    // Only handle pagination changes here, not search
+    // Search is handled by the dedicated search effect
+    if (searchQuery.trim().length === 0) {
+      console.log('🔄 Page changed, loading data...', { currentPage })
+      // No search query - instant pagination
+      fetchEmails(true) // skipThrottle = true for instant pagination
+    }
+  }, [currentPage, token, gmailConnected])
 
   // Debug emails state changes
   useEffect(() => {
@@ -469,13 +481,21 @@ const Dashboard = () => {
     })
   }, [emails, currentCategory, searchQuery, currentPage])
 
-  // Check URL parameters for tab navigation
+  // Update URL when activeView changes (for persistence across refreshes)
+  useEffect(() => {
+    const currentView = searchParams.get('view')
+    if (currentView !== activeView) {
+      setSearchParams({ view: activeView }, { replace: true })
+    }
+  }, [activeView])
+  
+  // Check URL parameters for tab navigation (legacy support)
   useEffect(() => {
     const tab = searchParams.get('tab')
     if (tab === 'notifications') {
       setActiveView('notifications')
-      // Clear the parameter after opening
-      setSearchParams({})
+      // Update to use view param instead
+      setSearchParams({ view: 'notifications' }, { replace: true })
     }
   }, [searchParams, setSearchParams])
 
@@ -1048,6 +1068,75 @@ const Dashboard = () => {
     }
   }
 
+  // Full Gmail sync (fetch ALL historical emails)
+  const handleFullSync = async () => {
+    if (!token || !gmailConnected) {
+      toast.error('Please connect Gmail first')
+      return
+    }
+
+    setFullSyncLoading(true)
+    try {
+      console.log('🚀 Starting FULL Gmail sync...')
+      const response = await api.post('/emails/gmail/full-sync')
+      
+      if (response.data.success) {
+        toast.success('📥 Full sync started! Fetching all 6,000+ emails from Gmail. This will take 15-30 minutes.', {
+          duration: 6000
+        })
+        
+        // Poll for updates every 10 seconds
+        const pollInterval = setInterval(async () => {
+          await fetchStats(true)
+          await fetchEmails(true)
+        }, 10000)
+        
+        // Clear after 30 minutes
+        setTimeout(() => clearInterval(pollInterval), 1800000)
+      }
+    } catch (error) {
+      console.error('❌ Full sync error:', error)
+      toast.error(error?.response?.data?.message || 'Failed to start full sync')
+    } finally {
+      setFullSyncLoading(false)
+    }
+  }
+
+  // Reclassify all emails with trained model
+  const handleReclassifyAll = async () => {
+    if (!token) {
+      toast.error('Please login first')
+      return
+    }
+
+    setReclassifyLoading(true)
+    try {
+      console.log('🔄 Starting reclassification...')
+      const response = await api.post('/emails/reclassify-all')
+      
+      if (response.data.success) {
+        toast.success('🤖 Reclassification started! Using trained model to classify all emails. This will take 10-20 minutes.', {
+          duration: 6000
+        })
+        
+        // Poll for updates every 10 seconds
+        const pollInterval = setInterval(async () => {
+          await fetchStats(true)
+          await fetchEmails(true)
+          setCategoryTabsRefresh(prev => prev + 1) // Refresh category tabs
+        }, 10000)
+        
+        // Clear after 25 minutes
+        setTimeout(() => clearInterval(pollInterval), 1500000)
+      }
+    } catch (error) {
+      console.error('❌ Reclassification error:', error)
+      toast.error(error?.response?.data?.message || 'Failed to start reclassification')
+    } finally {
+      setReclassifyLoading(false)
+    }
+  }
+
   // Email action handlers
   const handleEmailSelect = (emailId) => {
     // Toggle behavior: if clicking the same email, close it
@@ -1213,41 +1302,45 @@ const Dashboard = () => {
   }
 
   const handleEmailDelete = async (emailId) => {
+    // Check if this is a thread container
+    const emailItem = emails.find(e => e._id === emailId)
+    
+    // Show the delete confirmation modal
+    setEmailToDelete(emailItem)
+    setShowDeleteModal(true)
+  }
+  
+  const confirmEmailDelete = async (deleteFromGmail) => {
+    if (!emailToDelete) return
+    
     try {
-      // Check if this is a thread container
-      const emailItem = emails.find(e => e._id === emailId)
-      const isThreadContainer = emailItem && emailItem.isThread && emailItem.messageIds
+      const isThreadContainer = emailToDelete.isThread && emailToDelete.messageIds
       
       if (isThreadContainer) {
         // Delete all emails in the thread using bulk operation
-        const confirmDelete = window.confirm(
-          `Are you sure you want to delete this entire thread (${emailItem.messageCount} messages)? This cannot be undone.`
-        )
-        
-        if (!confirmDelete) return
-        
-        await emailService.bulkDelete(emailItem.messageIds)
-        toast.success(`Thread deleted (${emailItem.messageCount} messages)`)
+        await emailService.bulkDelete(emailToDelete.messageIds, deleteFromGmail)
+        toast.success(`Thread deleted (${emailToDelete.messageCount} messages)${deleteFromGmail ? ' from Gmail too' : ''}`)
       } else {
         // Single email delete
-        const confirmDelete = window.confirm(
-          'Are you sure you want to delete this email? This cannot be undone.'
-        )
-        
-        if (!confirmDelete) return
-        
-        await emailService.remove(emailId)
-        toast.success('Email deleted')
+        await emailService.remove(emailToDelete._id, deleteFromGmail)
+        toast.success(`Email deleted${deleteFromGmail ? ' from Gmail too' : ''}`)
       }
       
-      fetchEmails() // Refresh list
-      if (selectedEmailId === emailId) {
+      // Close modal and cleanup
+      setShowDeleteModal(false)
+      setEmailToDelete(null)
+      
+      // Refresh list
+      fetchEmails()
+      if (selectedEmailId === emailToDelete._id) {
         setSelectedEmailId(null)
         setSelectedEmail(null)
       }
     } catch (error) {
       console.error('Delete error:', error)
       toast.error('Failed to delete email')
+      setShowDeleteModal(false)
+      setEmailToDelete(null)
     }
   }
 
@@ -1370,46 +1463,31 @@ const Dashboard = () => {
     const trimmedQuery = query.trim()
     
     if (trimmedQuery) {
-      // Immediate client-side filtering for instant feedback (from loaded emails only)
-      const searchTerms = trimmedQuery.toLowerCase()
-      const filteredEmails = allEmails.filter(email => {
-        const subject = email.subject?.toLowerCase() || ''
-        const from = email.from?.toLowerCase() || ''
-        const snippet = email.snippet?.toLowerCase() || ''
-        const body = email.body?.toLowerCase() || ''
-        
-        // Search in all fields
-        return subject.includes(searchTerms) ||
-               from.includes(searchTerms) ||
-               snippet.includes(searchTerms) ||
-               body.includes(searchTerms)
-      })
-      
-      // Show client-side results immediately for instant feedback
-      setEmails(filteredEmails)
-      console.log(`🔍 Client-side search (instant): "${trimmedQuery}" found ${filteredEmails.length} results from loaded emails`)
+      // Set searching state immediately for instant feedback
+      setIsSearching(true)
+      console.log(`🔍 Search initiated: "${trimmedQuery}"`)
+      // Don't clear emails here - keep showing current results until new ones load
     } else {
-      // If no search query, show all emails
+      // If no search query, restore all emails immediately
       setEmails(allEmails)
       setIsSearching(false)
     }
   }
   
-  // Debounced server search effect - triggers after user stops typing
+  // Optimized server search effect - single debounced search
   useEffect(() => {
     if (!token || !gmailConnected) return
     
     const trimmedQuery = searchQuery.trim()
     
     if (trimmedQuery) {
-      // Set searching state
-      setIsSearching(true)
-      
-      // Debounce server search to avoid too many requests while typing
+      // Fast debounce for instant search feeling
       const timeoutId = setTimeout(() => {
-        console.log(`🔍 Server search (comprehensive): "${trimmedQuery}"`)
-        fetchEmails(true).finally(() => setIsSearching(false))
-      }, 400) // 400ms debounce - balanced for speed and efficiency
+        console.log(`🔍 Server search: "${trimmedQuery}"`)
+        fetchEmails(true).finally(() => {
+          setIsSearching(false)
+        })
+      }, 200) // 200ms debounce - faster for better UX
       
       return () => {
         clearTimeout(timeoutId)
@@ -1543,12 +1621,14 @@ const Dashboard = () => {
                   )}
 
                   {/* Action Buttons */}
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2">
+                    {/* Row 1: Primary sync buttons */}
+                    <div className="flex gap-2">
                     {gmailConnected ? (
                       <>
                         <button 
                           onClick={syncGmailEmails}
-                          disabled={syncLoading}
+                          disabled={syncLoading || fullSyncLoading}
                           className="flex-1 bg-blue-500 text-white py-2 rounded-lg font-semibold hover:bg-blue-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                         >
                           {syncLoading ? (
@@ -1561,15 +1641,28 @@ const Dashboard = () => {
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                               </svg>
-                              Sync Now
+                              Sync New
                             </>
                           )}
                         </button>
                         <button 
-                          onClick={handleGmailDisconnection}
-                          className="px-3 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-all"
+                          onClick={handleFullSync}
+                          disabled={syncLoading || fullSyncLoading}
+                          className="flex-1 bg-purple-500 text-white py-2 rounded-lg font-semibold hover:bg-purple-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                         >
-                          Disconnect
+                          {fullSyncLoading ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                              Full Syncing...
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                              </svg>
+                              Full Sync (All)
+                            </>
+                          )}
                         </button>
                       </>
                     ) : (
@@ -1590,6 +1683,39 @@ const Dashboard = () => {
                           </>
                         )}
                       </button>
+                    )}
+                    </div>
+
+                    {/* Row 2: Reclassify and Disconnect buttons */}
+                    {gmailConnected && (
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={handleReclassifyAll}
+                          disabled={reclassifyLoading}
+                          className="flex-1 bg-green-500 text-white py-2 rounded-lg font-semibold hover:bg-green-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          {reclassifyLoading ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                              Reclassifying...
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                              </svg>
+                              Reclassify All
+                            </>
+                          )}
+                        </button>
+                        <button 
+                          onClick={handleGmailDisconnection}
+                          disabled={disconnecting}
+                          className="px-3 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-all disabled:opacity-50"
+                        >
+                          {disconnecting ? 'Disconnecting...' : 'Disconnect'}
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1915,28 +2041,31 @@ const Dashboard = () => {
               {searchQuery && (
                 <div className="backdrop-blur-xl bg-gradient-to-r from-blue-50/40 via-white/30 to-blue-50/40 border border-white/30 rounded-xl p-3 shadow-lg relative z-15">
                   <div className="flex items-center gap-2">
-                    <ModernIcon type="search" size={16} color="#3b82f6" />
+                    {isSearching ? (
+                      <div className="animate-spin">
+                        <ModernIcon type="sync" size={16} color="#3b82f6" />
+                      </div>
+                    ) : (
+                      <ModernIcon type="search" size={16} color="#10b981" />
+                    )}
                     <div className="flex-1">
                       <span className="text-xs font-medium text-slate-700">
-                        Search results for "{searchQuery}"
+                        {isSearching ? 'Searching' : 'Search results'} for "{searchQuery}"
                       </span>
-                      <span className="text-xs text-slate-500 ml-1">
-                        {emails.length} emails found
-                      </span>
-                      {isSearching && (
-                        <span className="text-xs text-blue-600 ml-1 animate-pulse">
-                          Searching server...
+                      {!isSearching && (
+                        <span className="text-xs text-slate-500 ml-1">
+                          - {emails.length} emails found
                         </span>
                       )}
-                      {searchQuery.trim().length < 2 && (
-                        <span className="text-xs text-amber-600 ml-1">
-                          Showing client-side results
+                      {isSearching && (
+                        <span className="text-xs text-blue-600 ml-1 animate-pulse">
+                          Loading...
                         </span>
                       )}
                     </div>
                     <button
                       onClick={clearSearch}
-                      className="text-xs text-slate-600 hover:text-slate-800 underline"
+                      className="text-xs text-slate-600 hover:text-slate-800 underline font-medium"
                     >
                       Clear search
                     </button>
@@ -1986,7 +2115,20 @@ const Dashboard = () => {
                       {currentCategoryCount || 0} emails
                     </span>
                   </div>
-                  <div className="flex-1 overflow-y-auto min-h-[calc(100vh-280px)] max-h-[calc(100vh-80px)]">
+                  <div className="flex-1 overflow-y-auto min-h-[calc(100vh-280px)] max-h-[calc(100vh-80px)] relative">
+                     {/* Subtle loading overlay during search - doesn't hide content */}
+                     {isSearching && emails.length > 0 && (
+                       <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] z-20 flex items-start justify-center pt-4">
+                         <div className="bg-blue-500/90 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-pulse">
+                           <div className="animate-spin">
+                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                             </svg>
+                           </div>
+                           <span className="text-sm font-medium">Searching...</span>
+                         </div>
+                       </div>
+                     )}
                      <EmailList
                        items={emails}
                        selectedId={selectedEmailId}
@@ -2089,6 +2231,21 @@ const Dashboard = () => {
           }}
         />
       ))}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false)
+          setEmailToDelete(null)
+        }}
+        onConfirm={confirmEmailDelete}
+        title={emailToDelete?.isThread ? "Delete Thread" : "Delete Email"}
+        message="This action cannot be undone."
+        isGmailEmail={gmailConnected}
+        isThread={emailToDelete?.isThread && emailToDelete?.messageIds}
+        messageCount={emailToDelete?.messageCount || 1}
+      />
 
     </div>
   )

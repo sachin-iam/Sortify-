@@ -10,7 +10,8 @@ import {
   updateCategory as serviceUpdateCategory, 
   deleteCategory as serviceDeleteCategory,
   findCategoryById,
-  findCategoryByName
+  findCategoryByName,
+  clearCategoryCache
 } from '../services/categoryService.js'
 import Email from '../models/Email.js'
 import Category from '../models/Category.js'
@@ -306,8 +307,9 @@ router.post('/categories', protect, asyncHandler(async (req, res) => {
         .then(result => {
           console.log(`✅ Two-phase reclassification completed for category "${categoryName}":`, result)
           
-          // Clear analytics cache
+          // Clear caches (both analytics and category cache)
           clearAnalyticsCache(userId.toString())
+          clearCategoryCache(userId)
           
           // Send WebSocket update about completion
           sendCategoryUpdate(userId.toString(), {
@@ -1042,8 +1044,9 @@ router.post('/categories/fix-all-patterns', protect, asyncHandler(async (req, re
     
     console.log(`\n✅ Pattern fix complete: ${successCount}/${categories.length} categories fixed`)
     
-    // Clear analytics cache
+    // Clear caches (both analytics and category cache)
     clearAnalyticsCache(userId.toString())
+    clearCategoryCache(userId)
     
     res.json({
       success: true,

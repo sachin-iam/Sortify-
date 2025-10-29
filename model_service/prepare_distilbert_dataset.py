@@ -1,6 +1,10 @@
 """
-Dataset Preparation for DistilBERT Training
-Creates balanced JSONL training dataset with data augmentation
+Enhanced Dataset Preparation for DistilBERT Training
+Creates balanced JSONL training dataset with enhanced features:
+- Email body + subject
+- Sender domain and name
+- Category indicators
+- Metadata features
 """
 
 import os
@@ -9,19 +13,34 @@ import random
 from collections import defaultdict, Counter
 from typing import Dict, List, Any
 import re
+import pandas as pd
 
 class DatasetPreparator:
-    """Prepare balanced training dataset for DistilBERT"""
+    """Prepare balanced training dataset for DistilBERT with enhanced features"""
     
     def __init__(self, 
+                 enhanced_features_file: str = 'enhanced_features.csv',
                  extracted_emails_file: str = 'extracted_emails.json',
                  patterns_file: str = 'category_patterns_report.json'):
         
-        # Load extracted emails
+        # Try to load enhanced features first
+        self.use_enhanced_features = False
+        if os.path.exists(enhanced_features_file):
+            try:
+                self.features_df = pd.read_csv(enhanced_features_file)
+                self.emails = self.features_df.to_dict('records')
+                self.use_enhanced_features = True
+                print(f"✅ Loaded enhanced features from {enhanced_features_file}")
+                print(f"   Total samples: {len(self.emails)}")
+            except Exception as e:
+                print(f"⚠️  Could not load enhanced features: {e}")
+                print("   Falling back to extracted_emails.json")
+        
+        # Fallback to extracted emails
+        if not self.use_enhanced_features:
         with open(extracted_emails_file, 'r', encoding='utf-8') as f:
             self.emails = json.load(f)
-        
-        print(f"Loaded {len(self.emails)} emails")
+            print(f"Loaded {len(self.emails)} emails from {extracted_emails_file}")
         
         # Load patterns if available
         self.patterns = {}
@@ -35,15 +54,19 @@ class DatasetPreparator:
         self.emails_by_category = defaultdict(list)
         for email in self.emails:
             category = email.get('category', 'Other')
+            # Rename Assistant to Professor if found
+            if category == 'Assistant':
+                category = 'Professor'
+                email['category'] = 'Professor'
             if category and category != 'All':  # Exclude 'All' meta-category
                 self.emails_by_category[category].append(email)
     
-    def format_email_text(self, email: Dict[str, Any]) -> str:
-        """Format email for training"""
-        subject = email.get('subject', '').strip()
-        body = email.get('body', '').strip()
+    def format_email_text(self, email: Dict[str, Any]) -> Dict[str, Any]:
+        """Format email for training with enhanced features"""
+        subject = str(email.get('subject', '')).strip()
+        body = str(email.get('body', '')).strip()
         
-        # Combine subject and body
+        # Combine subject and body for primary text
         if subject and body:
             text = f"Subject: {subject}\n\n{body}"
         elif subject:
@@ -57,7 +80,22 @@ class DatasetPreparator:
         if len(text) > 2000:
             text = text[:2000]
         
-        return text
+        # Enhanced features
+        formatted = {
+            'text': text,
+            'subject': subject[:500] if subject else "",  # Separate subject field
+            'sender_domain': str(email.get('sender_domain', '')),
+            'sender_name': str(email.get('sender_name', '')),
+            'professor_title': str(email.get('professor_title', ''))
+        }
+        
+        # Add category indicators if available (from enhanced features)
+        if self.use_enhanced_features:
+            for key in ['has_placement', 'has_nptel', 'has_hod', 'has_ezone', 
+                       'has_promotions', 'has_whats_happening', 'has_professor']:
+                formatted[key] = bool(email.get(key, False))
+        
+        return formatted
     
     def create_synthetic_example(self, category: str, patterns: Dict[str, Any]) -> str:
         """Create synthetic training example based on patterns"""
@@ -98,20 +136,21 @@ class DatasetPreparator:
         
         return f"Subject: {subject}\n\n{body}"
     
-    def augment_category(self, category: str, target_count: int = 150) -> List[Dict[str, str]]:
+    def augment_category(self, category: str, target_count: int = 150) -> List[Dict[str, Any]]:
         """Augment category with synthetic examples if needed"""
         emails = self.emails_by_category[category]
         examples = []
         
         # Add all real emails
         for email in emails:
-            text = self.format_email_text(email)
-            if text:
-                examples.append({
-                    'text': text,
+            formatted = self.format_email_text(email)
+            if formatted and formatted['text']:
+                example = {
+                    **formatted,
                     'label': category,
                     'source': 'real'
-                })
+                }
+                examples.append(example)
         
         # Check if augmentation is needed
         if len(examples) < target_count and category in self.patterns:
@@ -126,8 +165,13 @@ class DatasetPreparator:
                     category, 
                     self.patterns[category]
                 )
+                # Create minimal enhanced features for synthetic data
                 examples.append({
                     'text': synthetic_text,
+                    'subject': "",
+                    'sender_domain': "",
+                    'sender_name': "",
+                    'professor_title': "",
                     'label': category,
                     'source': 'synthetic'
                 })
@@ -165,26 +209,28 @@ class DatasetPreparator:
                     self.emails_by_category[category], 
                     max_samples_per_category
                 )
-                examples = [
-                    {
-                        'text': self.format_email_text(email),
+                examples = []
+                for email in sampled_emails:
+                    formatted = self.format_email_text(email)
+                    if formatted and formatted['text']:
+                        example = {
+                            **formatted,
                         'label': category,
                         'source': 'real'
                     }
-                    for email in sampled_emails
-                    if self.format_email_text(email)
-                ]
+                        examples.append(example)
             else:
                 # Use all
-                examples = [
-                    {
-                        'text': self.format_email_text(email),
+                examples = []
+                for email in self.emails_by_category[category]:
+                    formatted = self.format_email_text(email)
+                    if formatted and formatted['text']:
+                        example = {
+                            **formatted,
                         'label': category,
                         'source': 'real'
                     }
-                    for email in self.emails_by_category[category]
-                    if self.format_email_text(email)
-                ]
+                        examples.append(example)
             
             balanced_dataset.extend(examples)
         

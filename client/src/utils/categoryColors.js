@@ -36,12 +36,11 @@ function generateHSLColor(categoryName) {
   // Generate hue (0-360) for good color distribution
   const hue = hash % 360
   
-  // Use high saturation (60-80%) for vibrant colors
-  // But avoid too high saturation for accessibility
-  const saturation = 65 + (hash % 15) // 65-80%
+  // Use FULL color spectrum with higher saturation for MORE vibrant, distinct colors
+  const saturation = 70 + (hash % 20) // 70-90% (increased from 65-80%)
   
-  // Use medium lightness (45-65%) for good contrast
-  const lightness = 50 + (hash % 20) // 50-70%
+  // Use medium lightness for good contrast with better range
+  const lightness = 45 + (hash % 15) // 45-60% (adjusted from 50-70%)
   
   return {
     h: hue,

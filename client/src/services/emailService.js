@@ -9,7 +9,7 @@ const emailService = {
       category = 'All',
       provider = 'gmail',
       q: search = '',
-      threaded = true // Enable threading by default
+      threaded = false // OPTIMIZED: Disable threading by default for faster loading
     } = params
 
     const queryParams = new URLSearchParams({
@@ -68,8 +68,8 @@ const emailService = {
   },
 
   // Delete email
-  remove: async (id) => {
-    const response = await api.delete(`/emails/${id}`)
+  remove: async (id, deleteFromGmail = false) => {
+    const response = await api.delete(`/emails/${id}?deleteFromGmail=${deleteFromGmail}`)
     return response.data
   },
 
@@ -102,10 +102,11 @@ const emailService = {
     return response.data
   },
 
-  bulkDelete: async (ids) => {
+  bulkDelete: async (ids, deleteFromGmail = false) => {
     const response = await api.post('/emails/bulk', {
       operation: 'delete',
-      emailIds: ids
+      emailIds: ids,
+      deleteFromGmail
     })
     return response.data
   },

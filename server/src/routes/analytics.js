@@ -4,6 +4,7 @@ import { protect } from '../middleware/auth.js'
 import { sseAuth } from '../middleware/sseAuth.js'
 import { asyncHandler } from '../middleware/errorHandler.js'
 import { getCategoryCount } from '../services/categoryService.js'
+import { clearAdvancedAnalyticsCache } from './advancedAnalytics.js'
 
 // Analytics cache to reduce database load
 const analyticsCache = new Map()
@@ -39,6 +40,9 @@ export function clearAnalyticsCache(userId) {
   }
   keysToDelete.forEach(key => analyticsCache.delete(key))
   console.log(`🗑️ Cleared ${keysToDelete.length} analytics cache entries for user ${userId}`)
+  
+  // Also clear advanced analytics cache
+  clearAdvancedAnalyticsCache(userId)
 }
 
 const router = express.Router()
@@ -56,7 +60,10 @@ router.get('/stats', protect, asyncHandler(async (req, res) => {
     }
 
     const stats = await Email.aggregate([
-      { $match: { userId: req.user._id } },
+      { $match: { 
+        userId: req.user._id,
+        isDeleted: { $ne: true }
+      } },
       {
         $group: {
           _id: null,
@@ -158,45 +165,15 @@ router.get('/categories', protect, asyncHandler(async (req, res) => {
       return res.json({ success: true, data: cached })
     }
 
-    // IMPORTANT: Fetch ALL categories from the Category collection
-    // This includes categories with 0 emails
-    const Category = (await import('../models/Category.js')).default
-    const allCategories = await Category.find({ 
-      userId: req.user._id,
-      isActive: true 
-    }).select('name')
+    // OPTIMIZED: Use the optimized getCategories function which has its own caching
+    const { getCategories } = await import('../services/categoryService.js')
+    const categories = await getCategories(req.user._id)
 
-    // Get email counts for categories that have emails
-    const emailCounts = await Email.aggregate([
-      { $match: { userId: req.user._id } },
-      {
-        $group: {
-          _id: { $ifNull: ['$category', 'Uncategorized'] },
-          count: { $sum: 1 }
-        }
-      }
-    ])
-
-    // Create a map of category counts
-    const countMap = new Map()
-    emailCounts.forEach(item => {
-      countMap.set(item._id, item.count)
-    })
-
-    // Build the final response with ALL categories
-    const categoryData = allCategories.map(category => ({
-      label: category.name,
-      count: countMap.get(category.name) || 0
+    // Transform to analytics format
+    const categoryData = categories.map(cat => ({
+      label: cat.name,
+      count: cat.count
     }))
-
-    // Add "Uncategorized" if there are uncategorized emails
-    const uncategorizedCount = countMap.get('Uncategorized') || 0
-    if (uncategorizedCount > 0) {
-      categoryData.push({
-        label: 'Uncategorized',
-        count: uncategorizedCount
-      })
-    }
 
     // Sort by count descending
     categoryData.sort((a, b) => b.count - a.count)
@@ -356,17 +333,22 @@ router.get('/accuracy', protect, asyncHandler(async (req, res) => {
 // @access  Private
 router.get('/misclassifications', protect, asyncHandler(async (req, res) => {
   try {
-    // Remove the hard limit and allow querying all emails
-    // Use a large limit (10000) to ensure we get all misclassifications
+    // Use a reasonable limit for misclassifications (10000 max)
     const limit = parseInt(req.query.limit) || 10000
 
-    // Query ALL emails to find misclassifications, not just categorized ones
+    // Query ONLY emails that are likely misclassified (low confidence or phase mismatch)
+    // This dramatically improves performance by filtering at the database level
     const misclassifications = await Email.find({
-      userId: req.user._id
+      userId: req.user._id,
+      $or: [
+        { 'classification.confidence': { $lt: 0.6 } }, // Low confidence classifications
+        { 'classification.phase1.label': { $exists: true, $ne: '$category' } } // Phase 1 and category mismatch
+      ]
     })
     .select('subject from date category classification labels')
     .sort({ date: -1 })
     .limit(limit)
+    .lean() // Use lean() for faster queries (returns plain JS objects)
 
     res.json({
       success: true,

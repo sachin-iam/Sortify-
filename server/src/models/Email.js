@@ -291,6 +291,11 @@ emailSchema.index({ userId: 1, provider: 1, category: 1, date: -1 })
 emailSchema.index({ userId: 1, provider: 1, gmailId: 1 }, { unique: true, partialFilterExpression: { gmailId: { $exists: true } } })
 emailSchema.index({ subject: 'text', snippet: 'text', body: 'text' })
 
+// Performance optimization indexes (added for fast category loading)
+emailSchema.index({ userId: 1, category: 1 }) // Fast category filtering
+emailSchema.index({ userId: 1, isDeleted: 1 }) // Active emails only
+emailSchema.index({ userId: 1, category: 1, date: -1 }) // Category + sorting without provider
+
 // Virtual for formatted date
 emailSchema.virtual('formattedDate').get(function() {
   return this.date.toLocaleDateString()

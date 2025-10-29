@@ -245,6 +245,8 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
   }
 
   return (
+    <div className="flex flex-col h-full">
+      {/* Scrollable Email List */}
     <div className="flex-1 overflow-y-auto">
       {/* Bulk Selection Header */}
       {onBulkSelect && (
@@ -272,7 +274,7 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
         </div>
       )}
       
-      <div className="space-y-2 p-4">
+        <div className="space-y-2 p-4 pb-2">
         {items.map((email) => {
           const isThread = email.isThread && email.messageCount > 1
           
@@ -368,11 +370,13 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
             </motion.div>
         )}
       )}
+        </div>
+      </div>
 
-      {/* Pagination */}
+      {/* Fixed Pagination at Bottom - Always Visible */}
       {totalPages > 1 && (
-        <div className="mt-3 space-y-2">
-          <div className="text-center text-xs text-slate-600">
+        <div className="border-t border-white/30 bg-gradient-to-r from-white/80 to-white/60 backdrop-blur-xl py-3 px-4 space-y-2">
+          <div className="text-center text-xs text-slate-600 font-medium">
             Showing {((currentPage - 1) * 25) + 1}-{Math.min(currentPage * 25, totalEmails)} of {totalEmails} emails
           </div>
           <div className="flex items-center justify-center gap-6">
@@ -432,7 +436,6 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
           </div>
         </div>
       )}
-      </div>
     </div>
   )
 }
