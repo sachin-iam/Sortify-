@@ -210,7 +210,7 @@ class EmailDataExtractor:
             
             training_example = {
                 'subject': email.get('subject', ''),
-                'body': email.get('text') or email.get('body', ''),
+                'body': email.get('fullBody') or email.get('text') or email.get('html') or email.get('body', '') or email.get('snippet', ''),
                 'from': email.get('from', ''),
                 'category': category,
                 'date': str(email.get('date', '')),

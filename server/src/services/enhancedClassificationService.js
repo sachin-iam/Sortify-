@@ -220,6 +220,36 @@ const countKeywords = (text, keywords) => {
  */
 export const classifyEmail = async (subject, snippet, body, userId = null, emailData = {}) => {
   try {
+    // Check if email has cached classification from trained model
+    if (emailData.classification && 
+        emailData.classification.label && 
+        emailData.classification.model === 'distilbert-trained' &&
+        emailData.classification.confidence > 0.6) {
+      console.log(`💾 Using cached classification: ${emailData.classification.label} (${emailData.classification.confidence})`)
+      return {
+        label: emailData.classification.label,
+        confidence: emailData.classification.confidence,
+        cached: true,
+        model: emailData.classification.model,
+        classifiedAt: emailData.classification.classifiedAt
+      }
+    }
+
+    // If email needs classification and has full body, use it
+    if (emailData.needsClassification && emailData.fullBody) {
+      console.log('🤖 Email has full body, using trained model...')
+      const { classifyAndCache } = await import('./emailClassificationPipeline.js')
+      const result = await classifyAndCache(emailData, userId)
+      if (result.success) {
+        return {
+          label: result.classification.label,
+          confidence: result.classification.confidence,
+          model: result.classification.model,
+          cached: false
+        }
+      }
+    }
+
     // Import Phase 1 and job queue services
     const { classifyEmailPhase1 } = await import('./phase1ClassificationService.js')
     const { queuePhase2Classification } = await import('./classificationJobQueue.js')

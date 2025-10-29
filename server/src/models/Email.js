@@ -243,6 +243,19 @@ const emailSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  // Training data fields
+  fullBody: {
+    type: String,
+    default: null
+  },
+  isTrainingData: {
+    type: Boolean,
+    default: false
+  },
+  needsClassification: {
+    type: Boolean,
+    default: false
+  },
   // Refinement tracking fields (Phase 2)
   refinementStatus: {
     type: String,

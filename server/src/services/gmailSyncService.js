@@ -552,11 +552,23 @@ export const fullSync = async (user) => {
         // Parse email data
         const emailData = parseEmailMessage(message)
         
+        // Add full body and mark for classification
+        emailData.fullBody = emailData.text || emailData.html || emailData.snippet || ''
+        emailData.needsClassification = true
+        emailData.isFullContentLoaded = true
+        emailData.fullContentLoadedAt = new Date()
+        
         // Upsert email
         const savedEmail = await upsertEmail(user, emailData)
         
-        // Classify email
-        const classifiedEmail = await classifyAndSave(savedEmail)
+        // Import and trigger classification pipeline
+        const { classifyAndCache } = await import('./emailClassificationPipeline.js')
+        
+        // Classify immediately and cache (this also removes full body)
+        const classificationResult = await classifyAndCache(savedEmail, user._id)
+        const classifiedEmail = classificationResult.success 
+          ? { ...savedEmail, category: classificationResult.classification.label }
+          : savedEmail
         
         return {
           success: true,
