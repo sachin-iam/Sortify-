@@ -111,6 +111,12 @@ const generateBasicPatterns = (categoryName) => {
     patterns.keywords.push('happening', 'events', 'announcement', 'semester', 'university')
   }
   
+  if (name.includes('assistant') || name.includes('asst')) {
+    patterns.senderNames.push('Assistant Professor', 'Asst. Professor', 'Asst Professor', 'Assistant', 'SSET Assistant', 'Asst.')
+    patterns.senderDomains.push('sharda.ac.in', 'shardauniversity.com')
+    patterns.keywords.push('assistant', 'professor', 'faculty', 'lecturer', 'asst', 'sset')
+  }
+  
   // Always include the category name as a keyword
   patterns.keywords.push(categoryName.toLowerCase())
   

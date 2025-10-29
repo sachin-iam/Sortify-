@@ -264,7 +264,8 @@ const startServer = async () => {
     console.log(`🎯 Starting server on port ${PORT}...`)
     
     // Run migration check before starting server
-    await checkAndRunMigration()
+    // Temporarily disabled - migration takes too long with large datasets
+    // await checkAndRunMigration()
     
     server.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server running on port ${PORT}`)
