@@ -503,10 +503,34 @@ const SuperAnalyticsDashboard = () => {
                   </Pie>
                   <Tooltip 
                     contentStyle={{
-                      backgroundColor: 'rgba(0,0,0,0.8)',
-                      border: '1px solid rgba(255,255,255,0.2)',
-                      borderRadius: '8px',
-                      color: 'white'
+                      backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                      border: '1px solid rgba(148, 163, 184, 0.3)',
+                      borderRadius: '12px',
+                      boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+                      padding: '12px 16px'
+                    }}
+                    labelStyle={{
+                      color: '#e2e8f0',
+                      fontWeight: '600',
+                      fontSize: '14px',
+                      marginBottom: '4px'
+                    }}
+                    itemStyle={{
+                      color: '#ffffff',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      padding: '2px 0'
+                    }}
+                    formatter={(value, name, props) => {
+                      const total = categoryData.reduce((sum, item) => sum + item.count, 0);
+                      const percentage = ((value / total) * 100).toFixed(1);
+                      return [`${value.toLocaleString()} emails (${percentage}%)`, 'Count'];
+                    }}
+                    labelFormatter={(value, payload) => {
+                      if (payload && payload.length > 0) {
+                        return payload[0].payload.label || payload[0].name;
+                      }
+                      return value;
                     }}
                   />
                 </PieChart>
