@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { getCategoryLightColors } from '../utils/categoryColors'
 import ModernIcon from './ModernIcon'
@@ -8,6 +8,7 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
   const [hoveredPage, setHoveredPage] = useState(null)
   const [hasNavigated, setHasNavigated] = useState(false)
   const [selectAll, setSelectAll] = useState(false)
+  const scrollContainerRef = useRef(null)
 
   // Handle individual email selection
   const handleEmailSelect = (email, isSelected) => {
@@ -189,6 +190,17 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
   useEffect(() => {
     setHoveredPage(null)
   }, [currentPage])
+
+  // Scroll to top when page changes
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      })
+    }
+  }, [currentPage])
+
   if (loading) {
     return (
       <div className="space-y-3">
@@ -247,7 +259,7 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
   return (
     <div className="flex flex-col h-full">
       {/* Scrollable Email List */}
-    <div className="flex-1 overflow-y-auto">
+    <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
       {/* Bulk Selection Header */}
       {onBulkSelect && (
         <div className="p-4 border-b border-white/30 bg-gradient-to-r from-white/60 to-white/40">
