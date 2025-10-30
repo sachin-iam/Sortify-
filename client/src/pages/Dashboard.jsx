@@ -174,7 +174,7 @@ const Dashboard = () => {
           setAllEmails(filteredEmailItems)
         }
         
-        setTotalPages(Math.ceil(response.total / 50))
+        setTotalPages(Math.ceil(response.total / 25))
         console.log('✅ Emails loaded:', filteredEmailItems.length, 'out of', response.total || 0)
         console.log('✅ First email:', filteredEmailItems[0])
         console.log('✅ Email categories:', filteredEmailItems.map(email => ({ subject: email.subject, category: email.category })))
@@ -400,7 +400,7 @@ const Dashboard = () => {
             // Store all emails for quick restore when clearing search
             setAllEmails(emailItems)
             
-            setTotalPages(Math.ceil((response.total || 0) / 50))
+            setTotalPages(Math.ceil((response.total || 0) / 25))
             console.log('✅ Emails loaded:', emailItems.length, 'out of', response.total || 0)
           } else {
             console.warn('⚠️ Email API returned unsuccessful response:', response)

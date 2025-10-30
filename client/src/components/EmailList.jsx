@@ -191,7 +191,7 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
     setHoveredPage(null)
   }, [currentPage])
 
-  // Scroll to top when page changes
+  // Scroll to top when page changes - SMOOTH SCROLL
   useEffect(() => {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTo({
