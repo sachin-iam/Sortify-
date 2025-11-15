@@ -3,10 +3,9 @@ import { motion } from 'framer-motion'
 import { getCategoryLightColors } from '../utils/categoryColors'
 import ModernIcon from './ModernIcon'
 import { highlightText } from '../utils/highlightText.jsx'
+import Pagination from './Pagination'
 
 const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage = 1, totalPages = 1, onPageChange, totalEmails = 0, onBulkSelect, selectedEmails = [], gmailConnected = false, isCompact = false, searchQuery = '' }) => {
-  const [hoveredPage, setHoveredPage] = useState(null)
-  const [hasNavigated, setHasNavigated] = useState(false)
   const [selectAll, setSelectAll] = useState(false)
   const scrollContainerRef = useRef(null)
 
@@ -49,148 +48,6 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
     }
   }, [selectedEmails, items])
 
-  // Keyboard navigation logic
-  const getVisiblePages = () => {
-    const pageNumbers = []
-    
-    if (totalPages <= 4) {
-      for (let i = 1; i <= totalPages; i++) {
-        pageNumbers.push(i)
-      }
-    } else {
-      // If user hasn't started navigating, show default layout
-      if (!hasNavigated && !hoveredPage) {
-        if (currentPage === 1) {
-          pageNumbers.push(1, 2, 3)
-          pageNumbers.push('...')
-          pageNumbers.push(totalPages)
-        } else {
-          pageNumbers.push(1)
-          pageNumbers.push('...')
-          pageNumbers.push(currentPage)
-          if (currentPage + 1 <= totalPages) pageNumbers.push(currentPage + 1)
-          if (currentPage + 2 <= totalPages) pageNumbers.push(currentPage + 2)
-          pageNumbers.push('...')
-          pageNumbers.push(totalPages)
-        }
-      } else {
-        // Navigation mode
-        if (hoveredPage && hoveredPage < currentPage) {
-          // Left navigation with boundary check
-          const stepsLeft = currentPage - hoveredPage
-          const firstPage = Math.max(1, currentPage - 2 - stepsLeft)
-          const secondPage = Math.max(1, currentPage - 1 - stepsLeft)
-          
-          // Stop left navigation if first page becomes 1 and second becomes 2
-          if (firstPage === 1 && secondPage === 2) {
-            pageNumbers.push(1, 2)
-            pageNumbers.push(currentPage)
-            pageNumbers.push('...')
-            pageNumbers.push(totalPages - 1, totalPages)
-          } else {
-            pageNumbers.push(firstPage)
-            if (secondPage !== firstPage && secondPage < currentPage) {
-              pageNumbers.push(secondPage)
-            }
-            pageNumbers.push(currentPage)
-            pageNumbers.push('...')
-            pageNumbers.push(totalPages)
-          }
-        } else if (hoveredPage && hoveredPage > currentPage) {
-          // Right navigation with boundary check
-          pageNumbers.push(currentPage)
-          
-          // Stop right navigation if we reach the last two pages
-          if (hoveredPage >= totalPages - 1) {
-            pageNumbers.push('...')
-            pageNumbers.push(totalPages - 1, totalPages)
-          } else {
-            pageNumbers.push(hoveredPage)
-            if (hoveredPage + 1 <= totalPages) {
-              pageNumbers.push(hoveredPage + 1)
-            }
-            pageNumbers.push('...')
-            pageNumbers.push(totalPages)
-          }
-        } else {
-          // Default navigation layout
-          if (currentPage === 1) {
-            pageNumbers.push(1, 2, 3)
-            pageNumbers.push('...')
-            pageNumbers.push(totalPages - 1, totalPages)
-          } else if (currentPage === totalPages) {
-            pageNumbers.push(1)
-            pageNumbers.push('...')
-            pageNumbers.push(totalPages - 2, totalPages - 1, totalPages)
-          } else {
-            pageNumbers.push(1)
-            pageNumbers.push('...')
-            pageNumbers.push(currentPage)
-            if (currentPage + 1 <= totalPages) pageNumbers.push(currentPage + 1)
-            if (currentPage + 2 <= totalPages) pageNumbers.push(currentPage + 2)
-            pageNumbers.push('...')
-            pageNumbers.push(totalPages)
-          }
-        }
-      }
-    }
-    
-    return pageNumbers
-  }
-
-  const handleKeyDown = (event) => {
-    if (event.target.closest('.pagination-container')) {
-      if (event.key === 'ArrowRight') {
-        event.preventDefault()
-        setHasNavigated(true)
-        const currentHovered = hoveredPage || currentPage
-        const nextPage = Math.min(currentHovered + 1, totalPages)
-        
-        // Stop right navigation if we reach the last two pages
-        if (nextPage >= totalPages - 1) {
-          setHoveredPage(totalPages - 1)
-        } else {
-          setHoveredPage(nextPage)
-        }
-      } else if (event.key === 'ArrowLeft') {
-        event.preventDefault()
-        setHasNavigated(true)
-        const currentHovered = hoveredPage || currentPage
-        const prevPage = Math.max(currentHovered - 1, 1)
-        
-        // Stop left navigation if we reach pages 1 and 2
-        if (prevPage <= 2) {
-          setHoveredPage(2)
-        } else {
-          setHoveredPage(prevPage)
-        }
-      } else if (event.key === 'Enter') {
-        event.preventDefault()
-        if (hoveredPage && hoveredPage !== currentPage) {
-          onPageChange(hoveredPage)
-        }
-        setHoveredPage(null)
-        setHasNavigated(false)
-      } else if (event.key === 'Escape') {
-        event.preventDefault()
-        setHoveredPage(null)
-        setHasNavigated(false)
-      }
-    }
-  }
-
-  useEffect(() => {
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [hoveredPage, currentPage, totalPages])
-
-  // Reset hover when current page changes
-  useEffect(() => {
-    setHoveredPage(null)
-  }, [currentPage])
-
   // Scroll to top when page changes - SMOOTH SCROLL
   useEffect(() => {
     if (scrollContainerRef.current) {
@@ -200,23 +57,6 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
       })
     }
   }, [currentPage])
-
-  if (loading) {
-    return (
-      <div className="space-y-3">
-        {[...Array(5)].map((_, index) => (
-          <div
-            key={index}
-            className="backdrop-blur-xl bg-white/30 border border-white/20 rounded-2xl p-4 animate-pulse"
-          >
-            <div className="h-4 bg-white/20 rounded mb-2"></div>
-            <div className="h-3 bg-white/20 rounded mb-2 w-3/4"></div>
-            <div className="h-3 bg-white/20 rounded w-1/2"></div>
-          </div>
-        ))}
-      </div>
-    )
-  }
 
   if (!items || items.length === 0) {
     return (
@@ -287,6 +127,15 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
       )}
       
         <div className="space-y-2 p-4 pb-2">
+        {/* Non-blocking loading indicator */}
+        {loading && items.length === 0 && (
+          <div className="text-center py-8">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-lg">
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
+              <span className="text-sm text-blue-600 font-medium">Loading emails...</span>
+            </div>
+          </div>
+        )}
         {items.map((email) => {
           const isThread = email.isThread && email.messageCount > 1
           
@@ -385,68 +234,15 @@ const EmailList = ({ items, selectedId, onSelect, loading = false, currentPage =
         </div>
       </div>
 
-      {/* Fixed Pagination at Bottom - Always Visible */}
+      {/* Pagination Component */}
       {totalPages > 1 && (
-        <div className="border-t border-white/30 bg-gradient-to-r from-white/80 to-white/60 backdrop-blur-xl py-3 px-4 space-y-2">
-          <div className="text-center text-xs text-slate-600 font-medium">
-            Showing {((currentPage - 1) * 25) + 1}-{Math.min(currentPage * 25, totalEmails)} of {totalEmails} emails
-          </div>
-          <div className="flex items-center justify-center gap-6">
-            <button
-              onClick={() => onPageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="w-7 h-7 rounded-full bg-gray-200 border-2 border-gray-300 text-gray-800 hover:bg-gray-300 hover:border-gray-400 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center shadow-md"
-            >
-              <ModernIcon type="chevron-left" size={10} color="#000000" />
-            </button>
-            
-            <div className="flex gap-2 flex-wrap justify-center pagination-container">
-              {getVisiblePages().map((pageNum, index) => {
-                if (pageNum === '...') {
-                  return (
-                    <span
-                      key={`ellipsis-${index}`}
-                      className="w-4 h-4 rounded-full flex items-center justify-center text-xs font-medium text-slate-600"
-                    >
-                      ...
-              </span>
-                  )
-                }
-                
-                const isCurrentPage = currentPage === pageNum
-                const isHoveredPage = hoveredPage === pageNum
-                
-                return (
-                <button
-                    key={pageNum}
-                    onClick={() => {
-                      onPageChange(pageNum)
-                      setHoveredPage(null)
-                      setHasNavigated(false)
-                    }}
-                    className={`w-4 h-4 rounded-full transition-all duration-200 flex items-center justify-center text-xs font-medium ${
-                      isCurrentPage
-                        ? 'bg-blue-500 text-white shadow-lg'
-                        : isHoveredPage
-                        ? 'bg-gray-300 text-slate-700 shadow-md'
-                        : 'bg-white/20 text-slate-600 hover:bg-white/30'
-                    }`}
-                  >
-                    {pageNum}
-                </button>
-                )
-              })}
-            </div>
-            
-            <button
-              onClick={() => onPageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="w-7 h-7 rounded-full bg-gray-200 border-2 border-gray-300 text-gray-800 hover:bg-gray-300 hover:border-gray-400 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center shadow-md"
-            >
-              <ModernIcon type="chevron-right" size={10} color="#000000" />
-            </button>
-          </div>
-        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalEmails}
+          itemsPerPage={50}
+          onPageChange={onPageChange}
+        />
       )}
     </div>
   )

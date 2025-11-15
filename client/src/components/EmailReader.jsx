@@ -13,6 +13,7 @@ const EmailReader = ({ email, threadContainerId, onArchive, onUnarchive, onDelet
   const [loadingThread, setLoadingThread] = useState(false)
   const [loadError, setLoadError] = useState(null)
   const [isThread, setIsThread] = useState(false)
+  const [downloadingAttachmentId, setDownloadingAttachmentId] = useState(null)
 
   // Load thread messages when email changes
   useEffect(() => {
@@ -22,8 +23,7 @@ const EmailReader = ({ email, threadContainerId, onArchive, onUnarchive, onDelet
       setLoadError(null)
       setIsThread(false)
       
-      // FIXED: Only treat as thread if explicitly marked as isThread with multiple messages
-      // Having a threadId doesn't mean it's a thread container
+      // FIXED: Check if this is a thread container (multiple messages in same thread + day)
       const isThreadContainer = email.isThread && email.messageCount > 1
       
       if (isThreadContainer) {
@@ -34,6 +34,7 @@ const EmailReader = ({ email, threadContainerId, onArchive, onUnarchive, onDelet
         console.log('📧 Loading thread messages for container:', email._id)
         console.log('📧 Email object:', email)
         console.log('📧 Message count:', email.messageCount)
+        console.log('📧 Thread ID:', email.threadId)
         
         emailService.getThreadMessages(email._id)
           .then(response => {
@@ -57,11 +58,16 @@ const EmailReader = ({ email, threadContainerId, onArchive, onUnarchive, onDelet
             setLoadingThread(false)
           })
       } else {
-        // Single email (even if it has a threadId) - load full content
+        // Single email - load full content
         setLoadingThread(true)
         
         console.log('📧 Loading single email full content:', email._id)
-        console.log('📧 Email has threadId:', email.threadId, 'but treating as single email')
+        console.log('📧 Email details:', {
+          hasThreadId: !!email.threadId,
+          threadId: email.threadId,
+          isThread: email.isThread,
+          messageCount: email.messageCount
+        })
         
         emailService.getFullEmailContent(email._id)
           .then(response => {
@@ -137,7 +143,8 @@ const EmailReader = ({ email, threadContainerId, onArchive, onUnarchive, onDelet
     }
   }
 
-  if (loading || loadingThread) {
+  // FIXED: Don't block with skeleton loader - show metadata immediately
+  if (!email && loading) {
     return (
       <div className="backdrop-blur-xl bg-white/30 border border-white/20 rounded-2xl p-6">
         <div className="animate-pulse space-y-4">
@@ -145,11 +152,6 @@ const EmailReader = ({ email, threadContainerId, onArchive, onUnarchive, onDelet
           <div className="h-4 bg-white/20 rounded mb-2"></div>
           <div className="h-4 bg-white/20 rounded mb-2 w-3/4"></div>
           <div className="h-32 bg-white/20 rounded"></div>
-          {loadingThread && (
-            <div className="text-center text-sm text-slate-600 mt-4">
-              {isThread ? 'Loading conversation...' : 'Loading email content...'}
-            </div>
-          )}
         </div>
       </div>
     )
@@ -194,6 +196,28 @@ const EmailReader = ({ email, threadContainerId, onArchive, onUnarchive, onDelet
           {message.snippet}
         </div>
       )
+    }
+  }
+
+  const handleDownloadAttachment = async (messageId, attachment) => {
+    if (!attachment?.attachmentId) return
+
+    try {
+      setDownloadingAttachmentId(attachment.attachmentId)
+      const blob = await emailService.downloadAttachment(messageId, attachment.attachmentId)
+      const blobUrl = window.URL.createObjectURL(new Blob([blob]))
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = attachment.filename || 'attachment'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(blobUrl)
+    } catch (error) {
+      console.error('Failed to download attachment:', error)
+      window.alert('Failed to download attachment. Please try again.')
+    } finally {
+      setDownloadingAttachmentId(null)
     }
   }
 
@@ -394,6 +418,19 @@ const EmailReader = ({ email, threadContainerId, onArchive, onUnarchive, onDelet
         <div className="p-8">
           {loadError ? (
             renderError()
+          ) : loadingThread ? (
+            // FIXED: Inline loading spinner instead of blocking entire component
+            <div className="flex flex-col items-center justify-center py-12 space-y-4">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
+              <div className="text-center">
+                <p className="text-sm font-medium text-slate-700">
+                  {isThread ? 'Loading conversation...' : 'Loading email content...'}
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  This may take a moment
+                </p>
+              </div>
+            </div>
           ) : threadMessages.length === 0 ? (
             <div className="text-center text-slate-600 italic">No messages to display</div>
           ) : (
@@ -472,12 +509,15 @@ const EmailReader = ({ email, threadContainerId, onArchive, onUnarchive, onDelet
                                   </div>
                                 </div>
                                 <button
-                                  onClick={() => {
-                                    window.open(`${API_BASE_URL}/emails/${message._id}/attachments/${attachment.attachmentId}/download`)
-                                  }}
-                                  className="px-3 py-1.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 text-xs font-medium shadow-sm hover:shadow-md"
+                                  onClick={() => handleDownloadAttachment(message._id, attachment)}
+                                  disabled={downloadingAttachmentId === attachment.attachmentId}
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-medium shadow-sm transition-all duration-200 ${
+                                    downloadingAttachmentId === attachment.attachmentId
+                                      ? 'bg-slate-300 text-slate-600 cursor-not-allowed'
+                                      : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 hover:shadow-md'
+                                  }`}
                                 >
-                                  Download
+                                  {downloadingAttachmentId === attachment.attachmentId ? 'Downloading…' : 'Download'}
                                 </button>
                               </div>
                             ))}

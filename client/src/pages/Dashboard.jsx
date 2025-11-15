@@ -113,11 +113,9 @@ const Dashboard = () => {
     }
     
     try {
-      // Only show loading spinner if we don't have emails yet (initial load)
-      // For search/filter/pagination, keep existing emails visible
-      if (emails.length === 0) {
-        setEmailsLoading(true)
-      }
+      // FIXED: Never block the UI with loading state
+      // Set a non-blocking loading indicator instead
+      setEmailsLoading(true)
       setLastApiCall(now)
       
       // Use the category override if provided, otherwise use current category
@@ -140,7 +138,8 @@ const Dashboard = () => {
         page: currentPage,
         category: categoryToUse,
         q: searchQuery,
-        limit
+        limit,
+        threaded: true // FIXED: Enable threading for all fetches (WebSocket, pagination, filters)
       })
       
       console.log('📧 Email API response:', response)
@@ -174,7 +173,8 @@ const Dashboard = () => {
           setAllEmails(filteredEmailItems)
         }
         
-        setTotalPages(Math.ceil(response.total / 25))
+        // FIXED: Calculate total pages based on actual page size (50, not 25)
+        setTotalPages(Math.ceil(response.total / 50))
         console.log('✅ Emails loaded:', filteredEmailItems.length, 'out of', response.total || 0)
         console.log('✅ First email:', filteredEmailItems[0])
         console.log('✅ Email categories:', filteredEmailItems.map(email => ({ subject: email.subject, category: email.category })))
@@ -375,6 +375,7 @@ const Dashboard = () => {
     // Load data when Gmail is connected
     const loadData = async () => {
       try {
+        // FIXED: Non-blocking loading state
         setEmailsLoading(true)
         console.log('📧 Fetching emails...', { currentPage, currentCategory, searchQuery })
         
@@ -388,7 +389,8 @@ const Dashboard = () => {
             page: currentPage,
             category: currentCategory,
             q: searchQuery,
-            limit: 50 // OPTIMIZED: Consistent limit for fast loading
+            limit: 50, // OPTIMIZED: Consistent limit for fast loading
+            threaded: true // FIXED: Enable threading to group replies with original emails
           })
           
           console.log('📧 Email API response:', response)
@@ -400,7 +402,8 @@ const Dashboard = () => {
             // Store all emails for quick restore when clearing search
             setAllEmails(emailItems)
             
-            setTotalPages(Math.ceil((response.total || 0) / 25))
+            // FIXED: Calculate total pages based on actual page size (50, not 25)
+            setTotalPages(Math.ceil((response.total || 0) / 50))
             console.log('✅ Emails loaded:', emailItems.length, 'out of', response.total || 0)
           } else {
             console.warn('⚠️ Email API returned unsuccessful response:', response)
@@ -1030,7 +1033,15 @@ const Dashboard = () => {
       console.log('✅ Gmail sync response:', data)
       
       if (data.success) {
-        // Show different messages based on whether new emails were found
+        // Refresh data first - wait for everything to complete
+        await checkConnectionStatus()
+        await fetchStats() // Use optimized fetchStats
+        await fetchSyncStatus() // Update sync status
+        
+        // Always refresh emails to show updated list - wait for completion
+        await fetchEmails(true) // Force refresh to show synced emails in the list
+        
+        // Now show notification AFTER emails are loaded and visible
         if (data.newEmailCount > 0) {
           toast.success(`🎉 Found ${data.newEmailCount} new email${data.newEmailCount > 1 ? 's' : ''}!`, {
             duration: 4000
@@ -1045,16 +1056,6 @@ const Dashboard = () => {
             duration: 3000,
             icon: 'ℹ️'
           })
-        }
-        
-        // Refresh data
-        await checkConnectionStatus()
-        await fetchStats() // Use optimized fetchStats
-        await fetchSyncStatus() // Update sync status
-        
-        // Only refresh emails if new ones were synced
-        if (data.newEmailCount > 0) {
-          await fetchEmails(true) // Force refresh to show new emails
         }
       } else {
         toast.error(data.message || 'Sync failed')
@@ -1365,79 +1366,96 @@ const Dashboard = () => {
     }
   }
 
-  const handleEmailReplySuccess = (sentEmailData, threadContainerId) => {
+  const handleEmailReplySuccess = async (sentEmailData, threadContainerId) => {
     if (!sentEmailData) {
       console.log('No sent email data, skipping email list update')
       return
     }
     
-    console.log('📧 Updating email list after reply:', {
+    console.log('📧 Reply sent successfully, refreshing email list with threading:', {
       threadContainerId,
       sentEmail: sentEmailData._id,
       snippet: sentEmailData.snippet
     })
     
-    setEmails(prevEmails => {
-      // Find and update the thread container or email
-      const updatedEmails = prevEmails.map(email => {
-        if (email._id === threadContainerId) {
-          // Check if this was a single email that now becomes a thread
-          const wasSingleEmail = !email.isThread
-          
-          if (wasSingleEmail) {
-            // Convert single email to 2-message thread
-            // Keep the original email._id (MongoDB ObjectId)
-            // Backend will now handle fetching thread by email ID + threadId
-            console.log('Converting single email to thread')
-            return {
-              ...email,
-              isThread: true,
-              messageCount: 2,
-              messageIds: [email._id, sentEmailData._id],
-              snippet: sentEmailData.body || sentEmailData.snippet || sentEmailData.text,
-              latestDate: sentEmailData.date,
-              date: sentEmailData.date,
-              isRead: true
-            }
-          } else {
-            // Update existing thread
-            console.log('Updating existing thread')
-            const existingIds = email.messageIds || []
-            return {
-              ...email,
-              snippet: sentEmailData.body || sentEmailData.snippet || sentEmailData.text,
-              latestDate: sentEmailData.date,
-              date: sentEmailData.date,
-              messageCount: email.messageCount + 1,
-              messageIds: [...existingIds, sentEmailData._id],
-              isRead: true
-            }
+    // FIXED: Refresh the email list from server to get proper threaded view
+    // This ensures the threading is correctly displayed after sending a reply
+    try {
+      await fetchEmails()
+      console.log('✅ Email list refreshed with proper threading after reply')
+      
+      // Find and select the thread in the refreshed list
+      // The thread might have a different ID now (threadId_date format)
+      // So we need to wait for the list to update and then find it
+      setTimeout(() => {
+        if (selectedEmail) {
+          // Keep the email reader open to show the updated thread
+          const updatedEmail = emails.find(e => 
+            e._id === threadContainerId || 
+            (e.threadId === selectedEmail.threadId && e.isThread)
+          )
+          if (updatedEmail) {
+            setSelectedEmail(updatedEmail)
+            console.log('✅ Updated selected email with thread view')
           }
         }
-        return email
+      }, 500)
+      
+    } catch (error) {
+      console.error('❌ Failed to refresh email list after reply:', error)
+      
+      // Fallback: Optimistically update the local state
+      setEmails(prevEmails => {
+        const updatedEmails = prevEmails.map(email => {
+          if (email._id === threadContainerId) {
+            const wasSingleEmail = !email.isThread
+            
+            if (wasSingleEmail) {
+              console.log('Converting single email to thread (fallback)')
+              return {
+                ...email,
+                isThread: true,
+                messageCount: 2,
+                messageIds: [email._id, sentEmailData._id],
+                snippet: sentEmailData.body || sentEmailData.snippet || sentEmailData.text,
+                latestDate: sentEmailData.date,
+                date: sentEmailData.date,
+                isRead: true
+              }
+            } else {
+              console.log('Updating existing thread (fallback)')
+              return {
+                ...email,
+                snippet: sentEmailData.body || sentEmailData.snippet || sentEmailData.text,
+                latestDate: sentEmailData.date,
+                date: sentEmailData.date,
+                messageCount: email.messageCount + 1,
+                messageIds: [...(email.messageIds || []), sentEmailData._id],
+                isRead: true
+              }
+            }
+          }
+          return email
+        })
+        
+        return updatedEmails.sort((a, b) => {
+          const dateA = new Date(a.latestDate || a.date)
+          const dateB = new Date(b.latestDate || b.date)
+          return dateB - dateA
+        })
       })
       
-      // Sort by latest date (newest first) to move replied thread to top
-      return updatedEmails.sort((a, b) => {
-        const dateA = new Date(a.latestDate || a.date)
-        const dateB = new Date(b.latestDate || b.date)
-        return dateB - dateA
-      })
-    })
-    
-    // Also update the selected email if it's the same
-    if (selectedEmail && selectedEmail._id === threadContainerId) {
-      setSelectedEmail(prev => ({
-        ...prev,
-        snippet: sentEmailData.body || sentEmailData.snippet || sentEmailData.text,
-        latestDate: sentEmailData.date,
-        messageCount: prev.isThread ? prev.messageCount + 1 : 2,
-        isThread: true,
-        messageIds: prev.messageIds || [prev._id, sentEmailData._id]
-      }))
+      if (selectedEmail && selectedEmail._id === threadContainerId) {
+        setSelectedEmail(prev => ({
+          ...prev,
+          snippet: sentEmailData.body || sentEmailData.snippet || sentEmailData.text,
+          latestDate: sentEmailData.date,
+          messageCount: prev.isThread ? prev.messageCount + 1 : 2,
+          isThread: true,
+          messageIds: prev.messageIds || [prev._id, sentEmailData._id]
+        }))
+      }
     }
-    
-    console.log('✅ Email list updated after reply')
   }
 
   const handleCategoryChange = (category) => {
@@ -1508,10 +1526,12 @@ const Dashboard = () => {
   }
 
   const handlePageChange = (page) => {
+    // Instant page change - no delays
     setCurrentPage(page)
     // Clear selected email when changing pages
     setSelectedEmailId(null)
     setSelectedEmail(null)
+    // fetchEmails will be triggered by useEffect watching currentPage
   }
 
 
@@ -2112,6 +2132,13 @@ const Dashboard = () => {
                       )}
                     </h3>
                     <div className="flex items-center gap-2">
+                      {/* Non-blocking loading indicator */}
+                      {emailsLoading && (
+                        <div className="flex items-center gap-1.5 text-xs text-blue-600 font-medium animate-pulse">
+                          <div className="animate-spin rounded-full h-3 w-3 border-2 border-blue-500 border-t-transparent"></div>
+                          <span>Loading...</span>
+                        </div>
+                      )}
                       <button
                         onClick={() => {
                           fetchEmails(true)
@@ -2121,7 +2148,7 @@ const Dashboard = () => {
                         title="Refresh emails"
                       >
                         <svg 
-                          className="w-4 h-4 text-slate-600 group-hover:text-blue-600 group-hover:rotate-180 transition-all duration-500" 
+                          className={`w-4 h-4 text-slate-600 group-hover:text-blue-600 transition-all duration-500 ${emailsLoading ? 'animate-spin' : 'group-hover:rotate-180'}`}
                           fill="none" 
                           stroke="currentColor" 
                           viewBox="0 0 24 24"

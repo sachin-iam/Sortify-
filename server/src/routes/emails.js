@@ -387,6 +387,7 @@ router.get('/', protect, asyncHandler(async (req, res) => {
     }
 
     // Search functionality - Enhanced to handle multi-word searches
+    // OPTIMIZED: Only search lightweight fields (no body/html/text for performance)
     if (search && search.trim()) {
       // Escape special regex characters to prevent errors
       const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -395,31 +396,62 @@ router.get('/', protect, asyncHandler(async (req, res) => {
       query.$or = [
         { subject: { $regex: searchTerm, $options: 'i' } },
         { from: { $regex: searchTerm, $options: 'i' } },
-        { snippet: { $regex: searchTerm, $options: 'i' } },
-        { body: { $regex: searchTerm, $options: 'i' } }
+        { snippet: { $regex: searchTerm, $options: 'i' } }
       ]
       
       console.log(`🔍 Server search query: "${searchTerm}"`)
     }
 
-    // OPTIMIZED: Select only minimal fields for list view (metadata only, no heavy content)
-    const selectFields = isThreaded 
-      ? '_id subject from to snippet date category classification isRead labels isArchived archivedAt threadId attachments'
-      : '_id subject from to snippet date category classification isRead labels isArchived archivedAt attachments'
+    // OPTIMIZED: Select only lightweight metadata fields - exclude heavy content
+    // Exclude: html, text, body, fullBody, enhancedMetadata (can be 100KB+ per email)
+    const selectFields = '-html -text -body -fullBody -enhancedMetadata.urls -extractedFeatures'
 
-    // Get total count first for pagination
-    const total = await Email.countDocuments(query)
+    let items
+    let total
 
-    // OPTIMIZED: Always use database-level pagination (threading disabled for performance)
-    // Use database-level pagination instead of in-memory slicing
-    // This is much faster as it only fetches the needed documents
-    const items = await Email.find(query)
-      .sort({ date: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .select(selectFields)
-      .hint({ userId: 1, category: 1, date: -1 }) // Use optimal index for category filtering
-      .lean()
+    if (isThreaded) {
+      // OPTIMIZED: Use threading but with pagination-friendly approach
+      console.log('🧵 Threading enabled - using optimized threading')
+      
+      // Count total matching emails first
+      const totalEmails = await Email.countDocuments(query)
+      
+      // OPTIMIZED: Only fetch enough emails for the current page + some buffer for threading
+      // Instead of fetching ALL emails, fetch 3x the limit to ensure we have enough for threads
+      const fetchLimit = parseInt(limit) * 3
+      const emails = await Email.find(query)
+        .sort({ date: -1 })
+        .skip(Math.max(0, skip - parseInt(limit))) // Start a bit earlier for thread context
+        .limit(fetchLimit)
+        .select(selectFields)
+        .hint({ userId: 1, category: 1, date: -1 })
+        .lean()
+
+      // Import thread grouping service
+      const { groupEmailsIntoThreads } = await import('../services/threadGroupingService.js')
+      
+      // Group emails into threads by threadId + date
+      const threads = groupEmailsIntoThreads(emails)
+      
+      // Apply pagination to threaded results
+      total = Math.ceil(totalEmails / 1.5) // Estimate thread count (threads reduce total)
+      items = threads.slice(0, parseInt(limit)) // Take only the requested number of threads
+      
+      console.log(`✅ Grouped ${emails.length} emails into ${threads.length} threads, returning ${items.length}`)
+    } else {
+      // OPTIMIZED: Standard pagination with lean queries
+      total = await Email.countDocuments(query)
+      
+      items = await Email.find(query)
+        .sort({ date: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .select(selectFields)
+        .hint({ userId: 1, category: 1, date: -1 })
+        .lean()
+      
+      console.log(`✅ Found ${items.length} emails (total: ${total})`)
+    }
 
     // Set cache control headers to prevent caching
     res.set({
@@ -2093,6 +2125,24 @@ router.get('/:id/full-content', protect, asyncHandler(async (req, res) => {
       }
     }
 
+    // Ensure we have a Mongoose document so we can persist updates when needed
+    let canPersistEmail = typeof email?.save === 'function'
+    if (email && !canPersistEmail) {
+      console.log(`⚠️ Email ${email._id} loaded as lean object. Refetching for persistence support.`)
+      const persistentEmail = await Email.findOne({
+        _id: email._id,
+        userId: req.user._id
+      })
+
+      if (persistentEmail) {
+        email = persistentEmail
+        canPersistEmail = true
+        console.log(`✅ Successfully reloaded email ${email._id} as document`)
+      } else {
+        console.warn(`⚠️ Unable to reload email ${email._id} as document. Proceeding without persistence.`)
+      }
+    }
+
     // CACHE: Check if full content is in session cache first
     const cachedContent = emailContentCache.get(req.user._id, email._id)
     if (cachedContent) {
@@ -2107,8 +2157,12 @@ router.get('/:id/full-content', protect, asyncHandler(async (req, res) => {
     // If full content is already loaded in DB, return it and cache it
     if (email.isFullContentLoaded && email.html) {
       // Mark as accessed for cleanup scheduling
-      email.lastAccessedAt = new Date()
-      await email.save()
+      if (canPersistEmail) {
+        email.lastAccessedAt = new Date()
+        await email.save()
+      } else {
+        console.warn(`⚠️ Cannot persist lastAccessedAt for email ${email._id} because document context is missing`)
+      }
 
       const emailContent = {
         _id: email._id,
@@ -2146,15 +2200,68 @@ router.get('/:id/full-content', protect, asyncHandler(async (req, res) => {
       })
     }
 
+    // Check if email has Gmail ID
+    if (!email.gmailId) {
+      console.log(`⚠️ Email ${email._id} has no gmailId - using existing content`)
+      // Return whatever content we have in the database
+      const emailContent = {
+        _id: email._id,
+        subject: email.subject,
+        from: email.from,
+        to: email.to,
+        date: email.date,
+        html: email.html || '',
+        text: email.text || email.body || '',
+        body: email.body || email.text || '',
+        snippet: email.snippet,
+        attachments: email.attachments || [],
+        category: email.category,
+        isRead: email.isRead,
+        labels: email.labels,
+        isFullContentLoaded: !!email.html || !!email.body,
+        fullContentLoadedAt: email.fullContentLoadedAt
+      }
+      
+      return res.json({
+        success: true,
+        email: emailContent,
+        cached: false
+      })
+    }
+
     // Fetch full content from Gmail API
-    const gmail = getGmailClient(user.gmailAccessToken, user.gmailRefreshToken)
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI
+    )
+    
+    oauth2Client.setCredentials({
+      access_token: user.gmailAccessToken,
+      refresh_token: user.gmailRefreshToken
+    })
+    
+    // Set up token refresh handler
+    oauth2Client.on('tokens', async (tokens) => {
+      console.log('🔄 Gmail tokens refreshed automatically')
+      if (tokens.access_token) {
+        user.gmailAccessToken = tokens.access_token
+        await user.save()
+      }
+    })
+    
+    const gmail = google.gmail({ version: 'v1', auth: oauth2Client })
     
     try {
+      console.log(`📧 Fetching email from Gmail API: ${email.gmailId}`)
+      
       const messageData = await gmail.users.messages.get({
         userId: 'me',
         id: email.gmailId,
         format: 'full'
       })
+
+      console.log(`✅ Successfully fetched email from Gmail API`)
 
       const headers = messageData.data.payload.headers
       const getHeader = (name) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value
@@ -2213,9 +2320,13 @@ router.get('/:id/full-content', protect, asyncHandler(async (req, res) => {
       email.fullContentLoadedAt = new Date()
       email.lastAccessedAt = new Date()
       
-      await email.save()
+      if (canPersistEmail) {
+        await email.save()
+      } else {
+        console.warn(`⚠️ Cannot persist Gmail content for email ${email._id} because document context is missing`)
+      }
 
-      console.log(`✅ Loaded full content for email: ${email.subject}`)
+      console.log(`✅ Saved full content for email: ${email.subject}`)
 
       const emailContent = {
         _id: email._id,
@@ -2245,10 +2356,43 @@ router.get('/:id/full-content', protect, asyncHandler(async (req, res) => {
       })
 
     } catch (gmailError) {
-      console.error('Gmail API error:', gmailError.message)
+      console.error('❌ Gmail API error (full details):', {
+        message: gmailError.message,
+        code: gmailError.code,
+        status: gmailError.status,
+        errors: gmailError.errors,
+        stack: gmailError.stack
+      })
+      
+      // Handle specific error cases
+      if (gmailError.code === 401 || gmailError.message?.includes('invalid_grant')) {
+        return res.status(401).json({
+          success: false,
+          message: 'Gmail authentication expired. Please reconnect your Gmail account.',
+          error: 'TOKEN_EXPIRED'
+        })
+      }
+      
+      if (gmailError.code === 404 || gmailError.message?.includes('not found')) {
+        return res.status(404).json({
+          success: false,
+          message: 'Email not found in Gmail. It may have been deleted.',
+          error: 'EMAIL_NOT_FOUND'
+        })
+      }
+      
+      if (gmailError.code === 403) {
+        return res.status(403).json({
+          success: false,
+          message: 'Insufficient permissions to access Gmail. Please reconnect your account.',
+          error: 'INSUFFICIENT_PERMISSIONS'
+        })
+      }
+      
       return res.status(500).json({
         success: false,
-        message: 'Failed to fetch email content from Gmail'
+        message: `Failed to fetch email content from Gmail: ${gmailError.message}`,
+        error: 'GMAIL_API_ERROR'
       })
     }
 
